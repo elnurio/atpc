@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATPC — Stage</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #020206; }
+    canvas { display: block; }
+    #back {
+      position: fixed;
+      top: 36px;
+      left: 40px;
+      color: rgba(255,255,255,0.15);
+      font-family: 'Helvetica Neue', Helvetica, sans-serif;
+      font-size: 10px;
+      font-weight: 300;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: color 0.4s;
+    }
+    #back:hover { color: rgba(255,255,255,0.5); }
+    #label {
+      position: fixed;
+      bottom: 38px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      pointer-events: none;
+    }
+    #label span {
+      color: rgba(255,255,255,0.13);
+      font-family: 'Helvetica Neue', Helvetica, sans-serif;
+      font-size: 10px;
+      font-weight: 300;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    #label .dot { letter-spacing: 0; }
+  </style>
+</head>
+<body>
+
+  <a href="../" id="back">← ATPC</a>
+  <div id="label">
+    <span>Stage</span>
+    <span class="dot">·</span>
+    <span>Ambient Zone</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script>
+  'use strict';
+
+  // ── Renderer ─────────────────────────────────────────────────────────────
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+  // ── Scene + Fog ───────────────────────────────────────────────────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x020206);
+  scene.fog = new THREE.FogExp2(0x020206, 0.048);
+
+  // ── Camera ────────────────────────────────────────────────────────────────
+  // Positioned INSIDE the ambient zone, below the canopy, looking up
+  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 200);
+  camera.position.set(0, -2, 8);
+  camera.lookAt(0, 2, 0);
+
+  // ── Lights ────────────────────────────────────────────────────────────────
+  // Dim ambient — the space is dark, light comes from beams
+  scene.add(new THREE.AmbientLight(0x10141e, 1.0));
+
+  // Soft fill from below fabric — scattered beam light on underside
+  const underfill = new THREE.PointLight(0x8ca8cc, 0.6, 18, 2.0);
+  underfill.position.set(0, 0, 0);
+  scene.add(underfill);
+
+  // Rim from back — defines the edge of space
+  const rimLight = new THREE.DirectionalLight(0x1a1e2a, 0.4);
+  rimLight.position.set(-4, 2, -5);
+  scene.add(rimLight);
+
+  // ── Floor ─────────────────────────────────────────────────────────────────
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, 60, 1, 1),
+    new THREE.MeshPhongMaterial({
+      color:     0x06060c,
+      shininess: 45,
+      specular:  0x1a2236,
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y  = -5.8;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // ── Pneu Fabric Canopy ────────────────────────────────────────────────────
+  //
+  // Rotational Pneu: pneumatic canopy with two wing-like lobes,
+  // inflated dome, and draped edges.
+  //
+  const RINGS   = 72;
+  const SECTORS = 108;
+  const BASE_R  = 3.8;
+
+  function pneuH(v, u) {
+    const wing = Math.cos(2 * u);
+    let ht;
+    if (v <= 0.5) {
+      const t = v / 0.5;
+      ht = 1.8 + t * (1 - t) * 4 * 1.8; // peak 3.6 at v=0.25
+    } else {
+      const t = (v - 0.5) / 0.5;
+      ht = 1.8 - t * t * 5.5;            // drape to −3.7
+    }
+    if (v > 0.5) ht += wing * (v - 0.5) * 1.0;
+    return ht;
+  }
+
+  function pneuR(v, u) {
+    return v * BASE_R * (1 + 0.35 * Math.cos(2 * u));
+  }
+
+  function buildPneu() {
+    const pos = [], uvArr = [], idx = [];
+    pos.push(0, pneuH(0, 0), 0);
+    uvArr.push(0.5, 0.5);
+
+    for (let ri = 0; ri < RINGS; ri++) {
+      const v = (ri + 1) / RINGS;
+      for (let si = 0; si < SECTORS; si++) {
+        const u = (si / SECTORS) * Math.PI * 2;
+        pos.push(Math.cos(u) * pneuR(v, u), pneuH(v, u), Math.sin(u) * pneuR(v, u));
+        uvArr.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
+      }
+    }
+    for (let si = 0; si < SECTORS; si++) {
+      idx.push(0, 1 + si, 1 + (si + 1) % SECTORS);
+    }
+    for (let ri = 0; ri < RINGS - 1; ri++) {
+      const rA = 1 + ri * SECTORS, rB = 1 + (ri + 1) * SECTORS;
+      for (let si = 0; si < SECTORS; si++) {
+        const a = rA + si, b = rA + (si + 1) % SECTORS;
+        const c = rB + si, d = rB + (si + 1) % SECTORS;
+        idx.push(a, c, b,  b, c, d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  const geo  = buildPneu();
+  const rest = geo.attributes.position.array.slice();
+  const vp   = [{ v: 0, u: 0 }];
+  for (let ri = 0; ri < RINGS; ri++) {
+    const v = (ri + 1) / RINGS;
+    for (let si = 0; si < SECTORS; si++) {
+      vp.push({ v, u: (si / SECTORS) * Math.PI * 2 });
+    }
+  }
+
+  // Canopy material: warm off-white, slightly luminous on top from beam light
+  const canopyMat = new THREE.MeshPhongMaterial({
+    color:     0xe8e4da,
+    emissive:  0x0a0c10,
+    specular:  0x181810,
+    shininess: 9,
+    side:      THREE.DoubleSide,
+  });
+  const pneu = new THREE.Mesh(geo, canopyMat);
+  pneu.position.y = 2.5; // float the canopy overhead
+  pneu.receiveShadow = true;
+  scene.add(pneu);
+
+  // ── Volumetric Light Beams ────────────────────────────────────────────────
+  //
+  // Each beam: a truncated cone (narrow at ceiling, wide at floor)
+  // rendered with AdditiveBlending to create a luminous shaft effect.
+  // Beams pierce through the fabric and illuminate the space below.
+  //
+  // [x, z, tilt_x, tilt_z, intensity, phase]
+  const BEAM_DEFS = [
+    [ -1.4,  0.8,  0.08, -0.05, 1.00, 0.0 ],
+    [  1.7, -0.6, -0.07,  0.10, 0.85, 1.8 ],
+    [  0.2,  1.9,  0.11,  0.02, 0.90, 3.5 ],
+    [ -0.4, -1.7, -0.05, -0.09, 1.10, 2.2 ],
+    [  2.2,  0.3,  0.04,  0.13, 0.80, 4.8 ],
+  ];
+
+  const BEAM_COLOR  = 0xc0d8f0;
+  const BEAM_HEIGHT = 14;          // from y≈7.5 down to y≈−6.5
+  const BEAM_TOP_R  = 0.14;
+  const BEAM_BOT_R  = 2.1;
+  // Cylinder center: top of beam at y≈7.5, center at 7.5 − HEIGHT/2
+  const BEAM_CY     = 7.5 - BEAM_HEIGHT * 0.5;  // = 0.5
+
+  const beamObjects = BEAM_DEFS.map(([x, z, rx, rz, intens, phase]) => {
+    const group = new THREE.Group();
+
+    // Outer soft halo
+    const haloMat = new THREE.MeshBasicMaterial({
+      color:       BEAM_COLOR,
+      transparent: true,
+      opacity:     0.038 * intens,
+      side:        THREE.BackSide,
+      blending:    THREE.AdditiveBlending,
+      depthWrite:  false,
+    });
+    group.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(BEAM_TOP_R * 2.2, BEAM_BOT_R * 1.6, BEAM_HEIGHT, 32, 1, true),
+      haloMat
+    ));
+
+    // Inner bright core
+    const coreMat = new THREE.MeshBasicMaterial({
+      color:       BEAM_COLOR,
+      transparent: true,
+      opacity:     0.072 * intens,
+      side:        THREE.FrontSide,
+      blending:    THREE.AdditiveBlending,
+      depthWrite:  false,
+    });
+    group.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(BEAM_TOP_R, BEAM_BOT_R, BEAM_HEIGHT, 32, 1, true),
+      coreMat
+    ));
+
+    group.position.set(x, BEAM_CY, z);
+    group.rotation.set(rx, 0, rz);
+    scene.add(group);
+
+    // Floor light pool — oval glow where beam lands
+    const poolMat = new THREE.MeshBasicMaterial({
+      color:       BEAM_COLOR,
+      transparent: true,
+      opacity:     0.10 * intens,
+      blending:    THREE.AdditiveBlending,
+      depthWrite:  false,
+    });
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(BEAM_BOT_R * 1.15, 48), poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(x, -5.7, z);
+    scene.add(pool);
+
+    // SpotLight — actual illumination of canopy top + floor
+    const spot = new THREE.SpotLight(0xd8eeff, 1.8 * intens, 26, Math.PI / 10, 0.45, 1.6);
+    spot.position.set(x, 8.5, z);
+    spot.target.position.set(x + rx * 3, -6, z + rz * 3);
+    spot.castShadow = true;
+    spot.shadow.mapSize.set(512, 512);
+    spot.shadow.camera.near = 1;
+    spot.shadow.camera.far  = 28;
+    scene.add(spot);
+    scene.add(spot.target);
+
+    return { group, pool, spot, coreMat, haloMat, poolMat, phase, intens };
+  });
+
+  // ── Dust particles (brighter inside beam volumes) ─────────────────────────
+  const N_P  = 700;
+  const pPos = new Float32Array(N_P * 3);
+  const pVel = new Float32Array(N_P * 3);
+  for (let i = 0; i < N_P; i++) {
+    pPos[i*3]   = (Math.random() - 0.5) * 20;
+    pPos[i*3+1] = (Math.random() - 0.5) * 12;
+    pPos[i*3+2] = (Math.random() - 0.5) * 20;
+    // Very slow drift
+    pVel[i*3]   = (Math.random() - 0.5) * 0.004;
+    pVel[i*3+1] = (Math.random() - 0.5) * 0.002;
+    pVel[i*3+2] = (Math.random() - 0.5) * 0.004;
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
+  scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
+    color: 0xc8ddf5, size: 0.028, transparent: true, opacity: 0.28,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  })));
+
+  // ── Animation ─────────────────────────────────────────────────────────────
+  let clk = 0;
+  const posArr = geo.attributes.position.array;
+
+  function tick() {
+    requestAnimationFrame(tick);
+    clk += 0.006;
+
+    // ── Animate canopy fabric ──────────────────────────────────────────────
+    for (let i = 0, n = vp.length; i < n; i++) {
+      const { v, u } = vp[i];
+      const rx = rest[i*3], ry = rest[i*3+1], rz = rest[i*3+2];
+
+      const breathe = Math.sin(clk * 0.45)                                          * 0.15;
+      const ripple1 = Math.sin(rx * 0.55 + clk * 1.5) * Math.cos(rz * 0.4 + clk)  * 0.12 * v;
+      const ripple2 = Math.sin(v * Math.PI * 2 - clk)                               * 0.08 * v;
+      const flutter = Math.cos(u * 3 + clk * 1.9)                                   * 0.055 * v;
+      const gust    = Math.sin(rx * 0.28 - rz * 0.22 + clk * 2.3)                  * 0.065 * v * v;
+
+      posArr[i*3+1] = ry + breathe + ripple1 + ripple2 + flutter + gust;
+      posArr[i*3]   = rx + Math.sin(clk * 0.48 + u + v * 2) * 0.038 * v;
+      posArr[i*3+2] = rz + Math.cos(clk * 0.43 + u + v * 2) * 0.038 * v;
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.computeVertexNormals();
+
+    // Slow structural rotation
+    pneu.rotation.y = clk * 0.012;
+
+    // ── Animate light beams (pulse + micro-sway) ───────────────────────────
+    beamObjects.forEach(({ group, pool, coreMat, haloMat, poolMat, phase, intens }) => {
+      const pulse = 0.85 + Math.sin(clk * 0.22 + phase) * 0.15;
+      coreMat.opacity = 0.072 * intens * pulse;
+      haloMat.opacity = 0.038 * intens * pulse;
+      poolMat.opacity = 0.10  * intens * (0.8 + Math.sin(clk * 0.3 + phase) * 0.2);
+      // Very subtle sway mimics moving fabric changing aperture
+      group.rotation.x += (Math.sin(clk * 0.07 + phase) * 0.005 - group.rotation.x * 0.02) * 0.1;
+      group.rotation.z += (Math.cos(clk * 0.09 + phase) * 0.005 - group.rotation.z * 0.02) * 0.1;
+    });
+
+    // ── Drift dust particles ───────────────────────────────────────────────
+    const pp = pGeo.attributes.position.array;
+    for (let i = 0; i < N_P; i++) {
+      pp[i*3]   += pVel[i*3];
+      pp[i*3+1] += pVel[i*3+1];
+      pp[i*3+2] += pVel[i*3+2];
+      // Wrap bounds
+      if (Math.abs(pp[i*3])   > 10) pVel[i*3]   *= -1;
+      if (Math.abs(pp[i*3+1]) > 6)  pVel[i*3+1] *= -1;
+      if (Math.abs(pp[i*3+2]) > 10) pVel[i*3+2] *= -1;
+    }
+    pGeo.attributes.position.needsUpdate = true;
+
+    // ── Camera — interior orbit, altitude rises and falls ──────────────────
+    // Viewer moves through the space: sometimes below fabric, sometimes at edge
+    const OR = 7.5;
+    camera.position.x =  Math.sin(clk * 0.028) * OR;
+    camera.position.z =  Math.cos(clk * 0.028) * OR;
+    camera.position.y = -1.2 + Math.sin(clk * 0.014) * 2.8; // −4 to +1.6
+    camera.lookAt(0, 2.2, 0);
+
+    renderer.render(scene, camera);
+  }
+
+  tick();
+
+  // ── Resize ────────────────────────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  </script>
+</body>
+</html>
