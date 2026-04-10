@@ -9,354 +9,284 @@
     html, body { width: 100%; height: 100%; overflow: hidden; background: #020206; }
     canvas { display: block; }
     #back {
-      position: fixed;
-      top: 36px;
-      left: 40px;
+      position: fixed; top: 36px; left: 40px;
       color: rgba(255,255,255,0.15);
-      font-family: 'Helvetica Neue', Helvetica, sans-serif;
-      font-size: 10px;
-      font-weight: 300;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      text-decoration: none;
-      transition: color 0.4s;
+      font: 300 10px/1 'Helvetica Neue', sans-serif;
+      letter-spacing: .25em; text-transform: uppercase; text-decoration: none;
+      transition: color .4s;
     }
-    #back:hover { color: rgba(255,255,255,0.5); }
+    #back:hover { color: rgba(255,255,255,.5); }
     #label {
-      position: fixed;
-      bottom: 38px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 20px;
-      align-items: center;
-      pointer-events: none;
+      position: fixed; bottom: 38px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 18px; pointer-events: none;
     }
     #label span {
-      color: rgba(255,255,255,0.13);
-      font-family: 'Helvetica Neue', Helvetica, sans-serif;
-      font-size: 10px;
-      font-weight: 300;
-      letter-spacing: 0.32em;
-      text-transform: uppercase;
-      white-space: nowrap;
+      color: rgba(255,255,255,.12);
+      font: 300 10px/1 'Helvetica Neue', sans-serif;
+      letter-spacing: .32em; text-transform: uppercase; white-space: nowrap;
     }
-    #label .dot { letter-spacing: 0; }
   </style>
 </head>
 <body>
-
   <a href="../" id="back">← ATPC</a>
   <div id="label">
-    <span>Stage</span>
-    <span class="dot">·</span>
-    <span>Ambient Zone</span>
+    <span>Stage</span><span>·</span><span>Ambient Zone</span>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script>
   'use strict';
 
-  // ── Renderer ─────────────────────────────────────────────────────────────
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // ── Renderer — no shadows, capped pixel ratio ────────────────────────────
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setSize(innerWidth, innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-  // ── Scene + Fog ───────────────────────────────────────────────────────────
-  const scene = new THREE.Scene();
+  const scene  = new THREE.Scene();
   scene.background = new THREE.Color(0x020206);
-  scene.fog = new THREE.FogExp2(0x020206, 0.048);
+  scene.fog = new THREE.Fog(0x020206, 10, 32);
 
-  // ── Camera ────────────────────────────────────────────────────────────────
-  // Positioned INSIDE the ambient zone, below the canopy, looking up
-  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 200);
-  camera.position.set(0, -2, 8);
+  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 100);
+  camera.position.set(0, -1.5, 9);
   camera.lookAt(0, 2, 0);
 
   // ── Lights ────────────────────────────────────────────────────────────────
-  // Dim ambient — the space is dark, light comes from beams
-  scene.add(new THREE.AmbientLight(0x10141e, 1.0));
+  scene.add(new THREE.AmbientLight(0x0d1020, 1));
 
-  // Soft fill from below fabric — scattered beam light on underside
-  const underfill = new THREE.PointLight(0x8ca8cc, 0.6, 18, 2.0);
-  underfill.position.set(0, 0, 0);
-  scene.add(underfill);
+  const keyL = new THREE.DirectionalLight(0xd8eeff, 1.4);
+  keyL.position.set(4, 10, 5);
+  scene.add(keyL);
 
-  // Rim from back — defines the edge of space
-  const rimLight = new THREE.DirectionalLight(0x1a1e2a, 0.4);
-  rimLight.position.set(-4, 2, -5);
-  scene.add(rimLight);
+  const fillL = new THREE.DirectionalLight(0x5570a0, 0.5);
+  fillL.position.set(-5, 3, -3);
+  scene.add(fillL);
+
+  // Soft under-fill simulating scattered beam light
+  const underL = new THREE.PointLight(0x6888b8, 0.7, 20, 2);
+  underL.position.set(0, -1, 0);
+  scene.add(underL);
 
   // ── Floor ─────────────────────────────────────────────────────────────────
   const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(60, 60, 1, 1),
-    new THREE.MeshPhongMaterial({
-      color:     0x06060c,
-      shininess: 45,
-      specular:  0x1a2236,
-    })
+    new THREE.PlaneGeometry(60, 60),
+    new THREE.MeshPhongMaterial({ color: 0x05050d, shininess: 40, specular: 0x141828 })
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y  = -5.8;
-  floor.receiveShadow = true;
+  floor.position.y = -5.8;
   scene.add(floor);
 
-  // ── Pneu Fabric Canopy ────────────────────────────────────────────────────
+  // ── Pneu Canopy — geometry built ONCE, animation fully in vertex shader ──
   //
-  // Rotational Pneu: pneumatic canopy with two wing-like lobes,
-  // inflated dome, and draped edges.
+  // Vertex shader reads the rest-pose position and adds wave displacement.
+  // No CPU loop, no computeVertexNormals() — normals estimated via finite
+  // differences inside GLSL. Updating u_time is the only per-frame CPU work.
   //
-  const RINGS   = 72;
-  const SECTORS = 108;
-  const BASE_R  = 3.8;
+
+  const VERT = /* glsl */`
+    uniform float u_time;
+    varying vec3 v_wpos;
+    varying vec3 v_wnorm;
+
+    // Layered wave displacement (same formula as before, now on GPU)
+    float disp(float x, float z, float t) {
+      float r = length(vec2(x, z));
+      float breathe = sin(t * 0.45) * 0.15;
+      float w1 = sin(x * 0.55 + t * 1.4) * cos(z * 0.40 + t * 0.90) * 0.12;
+      float w2 = sin(r * 0.60 - t * 1.10) * 0.09;
+      float w3 = cos(x * 0.28 - z * 0.22 + t * 2.20) * 0.07;
+      return breathe + w1 + w2 + w3;
+    }
+
+    void main() {
+      // Normalised radius (0 = centre, 1 = wing tip ≈ 5.5 units)
+      float v = clamp(length(position.xz) / 5.5, 0.0, 1.0);
+
+      float dy  = disp(position.x, position.z, u_time) * v;
+      vec3  pos = position + vec3(0.0, dy, 0.0);
+
+      // Finite-difference normal — sample two neighbours in GLSL
+      float e   = 0.10;
+      float dyx = disp(position.x + e, position.z,     u_time) * v;
+      float dyz = disp(position.x,     position.z + e, u_time) * v;
+      vec3 tx   = normalize(vec3(e, dyx - dy, 0.0));
+      vec3 tz   = normalize(vec3(0.0, dyz - dy, e));
+      vec3 n    = normalize(cross(tz, tx));
+
+      v_wnorm = normalize(mat3(modelMatrix) * n);
+      v_wpos  = (modelMatrix * vec4(pos, 1.0)).xyz;
+
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `;
+
+  const FRAG = /* glsl */`
+    uniform vec3 cameraPosition;
+    varying vec3 v_wpos;
+    varying vec3 v_wnorm;
+
+    void main() {
+      vec3 n = normalize(v_wnorm);
+
+      vec3 keyDir  = normalize(vec3(4.0, 10.0, 5.0));
+      vec3 fillDir = normalize(vec3(-5.0, 3.0, -3.0));
+
+      float key      = max(dot(n,  keyDir),  0.0) * 0.88;
+      float keyBack  = max(dot(-n, keyDir),  0.0) * 0.18; // underside lit
+      float fill     = max(dot(n,  fillDir), 0.0) * 0.35;
+      float ambient  = 0.14;
+      float light    = ambient + key + keyBack + fill;
+
+      vec3 color = vec3(0.93, 0.90, 0.86) * light;
+
+      // Simple depth fog matching scene.fog
+      float dist = length(v_wpos - cameraPosition);
+      float fogF = smoothstep(10.0, 32.0, dist);
+      color = mix(color, vec3(0.008, 0.008, 0.024), fogF);
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
+  const canopyMat = new THREE.ShaderMaterial({
+    uniforms:       { u_time: { value: 0 } },
+    vertexShader:   VERT,
+    fragmentShader: FRAG,
+    side:           THREE.DoubleSide,
+  });
+
+  // Build radial pneu mesh once — 40 rings × 60 sectors ≈ 2400 vertices
+  const RINGS = 40, SECTORS = 60, BASE_R = 3.8;
 
   function pneuH(v, u) {
     const wing = Math.cos(2 * u);
-    let ht;
-    if (v <= 0.5) {
-      const t = v / 0.5;
-      ht = 1.8 + t * (1 - t) * 4 * 1.8; // peak 3.6 at v=0.25
-    } else {
-      const t = (v - 0.5) / 0.5;
-      ht = 1.8 - t * t * 5.5;            // drape to −3.7
-    }
-    if (v > 0.5) ht += wing * (v - 0.5) * 1.0;
-    return ht;
+    let h = v <= 0.5
+      ? 1.8 + (v / 0.5) * (1 - v / 0.5) * 7.2          // dome up
+      : 1.8 - Math.pow((v - 0.5) / 0.5, 2) * 5.5;       // drape down
+    if (v > 0.5) h += wing * (v - 0.5);
+    return h;
   }
 
-  function pneuR(v, u) {
-    return v * BASE_R * (1 + 0.35 * Math.cos(2 * u));
-  }
-
-  function buildPneu() {
-    const pos = [], uvArr = [], idx = [];
-    pos.push(0, pneuH(0, 0), 0);
-    uvArr.push(0.5, 0.5);
+  (function buildPneu() {
+    const pos = [], uvs = [], idx = [];
+    pos.push(0, pneuH(0, 0), 0); uvs.push(0.5, 0.5);
 
     for (let ri = 0; ri < RINGS; ri++) {
       const v = (ri + 1) / RINGS;
       for (let si = 0; si < SECTORS; si++) {
         const u = (si / SECTORS) * Math.PI * 2;
-        pos.push(Math.cos(u) * pneuR(v, u), pneuH(v, u), Math.sin(u) * pneuR(v, u));
-        uvArr.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
+        const r = v * BASE_R * (1 + 0.35 * Math.cos(2 * u));
+        pos.push(Math.cos(u) * r, pneuH(v, u), Math.sin(u) * r);
+        uvs.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
       }
     }
-    for (let si = 0; si < SECTORS; si++) {
-      idx.push(0, 1 + si, 1 + (si + 1) % SECTORS);
-    }
-    for (let ri = 0; ri < RINGS - 1; ri++) {
-      const rA = 1 + ri * SECTORS, rB = 1 + (ri + 1) * SECTORS;
-      for (let si = 0; si < SECTORS; si++) {
-        const a = rA + si, b = rA + (si + 1) % SECTORS;
-        const c = rB + si, d = rB + (si + 1) % SECTORS;
+    for (let s = 0; s < SECTORS; s++)
+      idx.push(0, 1 + s, 1 + (s + 1) % SECTORS);
+
+    for (let r = 0; r < RINGS - 1; r++) {
+      const A = 1 + r * SECTORS, B = 1 + (r + 1) * SECTORS;
+      for (let s = 0; s < SECTORS; s++) {
+        const a = A + s, b = A + (s + 1) % SECTORS;
+        const c = B + s, d = B + (s + 1) % SECTORS;
         idx.push(a, c, b,  b, c, d);
       }
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvArr, 2));
-    geo.setIndex(idx);
-    geo.computeVertexNormals();
-    return geo;
-  }
 
-  const geo  = buildPneu();
-  const rest = geo.attributes.position.array.slice();
-  const vp   = [{ v: 0, u: 0 }];
-  for (let ri = 0; ri < RINGS; ri++) {
-    const v = (ri + 1) / RINGS;
-    for (let si = 0; si < SECTORS; si++) {
-      vp.push({ v, u: (si / SECTORS) * Math.PI * 2 });
-    }
-  }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
 
-  // Canopy material: warm off-white, slightly luminous on top from beam light
-  const canopyMat = new THREE.MeshPhongMaterial({
-    color:     0xe8e4da,
-    emissive:  0x0a0c10,
-    specular:  0x181810,
-    shininess: 9,
-    side:      THREE.DoubleSide,
-  });
-  const pneu = new THREE.Mesh(geo, canopyMat);
-  pneu.position.y = 2.5; // float the canopy overhead
-  pneu.receiveShadow = true;
-  scene.add(pneu);
+    const pneu = new THREE.Mesh(g, canopyMat);
+    pneu.position.y = 2.5;
+    scene.add(pneu);
+  })();
 
-  // ── Volumetric Light Beams ────────────────────────────────────────────────
-  //
-  // Each beam: a truncated cone (narrow at ceiling, wide at floor)
-  // rendered with AdditiveBlending to create a luminous shaft effect.
-  // Beams pierce through the fabric and illuminate the space below.
-  //
+  // ── Light beams — low-poly cones, additive blend ─────────────────────────
   // [x, z, tilt_x, tilt_z, intensity, phase]
-  const BEAM_DEFS = [
-    [ -1.4,  0.8,  0.08, -0.05, 1.00, 0.0 ],
-    [  1.7, -0.6, -0.07,  0.10, 0.85, 1.8 ],
-    [  0.2,  1.9,  0.11,  0.02, 0.90, 3.5 ],
-    [ -0.4, -1.7, -0.05, -0.09, 1.10, 2.2 ],
-    [  2.2,  0.3,  0.04,  0.13, 0.80, 4.8 ],
+  const BEAMS = [
+    [-1.3,  0.7,  0.08, -0.05, 1.0, 0.0],
+    [ 1.6, -0.7, -0.07,  0.09, 0.9, 1.8],
+    [ 0.2,  1.8,  0.10,  0.03, 0.8, 3.5],
+    [-0.5, -1.6, -0.05, -0.08, 1.0, 2.2],
   ];
 
-  const BEAM_COLOR  = 0xc0d8f0;
-  const BEAM_HEIGHT = 14;          // from y≈7.5 down to y≈−6.5
-  const BEAM_TOP_R  = 0.14;
-  const BEAM_BOT_R  = 2.1;
-  // Cylinder center: top of beam at y≈7.5, center at 7.5 − HEIGHT/2
-  const BEAM_CY     = 7.5 - BEAM_HEIGHT * 0.5;  // = 0.5
+  const BCOL   = 0xb8d4f0;
+  const BH     = 14;           // beam height
+  const BCY    = 7.5 - BH / 2; // cylinder centre Y
 
-  const beamObjects = BEAM_DEFS.map(([x, z, rx, rz, intens, phase]) => {
-    const group = new THREE.Group();
+  const beams = BEAMS.map(([x, z, rx, rz, intens, phase]) => {
+    const grp = new THREE.Group();
 
-    // Outer soft halo
-    const haloMat = new THREE.MeshBasicMaterial({
-      color:       BEAM_COLOR,
-      transparent: true,
-      opacity:     0.038 * intens,
-      side:        THREE.BackSide,
-      blending:    THREE.AdditiveBlending,
-      depthWrite:  false,
+    // Halo (outer, back-side)
+    const hMat = new THREE.MeshBasicMaterial({
+      color: BCOL, transparent: true, opacity: 0.036 * intens,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    group.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(BEAM_TOP_R * 2.2, BEAM_BOT_R * 1.6, BEAM_HEIGHT, 32, 1, true),
-      haloMat
+    grp.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 2.6, BH, 12, 1, true), hMat
     ));
 
-    // Inner bright core
-    const coreMat = new THREE.MeshBasicMaterial({
-      color:       BEAM_COLOR,
-      transparent: true,
-      opacity:     0.072 * intens,
-      side:        THREE.FrontSide,
-      blending:    THREE.AdditiveBlending,
-      depthWrite:  false,
+    // Core (inner, front-side)
+    const cMat = new THREE.MeshBasicMaterial({
+      color: BCOL, transparent: true, opacity: 0.068 * intens,
+      side: THREE.FrontSide, blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    group.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(BEAM_TOP_R, BEAM_BOT_R, BEAM_HEIGHT, 32, 1, true),
-      coreMat
+    grp.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 1.9, BH, 12, 1, true), cMat
     ));
 
-    group.position.set(x, BEAM_CY, z);
-    group.rotation.set(rx, 0, rz);
-    scene.add(group);
+    grp.position.set(x, BCY, z);
+    grp.rotation.set(rx, 0, rz);
+    scene.add(grp);
 
-    // Floor light pool — oval glow where beam lands
-    const poolMat = new THREE.MeshBasicMaterial({
-      color:       BEAM_COLOR,
-      transparent: true,
-      opacity:     0.10 * intens,
-      blending:    THREE.AdditiveBlending,
-      depthWrite:  false,
+    // Floor pool
+    const pMat = new THREE.MeshBasicMaterial({
+      color: BCOL, transparent: true, opacity: 0.09 * intens,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(BEAM_BOT_R * 1.15, 48), poolMat);
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), pMat);
     pool.rotation.x = -Math.PI / 2;
     pool.position.set(x, -5.7, z);
     scene.add(pool);
 
-    // SpotLight — actual illumination of canopy top + floor
-    const spot = new THREE.SpotLight(0xd8eeff, 1.8 * intens, 26, Math.PI / 10, 0.45, 1.6);
+    // SpotLight (no shadow)
+    const spot = new THREE.SpotLight(0xd0e8ff, 1.5 * intens, 24, Math.PI / 10, 0.4, 1.8);
     spot.position.set(x, 8.5, z);
-    spot.target.position.set(x + rx * 3, -6, z + rz * 3);
-    spot.castShadow = true;
-    spot.shadow.mapSize.set(512, 512);
-    spot.shadow.camera.near = 1;
-    spot.shadow.camera.far  = 28;
-    scene.add(spot);
-    scene.add(spot.target);
+    spot.target.position.set(x, -6, z);
+    scene.add(spot, spot.target);
 
-    return { group, pool, spot, coreMat, haloMat, poolMat, phase, intens };
+    return { grp, pool, cMat, hMat, pMat, phase, intens };
   });
 
-  // ── Dust particles (brighter inside beam volumes) ─────────────────────────
-  const N_P  = 700;
-  const pPos = new Float32Array(N_P * 3);
-  const pVel = new Float32Array(N_P * 3);
-  for (let i = 0; i < N_P; i++) {
-    pPos[i*3]   = (Math.random() - 0.5) * 20;
-    pPos[i*3+1] = (Math.random() - 0.5) * 12;
-    pPos[i*3+2] = (Math.random() - 0.5) * 20;
-    // Very slow drift
-    pVel[i*3]   = (Math.random() - 0.5) * 0.004;
-    pVel[i*3+1] = (Math.random() - 0.5) * 0.002;
-    pVel[i*3+2] = (Math.random() - 0.5) * 0.004;
-  }
-  const pGeo = new THREE.BufferGeometry();
-  pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
-  scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
-    color: 0xc8ddf5, size: 0.028, transparent: true, opacity: 0.28,
-    blending: THREE.AdditiveBlending, depthWrite: false,
-  })));
-
-  // ── Animation ─────────────────────────────────────────────────────────────
+  // ── Animate — only u_time + camera + beam pulse on CPU ───────────────────
   let clk = 0;
-  const posArr = geo.attributes.position.array;
 
-  function tick() {
+  (function tick() {
     requestAnimationFrame(tick);
     clk += 0.006;
 
-    // ── Animate canopy fabric ──────────────────────────────────────────────
-    for (let i = 0, n = vp.length; i < n; i++) {
-      const { v, u } = vp[i];
-      const rx = rest[i*3], ry = rest[i*3+1], rz = rest[i*3+2];
+    // Single uniform update — GPU does all fabric work
+    canopyMat.uniforms.u_time.value = clk;
 
-      const breathe = Math.sin(clk * 0.45)                                          * 0.15;
-      const ripple1 = Math.sin(rx * 0.55 + clk * 1.5) * Math.cos(rz * 0.4 + clk)  * 0.12 * v;
-      const ripple2 = Math.sin(v * Math.PI * 2 - clk)                               * 0.08 * v;
-      const flutter = Math.cos(u * 3 + clk * 1.9)                                   * 0.055 * v;
-      const gust    = Math.sin(rx * 0.28 - rz * 0.22 + clk * 2.3)                  * 0.065 * v * v;
-
-      posArr[i*3+1] = ry + breathe + ripple1 + ripple2 + flutter + gust;
-      posArr[i*3]   = rx + Math.sin(clk * 0.48 + u + v * 2) * 0.038 * v;
-      posArr[i*3+2] = rz + Math.cos(clk * 0.43 + u + v * 2) * 0.038 * v;
-    }
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
-
-    // Slow structural rotation
-    pneu.rotation.y = clk * 0.012;
-
-    // ── Animate light beams (pulse + micro-sway) ───────────────────────────
-    beamObjects.forEach(({ group, pool, coreMat, haloMat, poolMat, phase, intens }) => {
-      const pulse = 0.85 + Math.sin(clk * 0.22 + phase) * 0.15;
-      coreMat.opacity = 0.072 * intens * pulse;
-      haloMat.opacity = 0.038 * intens * pulse;
-      poolMat.opacity = 0.10  * intens * (0.8 + Math.sin(clk * 0.3 + phase) * 0.2);
-      // Very subtle sway mimics moving fabric changing aperture
-      group.rotation.x += (Math.sin(clk * 0.07 + phase) * 0.005 - group.rotation.x * 0.02) * 0.1;
-      group.rotation.z += (Math.cos(clk * 0.09 + phase) * 0.005 - group.rotation.z * 0.02) * 0.1;
+    // Beam opacity pulse
+    beams.forEach(({ cMat, hMat, pMat, phase, intens }) => {
+      const p = 0.82 + Math.sin(clk * 0.22 + phase) * 0.18;
+      cMat.opacity = 0.068 * intens * p;
+      hMat.opacity = 0.036 * intens * p;
+      pMat.opacity = 0.09  * intens * (0.78 + Math.sin(clk * 0.3 + phase) * 0.22);
     });
 
-    // ── Drift dust particles ───────────────────────────────────────────────
-    const pp = pGeo.attributes.position.array;
-    for (let i = 0; i < N_P; i++) {
-      pp[i*3]   += pVel[i*3];
-      pp[i*3+1] += pVel[i*3+1];
-      pp[i*3+2] += pVel[i*3+2];
-      // Wrap bounds
-      if (Math.abs(pp[i*3])   > 10) pVel[i*3]   *= -1;
-      if (Math.abs(pp[i*3+1]) > 6)  pVel[i*3+1] *= -1;
-      if (Math.abs(pp[i*3+2]) > 10) pVel[i*3+2] *= -1;
-    }
-    pGeo.attributes.position.needsUpdate = true;
-
-    // ── Camera — interior orbit, altitude rises and falls ──────────────────
-    // Viewer moves through the space: sometimes below fabric, sometimes at edge
-    const OR = 7.5;
-    camera.position.x =  Math.sin(clk * 0.028) * OR;
-    camera.position.z =  Math.cos(clk * 0.028) * OR;
-    camera.position.y = -1.2 + Math.sin(clk * 0.014) * 2.8; // −4 to +1.6
+    // Camera — slow interior orbit
+    const R = 7.5;
+    camera.position.x =  Math.sin(clk * 0.028) * R;
+    camera.position.z =  Math.cos(clk * 0.028) * R;
+    camera.position.y = -1.0 + Math.sin(clk * 0.014) * 2.5;
     camera.lookAt(0, 2.2, 0);
 
     renderer.render(scene, camera);
-  }
+  })();
 
-  tick();
-
-  // ── Resize ────────────────────────────────────────────────────────────────
   window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
