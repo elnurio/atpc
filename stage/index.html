@@ -162,7 +162,8 @@
   }
 
   const GROUND_SIZE = 3200;
-  const GROUND_SEG = 96;
+  const GROUND_SEG = 128;
+  const SAND_TEX_REP = 42;
 
   const SAND_NOISE = /* glsl */`
     vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -212,22 +213,31 @@
 
   const sandVertex = SAND_NOISE + /* glsl */`
     uniform float u_time;
+    uniform sampler2D u_sandMap;
+    uniform vec2 u_texScale;
+    uniform float u_texDisp;
     varying vec3 vWorldPos;
     varying vec3 vWorldNorm;
+
+    float lumT(sampler2D smp, vec2 xz) {
+      vec2 uv = fract(xz * u_texScale + vec2(0.07, 0.03));
+      return dot(texture2D(smp, uv).rgb, vec3(0.299, 0.587, 0.114));
+    }
 
     float heightMacro(vec2 xz) {
       vec2 w = vec2(u_time * 0.55, u_time * 0.38);
       vec2 p = xz + w * 0.06;
-      float d = fbm3(p * 0.00105) * 2.05;
-      d += fbm3(p * 0.014 + vec2(19.2, 8.7)) * 0.48;
-      d += fbm3(p * 0.048) * 0.11;
-      return d;
+      float d = fbm3(p * 0.00105) * 2.65;
+      d += fbm3(p * 0.014 + vec2(19.2, 8.7)) * 0.62;
+      d += fbm3(p * 0.048) * 0.16;
+      float th = (lumT(u_sandMap, xz) - 0.5) * u_texDisp;
+      return d + th;
     }
 
     void main() {
       vec4 wpFlat = modelMatrix * vec4(position, 1.0);
       vec2 xz = wpFlat.xz;
-      float e = 1.18;
+      float e = 0.95;
       float h0 = heightMacro(xz);
       float hx = heightMacro(xz + vec2(e, 0.0)) - heightMacro(xz - vec2(e, 0.0));
       float hz = heightMacro(xz + vec2(0.0, e)) - heightMacro(xz - vec2(0.0, e));
@@ -247,43 +257,63 @@
     uniform float u_fogNear;
     uniform float u_fogFar;
     uniform float u_time;
+    uniform sampler2D u_sandMap;
+    uniform vec2 u_texScale;
     varying vec3 vWorldPos;
     varying vec3 vWorldNorm;
+
+    vec2 sandUv(vec2 xz) {
+      return fract(xz * u_texScale + vec2(0.07, 0.03));
+    }
 
     float grain(vec2 xz) {
       vec2 w = vec2(u_time * 1.2, u_time * 0.9);
       return fbm3(xz * 0.72 + w * 0.05);
     }
 
+    float lumS(vec2 uv) {
+      return dot(texture2D(u_sandMap, uv).rgb, vec3(0.299, 0.587, 0.114));
+    }
+
     void main() {
       vec2 xz = vWorldPos.xz;
-      float e = 0.045;
-      float g0 = grain(xz);
+      vec2 uv = sandUv(xz);
+      vec3 tex = texture2D(u_sandMap, uv).rgb;
+      float Y = dot(tex, vec3(0.299, 0.587, 0.114));
+      tex = pow(tex, vec3(0.92));
+      tex = mix(vec3(Y), tex, 1.12);
+      tex = (tex - 0.04) * 1.08;
+      tex = clamp(tex, 0.0, 1.0);
+
+      float dW = 0.11;
+      float h0 = lumS(uv);
+      float hx = lumS(sandUv(xz + vec2(dW, 0.0))) - h0;
+      float hz = lumS(sandUv(xz + vec2(0.0, dW))) - h0;
+      float bumpK = 22.0;
+      vec3 Ntex = normalize(vec3(-hx * bumpK, 1.0, -hz * bumpK));
+
+      float e = 0.038;
       float gx = grain(xz + vec2(e, 0.0)) - grain(xz - vec2(e, 0.0));
       float gz = grain(xz + vec2(0.0, e)) - grain(xz - vec2(0.0, e));
-      vec3 N = normalize(vWorldNorm + vec3(-gx * 2.1, 0.0, -gz * 2.1));
+      vec3 N = normalize(vWorldNorm + vec3(-gx * 2.4, 0.0, -gz * 2.4));
+      N = normalize(N * 0.55 + Ntex * 0.65);
 
       float macro = fbm3(xz * 0.0037 + 3.1);
-      float cavity = fbm5(xz * 0.18 + vec2(11.0, 4.0));
-      vec3 cHi = vec3(0.95, 0.89, 0.74);
-      vec3 cMid = vec3(0.86, 0.74, 0.54);
-      vec3 cLo = vec3(0.62, 0.48, 0.32);
-      vec3 alb = mix(cMid, cHi, macro * 0.5 + 0.38);
-      alb = mix(alb, cLo, smoothstep(0.35, 0.92, cavity) * 0.42);
-      alb *= 0.92 + 0.14 * snoise(xz * 0.85);
+      vec3 warm = vec3(1.02, 0.98, 0.92);
+      vec3 alb = tex * warm;
+      alb *= 0.96 + 0.08 * macro;
+      alb *= 0.97 + 0.06 * snoise(xz * 0.65);
 
       vec3 sun = normalize(u_sunDir);
       float diff = max(dot(N, sun), 0.0);
-      float hemi = clamp(N.y * 0.42 + 0.52, 0.0, 1.0);
-      vec3 fillDir = normalize(vec3(-sun.x * 0.35 + 0.25, 0.35, -sun.z * 0.35 - 0.2));
+      float hemi = clamp(N.y * 0.48 + 0.5, 0.0, 1.0);
+      vec3 fillDir = normalize(vec3(-sun.x * 0.35 + 0.25, 0.38, -sun.z * 0.35 - 0.2));
       float fill = max(dot(N, fillDir), 0.0);
-      vec3 lit = alb * (0.26 + 0.58 * diff + 0.22 * hemi + 0.12 * fill);
+      vec3 lit = alb * (0.28 + 0.62 * diff + 0.24 * hemi + 0.14 * fill);
 
-      float ao = 1.0 - smoothstep(0.2, 0.75, cavity) * 0.28;
+      float cavity = fbm5(xz * 0.22 + vec2(11.0, 4.0));
+      float ao = 1.0 - smoothstep(0.35, 0.88, cavity) * 0.14;
       lit *= ao;
-
-      float speck = smoothstep(0.92, 0.99, fract(sin(dot(floor(xz * 3.2), vec2(12.9898, 78.233))) * 43758.5453));
-      lit *= 1.0 - speck * 0.07;
 
       float dist = length(u_camPos - vWorldPos);
       float fogF = clamp((dist - u_fogNear) / (u_fogFar - u_fogNear), 0.0, 1.0);
@@ -293,6 +323,11 @@
   `;
 
   const fogCol = new THREE.Color(FOG);
+  const sandTexScale = SAND_TEX_REP / GROUND_SIZE;
+  const sandPlacePix = new Uint8Array([128, 128, 128, 255]);
+  const sandPlaceTex = new THREE.DataTexture(sandPlacePix, 1, 1, THREE.RGBAFormat);
+  sandPlaceTex.needsUpdate = true;
+
   const groundMat = new THREE.ShaderMaterial({
     uniforms: {
       u_time: { value: 0 },
@@ -301,10 +336,27 @@
       u_fogColor: { value: new THREE.Vector3(fogCol.r, fogCol.g, fogCol.b) },
       u_fogNear: { value: 55 },
       u_fogFar: { value: 220 },
+      u_sandMap: { value: sandPlaceTex },
+      u_texScale: { value: new THREE.Vector2(sandTexScale, sandTexScale) },
+      u_texDisp: { value: 2.35 },
     },
     vertexShader: sandVertex,
     fragmentShader: sandFragment,
   });
+
+  new THREE.TextureLoader().load(
+    'sand-albedo.png',
+    (t) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      const cap = renderer.capabilities;
+      t.anisotropy = Math.min(12, cap.getMaxAnisotropy ? cap.getMaxAnisotropy() : (cap.maxAnisotropy || 8));
+      if (THREE.sRGBEncoding !== undefined) t.encoding = THREE.sRGBEncoding;
+      t.needsUpdate = true;
+      groundMat.uniforms.u_sandMap.value = t;
+    },
+    undefined,
+    () => {}
+  );
 
   const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, GROUND_SEG, GROUND_SEG);
   groundGeo.rotateX(-Math.PI / 2);
@@ -619,51 +671,70 @@
   const targetFPS = 60;
   let lastFrame = 0, firstFrame = true;
 
-  const PHASE_LOCK_MS = 520;
+  const PHASE_LOCK_MS = 1100;
+  const MAX_SCROLL_DOWN_PX = 38;
   let scrollAllowedEnd = 1 / NSEG;
   let scrollPhaseLock = false;
+  let lastScrollY = -1;
+
+  function scrollPageMax() {
+    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  }
 
   function syncRawScrollProgress() {
-    const max = document.documentElement.scrollHeight - innerHeight;
+    const max = scrollPageMax();
     rawSP = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
   }
 
-  function clampScrollToAllowed() {
-    const max = document.documentElement.scrollHeight - innerHeight;
+  function applyScrollPhaseControl() {
+    const max = scrollPageMax();
     if (max <= 0) return;
-    const capPx = scrollAllowedEnd * max;
-    if (window.scrollY > capPx + 1) {
-      window.scrollTo(0, capPx);
-    }
-  }
 
-  function enforceScrollPhaseGates() {
-    const max = document.documentElement.scrollHeight - innerHeight;
-    if (max <= 0) return;
+    let y = window.scrollY;
     const capPx = scrollAllowedEnd * max;
-    const y = window.scrollY;
+
+    if (lastScrollY < 0) lastScrollY = y;
 
     if (scrollPhaseLock) {
       if (y > capPx + 1) window.scrollTo(0, capPx);
+      lastScrollY = window.scrollY;
       return;
     }
 
-    if (scrollAllowedEnd >= 1 - 1e-6) return;
+    if (y > lastScrollY + MAX_SCROLL_DOWN_PX) {
+      window.scrollTo(0, lastScrollY + MAX_SCROLL_DOWN_PX);
+      y = lastScrollY + MAX_SCROLL_DOWN_PX;
+    }
 
-    if (y > capPx + 2) {
+    if (scrollAllowedEnd < 1 - 1e-6 && y > capPx + 1) {
       window.scrollTo(0, capPx);
       scrollPhaseLock = true;
+      const atEnd = scrollAllowedEnd;
       window.setTimeout(() => {
-        scrollAllowedEnd = Math.min(1, scrollAllowedEnd + 1 / NSEG);
+        scrollAllowedEnd = Math.min(1, atEnd + 1 / NSEG);
         scrollPhaseLock = false;
       }, PHASE_LOCK_MS);
+      y = capPx;
     }
+
+    lastScrollY = y;
   }
 
   window.addEventListener('scroll', () => {
-    enforceScrollPhaseGates();
+    applyScrollPhaseControl();
     syncRawScrollProgress();
   }, { passive: true });
+
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) return;
+    const max = scrollPageMax();
+    if (max <= 0) return;
+    const capPx = scrollAllowedEnd * max;
+    const y = window.scrollY;
+    if (e.deltaY > 0 && scrollPhaseLock && y >= capPx - 6) {
+      e.preventDefault();
+    }
+  }, { passive: false });
 
   function updateScene(p) {
     const step = p * NSEG;
@@ -731,7 +802,7 @@
     lastFrame = now;
 
     clk += 0.006;
-    clampScrollToAllowed();
+    applyScrollPhaseControl();
     syncRawScrollProgress();
     sp += (rawSP - sp) * 0.038;
 
