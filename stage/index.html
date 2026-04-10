@@ -239,13 +239,14 @@
   const RIM_R = 9.35;
   const RIM_Y_LOCAL = 0.08;
 
+  /* Camera stays back: ~45–60 m from axis — full ring of masts + canopy in frame */
   const KF = [
-    { pos: [24, 26.5, 22], look: [0, 14, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [21.5, 17.5, 19.5], look: [0, 9.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [18.5, 20, 16.5], look: [0, 16, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [16, 9, 14], look: [0, 4.8, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [6.2, 2.45, 10.2], look: [0, 3.75, -0.35], canopyY: 0, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [46, 14, 40], look: [0, 5, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [36, 14, 36], look: [0, 4.5, 0], canopyY: 0, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -347,8 +348,8 @@
 
     posA.set(...A.pos); posB.set(...B.pos);
     camera.position.lerpVectors(posA, posB, t);
-    camera.position.x += Math.sin(clk * 0.14) * 0.14;
-    camera.position.y += Math.cos(clk * 0.1) * 0.1;
+    camera.position.x += Math.sin(clk * 0.14) * 0.06;
+    camera.position.y += Math.cos(clk * 0.1) * 0.05;
 
     lkA.set(...A.look); lkB.set(...B.look);
     lkT.lerpVectors(lkA, lkB, t);
@@ -432,7 +433,7 @@
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 4000);
+    camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.5, 4000);
 
     const envMap = await new Promise((resolve, reject) => {
       new RGBELoader().load(HDR_URL, resolve, undefined, reject);
