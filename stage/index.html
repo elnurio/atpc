@@ -211,21 +211,24 @@
       vec3 n = normalize(v_wnorm);
       vec3 sunDir  = normalize(vec3(18.0, 40.0, 12.0));
       vec3 skyDir  = vec3(0.0, 1.0, 0.0);
-      float sun    = max(dot(n, sunDir),  0.0) * 0.72;
-      float sky    = 0.42 + max(dot(n, skyDir), 0.0) * 0.22;
-      float trans  = max(dot(-n, sunDir), 0.0) * 0.45;
+      float sun    = max(dot(n, sunDir),  0.0) * 0.85;
+      float sky    = 0.38 + max(dot(n, skyDir), 0.0) * 0.28;
+      float trans  = max(dot(-n, sunDir), 0.0) * 0.52;
       float light  = sky + sun + trans;
-      vec3  fabric = vec3(0.97, 0.94, 0.88);
-      vec3  color  = fabric * light;
-      color *= 0.96 + 0.08 * trans;
+      /* Warm canvas — reads as solid membrane, not sky */
+      vec3  fabric = vec3(0.82, 0.76, 0.64);
+      vec3  color  = fabric * light * 1.12;
+      color *= 0.94 + 0.12 * trans;
       vec3  viewD  = normalize(cameraPosition - v_wpos);
-      float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.8) * 0.28;
-      color += vec3(0.98, 0.94, 0.86) * rim;
+      float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.4) * 0.42;
+      color += vec3(0.95, 0.88, 0.72) * rim;
       float dist = length(v_wpos - cameraPosition);
       float fog  = smoothstep(55.0, 160.0, dist);
       vec3 haze = vec3(0.75, 0.82, 0.9);
-      color = mix(color, haze, fog * 0.35);
-      color = mix(haze * 0.85, color, u_fade);
+      color = mix(color, haze, fog * 0.18);
+      /* u_fade: narrative emphasis only — never fully hide the cloth */
+      float clothVis = clamp(u_fade, 0.52, 1.0);
+      color = mix(haze * 0.72, color, clothVis);
       gl_FragColor = vec4(color, 1.0);
     }
   `;
@@ -237,9 +240,9 @@
   const RIM_Y_LOCAL = 0.08;
 
   const KF = [
-    { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 36, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
-    { pos: [21.5, 16.5, 19.5], look: [0, 8.2, 0], canopyY: 36, tFade: 0.42, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [18.5, 20, 16.5], look: [0, 16, 0], canopyY: 36, tFade: 0.94, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [24, 26.5, 22], look: [0, 14, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [21.5, 17.5, 19.5], look: [0, 9.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [18.5, 20, 16.5], look: [0, 16, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [16, 9, 14], look: [0, 4.8, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     { pos: [6.2, 2.45, 10.2], look: [0, 3.75, -0.35], canopyY: 0, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
