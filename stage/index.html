@@ -8,7 +8,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html { background: #d8cbb8; }
-    body { height: 1050vh; background: #d8cbb8; }
+    body { height: 480vh; background: #d8cbb8; }
 
     canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
@@ -592,13 +592,15 @@
   ];
 
   const NSEG = 5;
-  const LWIN = [
-    [0.02, 0.22],
-    [0.18, 0.42],
-    [0.38, 0.62],
-    [0.58, 0.82],
-    [0.78, 0.99],
-  ];
+  const LWIN = [];
+  for (let i = 0; i < NSEG; i++) {
+    const seg0 = i / NSEG;
+    const seg1 = (i + 1) / NSEG;
+    const span = seg1 - seg0;
+    const inAt = seg0 + span * 0.55;
+    const outAt = seg1 - 0.012;
+    LWIN.push([inAt, outAt]);
+  }
 
   const labels = [0, 1, 2, 3, 4].map(i => document.getElementById('sl' + i));
   const dots = [0, 1, 2, 3, 4].map(i => document.getElementById('d' + i));
@@ -617,9 +619,50 @@
   const targetFPS = 60;
   let lastFrame = 0, firstFrame = true;
 
-  window.addEventListener('scroll', () => {
+  const PHASE_LOCK_MS = 520;
+  let scrollAllowedEnd = 1 / NSEG;
+  let scrollPhaseLock = false;
+
+  function syncRawScrollProgress() {
     const max = document.documentElement.scrollHeight - innerHeight;
-    rawSP = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
+    rawSP = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
+  }
+
+  function clampScrollToAllowed() {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    if (max <= 0) return;
+    const capPx = scrollAllowedEnd * max;
+    if (window.scrollY > capPx + 1) {
+      window.scrollTo(0, capPx);
+    }
+  }
+
+  function enforceScrollPhaseGates() {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    if (max <= 0) return;
+    const capPx = scrollAllowedEnd * max;
+    const y = window.scrollY;
+
+    if (scrollPhaseLock) {
+      if (y > capPx + 1) window.scrollTo(0, capPx);
+      return;
+    }
+
+    if (scrollAllowedEnd >= 1 - 1e-6) return;
+
+    if (y > capPx + 2) {
+      window.scrollTo(0, capPx);
+      scrollPhaseLock = true;
+      window.setTimeout(() => {
+        scrollAllowedEnd = Math.min(1, scrollAllowedEnd + 1 / NSEG);
+        scrollPhaseLock = false;
+      }, PHASE_LOCK_MS);
+    }
+  }
+
+  window.addEventListener('scroll', () => {
+    enforceScrollPhaseGates();
+    syncRawScrollProgress();
   }, { passive: true });
 
   function updateScene(p) {
@@ -688,7 +731,9 @@
     lastFrame = now;
 
     clk += 0.006;
-    sp += (rawSP - sp) * 0.034;
+    clampScrollToAllowed();
+    syncRawScrollProgress();
+    sp += (rawSP - sp) * 0.038;
 
     groundMat.uniforms.u_time.value = clk;
     groundMat.uniforms.u_camPos.value.copy(camera.position);
