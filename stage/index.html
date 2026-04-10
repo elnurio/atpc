@@ -8,9 +8,21 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html { background: #0a0a0c; }
-    body { height: 480vh; background: #0a0a0c; }
+    body {
+      height: 480vh;
+      min-height: 480vh;
+      background: #0a0a0c;
+    }
 
-    canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: pan-y;
+    }
 
     #loader {
       position: fixed; inset: 0; z-index: 100;
@@ -90,6 +102,53 @@
       background: rgba(220, 210, 195, 0.25); transition: background .4s, transform .4s;
     }
     .dot.on { background: rgba(240, 235, 220, 0.65); transform: scale(1.8); }
+
+    @media (max-width: 900px), (pointer: coarse) {
+      body { height: 560vh; min-height: 560vh; }
+
+      #back {
+        top: calc(env(safe-area-inset-top, 0px) + 18px);
+        left: 16px;
+        letter-spacing: .2em;
+      }
+
+      .slabel {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 14vh);
+        width: min(88vw, 480px);
+        white-space: normal;
+        padding: 0 8px;
+      }
+
+      .slabel h2 {
+        font-size: clamp(18px, 8vw, 34px);
+        letter-spacing: .1em;
+        margin-bottom: 8px;
+      }
+
+      .slabel p {
+        font-size: 9px;
+        line-height: 1.5;
+        letter-spacing: .14em;
+      }
+
+      #hint {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+        gap: 8px;
+      }
+
+      #hint span { letter-spacing: .2em; }
+      #hint-line { height: 24px; }
+
+      #dots {
+        left: 50%;
+        right: auto;
+        top: auto;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
+        transform: translateX(-50%);
+        flex-direction: row;
+        gap: 9px;
+      }
+    }
   </style>
   <script type="importmap">
   {
@@ -290,12 +349,35 @@
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
 
+  let isMobile = false;
+  let targetFPS = 60;
+  let cameraBaseFov = 48;
+  let scrollEase = 0.038;
+  let phaseLockMs = 1100;
+  let maxScrollDownPx = 38;
+
+  function detectMobileProfile() {
+    return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+  }
+
+  function applyDeviceProfile() {
+    isMobile = detectMobileProfile();
+    targetFPS = isMobile ? 45 : 60;
+    cameraBaseFov = isMobile ? 58 : 48;
+    scrollEase = isMobile ? 0.07 : 0.038;
+    phaseLockMs = isMobile ? 760 : 1100;
+    maxScrollDownPx = isMobile ? 86 : 38;
+
+    if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
+    if (camera) {
+      camera.fov = cameraBaseFov;
+      camera.updateProjectionMatrix();
+    }
+  }
+
   let clk = 0, rawSP = 0, sp = 0;
-  const targetFPS = 60;
   let lastFrame = 0, firstFrame = true;
 
-  const PHASE_LOCK_MS = 1100;
-  const MAX_SCROLL_DOWN_PX = 38;
   let scrollAllowedEnd = 1 / NSEG;
   let scrollPhaseLock = false;
   let lastScrollY = -1;
@@ -324,9 +406,9 @@
       return;
     }
 
-    if (y > lastScrollY + MAX_SCROLL_DOWN_PX) {
-      window.scrollTo(0, lastScrollY + MAX_SCROLL_DOWN_PX);
-      y = lastScrollY + MAX_SCROLL_DOWN_PX;
+    if (y > lastScrollY + maxScrollDownPx) {
+      window.scrollTo(0, lastScrollY + maxScrollDownPx);
+      y = lastScrollY + maxScrollDownPx;
     }
 
     if (scrollAllowedEnd < 1 - 1e-6 && y > capPx + 1) {
@@ -336,7 +418,7 @@
       window.setTimeout(() => {
         scrollAllowedEnd = Math.min(1, atEnd + 1 / NSEG);
         scrollPhaseLock = false;
-      }, PHASE_LOCK_MS);
+      }, phaseLockMs);
       y = capPx;
     }
 
@@ -455,7 +537,7 @@
     clk += 0.006;
     applyScrollPhaseControl();
     syncRawScrollProgress();
-    sp += (rawSP - sp) * 0.038;
+    sp += (rawSP - sp) * scrollEase;
 
     updateScene(sp);
     renderer.render(scene, camera);
@@ -467,8 +549,10 @@
   }
 
   async function init() {
+    applyDeviceProfile();
+
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
@@ -476,7 +560,7 @@
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.5, 4000);
+    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 4000);
 
     const envMap = await new Promise((resolve, reject) => {
       new RGBELoader().load(HDR_URL, resolve, undefined, reject);
@@ -698,6 +782,7 @@
     }, { passive: false });
 
     window.addEventListener('resize', () => {
+      applyDeviceProfile();
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
