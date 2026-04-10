@@ -154,6 +154,10 @@
 
   const T_RINGS = 46, T_SECTS = 72, T_OUTER = 9.55, T_H = 7.95;
   const N_FOLD = 6;
+  const OCULUS_Y_LOCAL = T_H - 0.1;
+  const RAY_LEN_SKY = 44;
+  const RAY_LEN_BELOW = 18;
+  const RAY_LEN = RAY_LEN_SKY + RAY_LEN_BELOW;
 
   function tentH(v, u) {
     const vn = Math.max(0, Math.min(1, v));
@@ -239,14 +243,17 @@
   const RIM_R = 9.35;
   const RIM_Y_LOCAL = 0.08;
 
+  /* Rim never drops below mast line: cables stay “up” to the ring like the PROFILE reference. */
+  const CANOPY_Y_MIN = MAST_TOP - RIM_Y_LOCAL + 0.42;
+
   /* Camera stays back: ~45–60 m from axis — full ring of masts + canopy in frame */
   const KF = [
     { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
     { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
     { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [46, 14, 40], look: [0, 5, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [36, 14, 36], look: [0, 4.5, 0], canopyY: 0, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [46, 14, 40], look: [0, 5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [9.5, 2.05, 14], look: [0, 15.6, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -376,12 +383,17 @@
     bHaloMat.opacity = 0.085 * bA * pulse;
     poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
 
-    bGrp.position.y = canopyGroup.position.y + 3.1;
+    const oculusWorldY = canopyGroup.position.y + OCULUS_Y_LOCAL;
+    bGrp.position.set(0, oculusWorldY + 1.4, 0);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
-    rayGrp.position.y = canopyGroup.position.y + 5.2;
+    rayGrp.position.set(
+      0,
+      oculusWorldY + (RAY_LEN_SKY - RAY_LEN_BELOW) * 0.5,
+      0
+    );
     rayMats.forEach((m, i) => {
-      m.opacity = 0.055 * rA * rayPulse * (0.75 + (i % 3) * 0.12);
+      m.opacity = 0.072 * rA * rayPulse * (0.75 + (i % 3) * 0.12);
     });
 
     updateCables(canopyGroup.position.y, cab * 0.55);
@@ -499,7 +511,7 @@
       depthWrite: true,
     });
     oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.06, 8, 36), oclMat);
-    oculus.position.y = T_H - 0.1;
+    oculus.position.y = OCULUS_Y_LOCAL;
     oculus.rotation.x = Math.PI / 2;
     oculus.visible = false;
     canopyGroup.add(oculus);
@@ -608,7 +620,7 @@
       new THREE.CylinderGeometry(0.55, 3.6, 11, 22, 1, true),
       bCoreMat
     ));
-    bGrp.position.y = 3.2;
+    bGrp.position.y = 0;
     scene.add(bGrp);
 
     poolMat = new THREE.MeshBasicMaterial({
@@ -635,15 +647,22 @@
         depthWrite: false,
       });
       rayMats.push(rm);
+      /* Wide at +Y (sky), narrow at −Y (oculus) — open frustum through the ring */
       const mesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18 + r * 0.06, 2.1 + r * 0.35, 14, 8, 1, true),
+        new THREE.CylinderGeometry(
+          6.8 + r * 0.65,
+          0.88 + r * 0.05,
+          RAY_LEN,
+          12, 1, true
+        ),
         rm
       );
-      mesh.rotation.z = (r - 2) * 0.09;
-      mesh.rotation.x = 0.12 + r * 0.04;
+      mesh.rotation.x = 0.11 + r * 0.015;
+      mesh.rotation.y = (r - 2) * 0.035;
+      mesh.rotation.z = 0.04;
       rayGrp.add(mesh);
     }
-    rayGrp.position.set(0, 5.5, 0);
+    rayGrp.position.set(0, 0, 0);
     scene.add(rayGrp);
 
     window.addEventListener('scroll', () => {
