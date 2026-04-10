@@ -155,9 +155,10 @@
   const T_RINGS = 46, T_SECTS = 72, T_OUTER = 9.55, T_H = 7.95;
   const N_FOLD = 6;
   const OCULUS_Y_LOCAL = T_H - 0.1;
-  const RAY_LEN_SKY = 44;
-  const RAY_LEN_BELOW = 18;
-  const RAY_LEN = RAY_LEN_SKY + RAY_LEN_BELOW;
+  const OCULUS_MAJOR = 1.84;
+  const OCULUS_TUBE = 0.11;
+  const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
+  const RAY_LEN_BELOW = 23;
 
   function tentH(v, u) {
     const vn = Math.max(0, Math.min(1, v));
@@ -387,13 +388,10 @@
     bGrp.position.set(0, oculusWorldY + 1.4, 0);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
-    rayGrp.position.set(
-      0,
-      oculusWorldY + (RAY_LEN_SKY - RAY_LEN_BELOW) * 0.5,
-      0
-    );
+    /* Inward beams: top of cylinder (+Y) flush with oculus — volume only under the membrane */
+    rayGrp.position.set(0, oculusWorldY - RAY_LEN_BELOW * 0.5, 0);
     rayMats.forEach((m, i) => {
-      m.opacity = 0.072 * rA * rayPulse * (0.75 + (i % 3) * 0.12);
+      m.opacity = 0.095 * rA * rayPulse * (0.75 + (i % 3) * 0.12);
     });
 
     updateCables(canopyGroup.position.y, cab * 0.55);
@@ -510,7 +508,7 @@
       opacity: 0,
       depthWrite: true,
     });
-    oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.06, 8, 36), oclMat);
+    oculus = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_MAJOR, OCULUS_TUBE, 10, 40), oclMat);
     oculus.position.y = OCULUS_Y_LOCAL;
     oculus.rotation.x = Math.PI / 2;
     oculus.visible = false;
@@ -576,7 +574,7 @@
       opacity: 0,
       envMapIntensity: 0.9,
     });
-    hubRing = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.05, 8, 40), hubRingMat);
+    hubRing = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_APERTURE_R * 0.92, 0.065, 10, 44), hubRingMat);
     hubRing.position.y = T_H - 0.08;
     hubRing.rotation.x = Math.PI / 2;
     canopyGroup.add(hubRing);
@@ -605,7 +603,7 @@
       depthWrite: false,
     });
     bGrp.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(1.5, 5.8, 11, 26, 1, true),
+      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 1.15, 6.2, 11, 26, 1, true),
       bHaloMat
     ));
     bCoreMat = new THREE.MeshBasicMaterial({
@@ -617,7 +615,7 @@
       depthWrite: false,
     });
     bGrp.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(0.55, 3.6, 11, 22, 1, true),
+      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 0.58, 3.85, 11, 22, 1, true),
       bCoreMat
     ));
     bGrp.position.y = 0;
@@ -630,7 +628,7 @@
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    pool = new THREE.Mesh(new THREE.CircleGeometry(5.2, 40), poolMat);
+    pool = new THREE.Mesh(new THREE.CircleGeometry(OCULUS_APERTURE_R * 2.15, 40), poolMat);
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.035;
     scene.add(pool);
@@ -647,19 +645,15 @@
         depthWrite: false,
       });
       rayMats.push(rm);
-      /* Wide at +Y (sky), narrow at −Y (oculus) — open frustum through the ring */
+      const rHole = OCULUS_APERTURE_R * (0.99 + r * 0.008);
+      const rSpread = 2.35 + r * 0.5;
       const mesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(
-          6.8 + r * 0.65,
-          0.88 + r * 0.05,
-          RAY_LEN,
-          12, 1, true
-        ),
+        new THREE.CylinderGeometry(rHole, rSpread, RAY_LEN_BELOW, 16, 1, true),
         rm
       );
-      mesh.rotation.x = 0.11 + r * 0.015;
-      mesh.rotation.y = (r - 2) * 0.035;
-      mesh.rotation.z = 0.04;
+      mesh.rotation.x = 0.045 + r * 0.012;
+      mesh.rotation.y = (r - 2) * 0.028;
+      mesh.rotation.z = 0.025;
       rayGrp.add(mesh);
     }
     rayGrp.position.set(0, 0, 0);
