@@ -138,6 +138,7 @@
 
   <script type="module">
   import * as THREE from 'three';
+  import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
   import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
   import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
 
@@ -147,12 +148,12 @@
   const GP_RADIUS = 240;
 
   let scene, camera, renderer;
-  let canopyGroup, tentMat, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
+  let canopyGroup, fabricGeo, fabricMesh, fabricMat, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
   let hubRing, hubRingMat, oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let radialCables;
 
-  const T_RINGS = 46, T_SECTS = 72, T_OUTER = 9.55, T_H = 7.95;
+  const T_OUTER = 9.55, T_H = 7.95;
   const N_FOLD = 6;
   const OCULUS_Y_LOCAL = T_H - 0.1;
   const OCULUS_MAJOR = 1.84;
@@ -160,7 +161,7 @@
   const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
   const RAY_LEN_SKY = 72;
   const RAY_LEN_BELOW = 22;
-  const RAY_R_SKY = 2.45;
+  const RAY_R_SKY = 3.15;
   const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.992;
   const RAY_R_IN_FLOOR = 1.78;
 
@@ -181,67 +182,6 @@
     return vn * T_OUTER * ridge * (1 + 0.06 * Math.sin(N_FOLD * 2 * u + vn * Math.PI));
   }
 
-  const VERT = /* glsl */`
-    uniform float u_time;
-    varying vec3 v_wpos;
-    varying vec3 v_wnorm;
-
-    float disp(float x, float z, float t) {
-      float r  = length(vec2(x, z));
-      float br = sin(t * 0.26) * 0.065;
-      float w1 = sin(x * 0.36 + t * 0.82) * cos(z * 0.26 + t * 0.62) * 0.045;
-      float w2 = sin(r * 0.42 - t * 0.68) * 0.035;
-      return br + w1 + w2;
-    }
-
-    void main() {
-      float v   = clamp(length(position.xz) / 9.65, 0.0, 1.0);
-      float dy  = disp(position.x, position.z, u_time) * v;
-      vec3  pos = position + vec3(0.0, dy, 0.0);
-
-      float e   = 0.12;
-      float dyx = disp(position.x + e, position.z,     u_time) * v;
-      float dyz = disp(position.x,     position.z + e, u_time) * v;
-      vec3  tx  = normalize(vec3(e, dyx - dy, 0.0));
-      vec3  tz  = normalize(vec3(0.0, dyz - dy, e));
-      v_wnorm = normalize(mat3(modelMatrix) * normalize(cross(tz, tx)));
-      v_wpos  = (modelMatrix * vec4(pos, 1.0)).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    }
-  `;
-
-  const FRAG = /* glsl */`
-    uniform float u_fade;
-    uniform vec3  cameraPosition;
-    varying vec3  v_wpos;
-    varying vec3  v_wnorm;
-
-    void main() {
-      vec3 n = normalize(v_wnorm);
-      vec3 sunDir  = normalize(vec3(18.0, 40.0, 12.0));
-      vec3 skyDir  = vec3(0.0, 1.0, 0.0);
-      float sun    = max(dot(n, sunDir),  0.0) * 0.85;
-      float sky    = 0.38 + max(dot(n, skyDir), 0.0) * 0.28;
-      float trans  = max(dot(-n, sunDir), 0.0) * 0.52;
-      float light  = sky + sun + trans;
-      /* Warm canvas — reads as solid membrane, not sky */
-      vec3  fabric = vec3(0.82, 0.76, 0.64);
-      vec3  color  = fabric * light * 1.12;
-      color *= 0.94 + 0.12 * trans;
-      vec3  viewD  = normalize(cameraPosition - v_wpos);
-      float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.4) * 0.42;
-      color += vec3(0.95, 0.88, 0.72) * rim;
-      float dist = length(v_wpos - cameraPosition);
-      float fog  = smoothstep(55.0, 160.0, dist);
-      vec3 haze = vec3(0.75, 0.82, 0.9);
-      color = mix(color, haze, fog * 0.18);
-      /* u_fade: narrative emphasis only — never fully hide the cloth */
-      float clothVis = clamp(u_fade, 0.52, 1.0);
-      color = mix(haze * 0.72, color, clothVis);
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `;
-
   const MAST_R = 10.45;
   const MAST_H = 8.4;
   const MAST_TOP = MAST_H - 0.05;
@@ -250,6 +190,70 @@
 
   /* Rim never drops below mast line: cables stay “up” to the ring like the PROFILE reference. */
   const CANOPY_Y_MIN = MAST_TOP - RIM_Y_LOCAL + 0.42;
+
+  const FABRIC_N = 6;
+  const FABRIC_INNER_R = OCULUS_APERTURE_R * 0.96;
+
+  function createCableFabricGeometry() {
+    const N = FABRIC_N;
+    const ang0 = Math.PI / 12;
+    const yRim = 30 + RIM_Y_LOCAL;
+    const yIn = 30 + OCULUS_Y_LOCAL;
+    const pos = [];
+    const uvs = [];
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + ang0;
+      pos.push(Math.cos(a) * MAST_R, MAST_TOP, Math.sin(a) * MAST_R);
+      uvs.push(i / N, 0);
+    }
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + ang0;
+      pos.push(Math.cos(a) * RIM_R, yRim, Math.sin(a) * RIM_R);
+      uvs.push(i / N, 0.48);
+    }
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + ang0;
+      pos.push(Math.cos(a) * FABRIC_INNER_R, yIn, Math.sin(a) * FABRIC_INNER_R);
+      uvs.push(i / N, 1);
+    }
+    const idx = [];
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N;
+      idx.push(i, j, N + j, i, N + j, N + i);
+    }
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N;
+      idx.push(N + i, N + j, 2 * N + j, N + i, 2 * N + j, 2 * N + i);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function updateCableFabricHeights(cy) {
+    if (!fabricGeo) return;
+    const yRim = cy + RIM_Y_LOCAL;
+    const yIn = cy + OCULUS_Y_LOCAL;
+    const arr = fabricGeo.attributes.position.array;
+    const N = FABRIC_N;
+    const ang0 = Math.PI / 12;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + ang0;
+      const ib = N + i;
+      const ic = 2 * N + i;
+      arr[ib * 3 + 0] = Math.cos(a) * RIM_R;
+      arr[ib * 3 + 1] = yRim;
+      arr[ib * 3 + 2] = Math.sin(a) * RIM_R;
+      arr[ic * 3 + 0] = Math.cos(a) * FABRIC_INNER_R;
+      arr[ic * 3 + 1] = yIn;
+      arr[ic * 3 + 2] = Math.sin(a) * FABRIC_INNER_R;
+    }
+    fabricGeo.attributes.position.needsUpdate = true;
+    fabricGeo.computeVertexNormals();
+  }
 
   /* Camera stays back: ~45–60 m from axis — full ring of masts + canopy in frame */
   const KF = [
@@ -368,8 +372,13 @@
     camera.lookAt(lkT);
 
     const cy = lerp(A.canopyY, B.canopyY, t);
+    const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
-    tentMat.uniforms.u_fade.value = lerp(A.tFade, B.tFade, t);
+    updateCableFabricHeights(cy);
+    if (fabricMat && fabricMesh) {
+      fabricMat.opacity = clamp(0.4 + 0.6 * clamp(tf, 0.5, 1), 0.42, 1);
+      fabricMesh.visible = tf > 0.04;
+    }
 
     const mastS = lerp(A.mast, B.mast, t);
     mastGroup.visible = mastS > 0.02;
@@ -394,21 +403,15 @@
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
     rayGrp.position.set(0, 0, 0);
     const oW = oculusWorldY;
-    /* [0] long sky → ring (wide above, exactly aperture at oculus); [1] only downward inside */
+    /* One merged beam: sky → oculus → interior, local origin at the hole */
     if (rayGrp.children[0]) {
-      rayGrp.children[0].position.set(0, oW + RAY_LEN_SKY * 0.5, 0);
+      rayGrp.children[0].position.set(0, oW, 0);
       rayGrp.children[0].rotation.x = 0.062;
     }
-    if (rayGrp.children[1]) {
-      rayGrp.children[1].position.set(0, oW - RAY_LEN_BELOW * 0.5, 0);
-      rayGrp.children[1].rotation.x = 0.062;
-    }
-    if (rayMats[0]) rayMats[0].opacity = 0.038 * rA * rayPulse;
-    if (rayMats[1]) rayMats[1].opacity = 0.088 * rA * rayPulse;
+    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse;
 
     updateCables(canopyGroup.position.y, cab * 0.55);
 
-    const tf = lerp(A.tFade, B.tFade, t);
     hubRingMat.opacity = clamp(tf * 0.75 + cab * 0.35, 0, 1);
 
     const oOp = lerp(A.oculusOp, B.oculusOp, t);
@@ -435,7 +438,6 @@
     syncRawScrollProgress();
     sp += (rawSP - sp) * 0.038;
 
-    tentMat.uniforms.u_time.value = clk;
     updateScene(sp);
     renderer.render(scene, camera);
 
@@ -477,42 +479,19 @@
     fillSun.position.set(-12, 18, -8);
     scene.add(fillSun);
 
-    tentMat = new THREE.ShaderMaterial({
-      uniforms: { u_time: { value: 0 }, u_fade: { value: 0 } },
-      vertexShader: VERT,
-      fragmentShader: FRAG,
-      side: THREE.DoubleSide,
-    });
-
     canopyGroup = new THREE.Group();
-    (function buildCanopy() {
-      const pos = [], uvs = [], idx = [];
-      pos.push(0, tentH(0, 0), 0); uvs.push(0.5, 0.5);
-      for (let ri = 0; ri < T_RINGS; ri++) {
-        const v = (ri + 1) / T_RINGS;
-        for (let si = 0; si < T_SECTS; si++) {
-          const u = (si / T_SECTS) * Math.PI * 2;
-          const r = tentR(v, u);
-          pos.push(Math.cos(u) * r, tentH(v, u), Math.sin(u) * r);
-          uvs.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
-        }
-      }
-      for (let s = 0; s < T_SECTS; s++)
-        idx.push(0, 1 + s, 1 + (s + 1) % T_SECTS);
-      for (let r = 0; r < T_RINGS - 1; r++) {
-        const A = 1 + r * T_SECTS, B = 1 + (r + 1) * T_SECTS;
-        for (let s = 0; s < T_SECTS; s++) {
-          const a = A + s, b = A + (s + 1) % T_SECTS;
-          const c = B + s, d = B + (s + 1) % T_SECTS;
-          idx.push(a, c, b, b, c, d);
-        }
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-      g.setIndex(idx);
-      canopyGroup.add(new THREE.Mesh(g, tentMat));
-    })();
+
+    fabricGeo = createCableFabricGeometry();
+    fabricMat = new THREE.MeshStandardMaterial({
+      color: 0xc8b8a6,
+      roughness: 0.58,
+      metalness: 0.07,
+      envMapIntensity: 1.05,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 1,
+    });
+    fabricMesh = new THREE.Mesh(fabricGeo, fabricMat);
 
     oclMat = new THREE.MeshLambertMaterial({
       color: 0x8a8278,
@@ -553,6 +532,8 @@
       mastGroup.add(cap);
     }
     scene.add(mastGroup);
+    scene.add(fabricMesh);
+    updateCableFabricHeights(30);
 
     cableMat = new THREE.LineBasicMaterial({
       color: 0x3a3835,
@@ -646,9 +627,8 @@
     scene.add(pool);
 
     rayGrp = new THREE.Group();
-    rayMats = [];
-    const raySegs = 24;
-    const skyMat = new THREE.MeshBasicMaterial({
+    const raySegs = 28;
+    const rayMat = new THREE.MeshBasicMaterial({
       color: BCOL,
       transparent: true,
       opacity: 0,
@@ -656,34 +636,29 @@
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    rayMats.push(skyMat);
-    const skyGeo = new THREE.CylinderGeometry(
-      RAY_R_SKY,
-      RAY_R_IN_BASE,
-      RAY_LEN_SKY,
-      raySegs, 1, true
-    );
-    const skyMesh = new THREE.Mesh(skyGeo, skyMat);
-    rayGrp.add(skyMesh);
+    rayMats = [rayMat];
 
-    const inMat = new THREE.MeshBasicMaterial({
-      color: BCOL,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    rayMats.push(inMat);
-    const inGeo = new THREE.CylinderGeometry(
+    const lower = new THREE.CylinderGeometry(
       RAY_R_IN_BASE,
       RAY_R_IN_FLOOR,
       RAY_LEN_BELOW,
       raySegs, 1, true
     );
-    const inMesh = new THREE.Mesh(inGeo, inMat);
-    rayGrp.add(inMesh);
+    lower.translate(0, -RAY_LEN_BELOW / 2, 0);
 
+    const upper = new THREE.CylinderGeometry(
+      RAY_R_SKY,
+      RAY_R_IN_BASE,
+      RAY_LEN_SKY,
+      raySegs, 1, true
+    );
+    upper.translate(0, RAY_LEN_SKY / 2, 0);
+
+    const rayGeo = mergeGeometries([lower, upper], false);
+    lower.dispose();
+    upper.dispose();
+
+    rayGrp.add(new THREE.Mesh(rayGeo, rayMat));
     rayGrp.position.set(0, 0, 0);
     scene.add(rayGrp);
 
