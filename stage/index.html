@@ -103,11 +103,11 @@
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Six masts rise — the roof is still stowed above</p>
+    <p>Masts lock in — the suspended canopy appears and tensions into place</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>The canopy lowers onto the masts — a lateral read of the volume</p>
+    <p>The roof descends and seats on the masts — lateral read of the volume</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Beams</h2>
@@ -365,19 +365,24 @@
   groundFar.rotation.y = 0.08;
   scene.add(groundFar);
 
-  const T_RINGS = 34, T_SECTS = 56, T_OUTER = 9.6, T_H = 8.15;
+  const T_RINGS = 46, T_SECTS = 72, T_OUTER = 9.55, T_H = 7.95;
+  const N_FOLD = 6;
 
   function tentH(v, u) {
-    const cone = T_H * Math.pow(1.0 - v, 0.72);
-    const mushroom = Math.sin(v * Math.PI) * 1.35 * (1.0 - v * 0.35);
-    const scallop = Math.cos(u * 6) * 0.48 * (v * v);
-    const ripple = Math.cos(u * 14 + v * Math.PI * 2.4) * 0.16 * v * (1 - v);
-    return cone + mushroom + scallop + ripple;
+    const vn = Math.max(0, Math.min(1, v));
+    const hub = T_H * Math.pow(1.0 - vn, 0.72);
+    const w = Math.max(0, 0.5 * (1.0 + Math.cos(N_FOLD * u)));
+    const sagBetweenCables = -1.28 * vn * vn * Math.pow(w, 1.42);
+    const radialPleat = 0.36 * vn * (1.0 - vn) * Math.sin(N_FOLD * 2 * u + vn * 2.9);
+    const fineRipple = 0.16 * vn * Math.sin(N_FOLD * 3 * u + vn * 10.0);
+    return hub + sagBetweenCables + radialPleat + fineRipple;
   }
 
   function tentR(v, u) {
-    const bell = 1 + 0.22 * Math.sin(v * Math.PI);
-    return v * T_OUTER * bell * (1 + 0.065 * Math.cos(u * 6));
+    const vn = Math.max(0, Math.min(1, v));
+    const atCable = Math.pow(Math.max(0, Math.cos(N_FOLD * u)), 0.32);
+    const ridge = 0.9 + 0.1 * atCable;
+    return vn * T_OUTER * ridge * (1 + 0.06 * Math.sin(N_FOLD * 2 * u + vn * Math.PI));
   }
 
   const VERT = /* glsl */`
@@ -394,7 +399,7 @@
     }
 
     void main() {
-      float v   = clamp(length(position.xz) / 9.7, 0.0, 1.0);
+      float v   = clamp(length(position.xz) / 9.65, 0.0, 1.0);
       float dy  = disp(position.x, position.z, u_time) * v;
       vec3  pos = position + vec3(0.0, dy, 0.0);
 
@@ -423,8 +428,9 @@
       float sky    = 0.36 + max(dot(n, skyDir), 0.0) * 0.2;
       float trans  = max(dot(-n, sunDir), 0.0) * 0.38;
       float light  = sky + sun + trans;
-      vec3  fabric = vec3(0.96, 0.93, 0.86);
+      vec3  fabric = vec3(0.97, 0.94, 0.88);
       vec3  color  = fabric * light;
+      color *= 0.96 + 0.08 * trans;
       vec3  viewD  = normalize(cameraPosition - v_wpos);
       float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.8) * 0.22;
       color += vec3(0.98, 0.94, 0.86) * rim;
@@ -526,6 +532,29 @@
   cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
   const cableLines = new THREE.LineSegments(cableGeo, cableMat);
   scene.add(cableLines);
+
+  const hubCY = T_H - 0.28;
+  const radialVerts = [];
+  for (let i = 0; i < N_FOLD; i++) {
+    const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 12;
+    const rr = tentR(1, u);
+    const hy = tentH(1, u);
+    radialVerts.push(0, hubCY, 0, Math.cos(u) * rr, hy, Math.sin(u) * rr);
+  }
+  const radialCableGeo = new THREE.BufferGeometry();
+  radialCableGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(radialVerts), 3));
+  const radialCables = new THREE.LineSegments(radialCableGeo, cableMat);
+  canopyGroup.add(radialCables);
+
+  const hubRingMat = new THREE.MeshLambertMaterial({
+    color: 0x9a9690,
+    transparent: true,
+    opacity: 0,
+  });
+  const hubRing = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.05, 8, 40), hubRingMat);
+  hubRing.position.y = T_H - 0.08;
+  hubRing.rotation.x = Math.PI / 2;
+  canopyGroup.add(hubRing);
 
   const RIM_R = 9.35;
   const RIM_Y_LOCAL = 0.08;
@@ -630,15 +659,15 @@
 
   /* 6 keyframes → 5 scroll segments
      0 Site
-     1 Masts only (canopy still high)
-     2 → 3 Profile: canopy lowers onto masts + side camera
-     4 Beams
-     5 Interior at threshold of entrance */
+     1 Structure: masts + suspended roof appears overhead (KF1→KF2)
+     2 Profile: canopy lowers onto masts + side camera
+     3 Beams
+     4 Interior */
   const KF = [
-    { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
-    { pos: [22, 17, 20], look: [0, 3.2, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 1, oculusOp: 0 },
-    { pos: [19.5, 15.5, 17.5], look: [0, 3.9, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 1, oculusOp: 0 },
-    { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.02, rays: 0.05, shadow: 0.08, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 36, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
+    { pos: [21.5, 16.5, 19.5], look: [0, 8.2, 0], canopyY: 36, tFade: 0.42, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [18.5, 20, 16.5], look: [0, 16, 0], canopyY: 36, tFade: 0.94, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [16, 9, 14], look: [0, 4.8, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     { pos: [6.2, 2.45, 10.2], look: [0, 3.75, -0.35], canopyY: 0, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
@@ -781,6 +810,9 @@
     });
 
     updateCables(canopyGroup.position.y, cab * 0.55);
+
+    const tf = lerp(A.tFade, B.tFade, t);
+    hubRingMat.opacity = clamp(tf * 0.75 + cab * 0.35, 0, 1);
 
     const oOp = lerp(A.oculusOp, B.oculusOp, t);
     oculus.material.opacity = oOp;
