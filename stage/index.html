@@ -7,36 +7,36 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { background: #d8cbb8; }
-    body { height: 480vh; background: #d8cbb8; }
+    html { background: #0a0a0c; }
+    body { height: 480vh; background: #0a0a0c; }
 
     canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
     #loader {
       position: fixed; inset: 0; z-index: 100;
-      background: #d8cbb8;
+      background: #0a0a0c;
       display: flex; align-items: center; justify-content: center;
       transition: opacity 0.9s ease;
     }
     #loader.hide { opacity: 0; pointer-events: none; }
     #loader-dot {
       width: 5px; height: 5px; border-radius: 50%;
-      background: rgba(60, 45, 30, 0.25);
+      background: rgba(220, 210, 190, 0.35);
       animation: ldot 1.3s ease-in-out infinite;
     }
     @keyframes ldot {
-      0%,100% { transform: scale(1);   opacity: .25; }
-      50%      { transform: scale(2.2); opacity: .75; }
+      0%,100% { transform: scale(1);   opacity: .35; }
+      50%      { transform: scale(2.2); opacity: .85; }
     }
 
     #back {
       position: fixed; top: 36px; left: 40px; z-index: 30;
-      color: rgba(50, 38, 25, 0.35);
+      color: rgba(240, 235, 220, 0.45);
       font: 300 10px/1 'Helvetica Neue', sans-serif;
       letter-spacing: .25em; text-transform: uppercase; text-decoration: none;
       transition: color .4s;
     }
-    #back:hover { color: rgba(50, 38, 25, 0.65); }
+    #back:hover { color: rgba(240, 235, 220, 0.8); }
 
     .slabel {
       position: fixed; bottom: 18vh; left: 50%;
@@ -47,12 +47,12 @@
     }
     .slabel.on { opacity: 1; transform: translateX(-50%) translateY(0); }
     .slabel h2 {
-      color: rgba(45, 35, 22, 0.82);
+      color: rgba(245, 240, 230, 0.9);
       font: 200 clamp(22px, 4.2vw, 52px)/1 'Helvetica Neue', sans-serif;
       letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
     }
     .slabel p {
-      color: rgba(45, 35, 22, 0.38);
+      color: rgba(220, 210, 195, 0.45);
       font: 300 10px/1.6 'Helvetica Neue', sans-serif;
       letter-spacing: .22em; text-transform: uppercase;
     }
@@ -65,13 +65,13 @@
     }
     #hint.hide { opacity: 0; }
     #hint span {
-      color: rgba(50, 38, 25, 0.28);
+      color: rgba(220, 210, 195, 0.35);
       font: 300 9px/1 'Helvetica Neue', sans-serif;
       letter-spacing: .3em; text-transform: uppercase;
     }
     #hint-line {
       width: 1px; height: 32px;
-      background: linear-gradient(to bottom, rgba(50, 38, 25, 0.28), transparent);
+      background: linear-gradient(to bottom, rgba(220, 210, 195, 0.35), transparent);
       animation: drip 2.2s ease-in-out infinite; transform-origin: top;
     }
     @keyframes drip {
@@ -87,10 +87,18 @@
     }
     .dot {
       width: 3px; height: 3px; border-radius: 50%;
-      background: rgba(50, 38, 25, 0.18); transition: background .4s, transform .4s;
+      background: rgba(220, 210, 195, 0.25); transition: background .4s, transform .4s;
     }
-    .dot.on { background: rgba(50, 38, 25, 0.55); transform: scale(1.8); }
+    .dot.on { background: rgba(240, 235, 220, 0.65); transform: scale(1.8); }
   </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.171.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
 
@@ -99,7 +107,7 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Sand ground — open field before anything is built</p>
+    <p>Coastal ground — open field before anything is built</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
@@ -128,242 +136,21 @@
     <div class="dot" id="d4"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-  <script>
-  'use strict';
+  <script type="module">
+  import * as THREE from 'three';
+  import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+  import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
 
-  const SKY = 0xe8dcc8;
-  const FOG = 0xdfd2bd;
+  const HDR_URL = 'https://threejs.org/examples/textures/equirectangular/blouberg_sunrise_2_1k.hdr';
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  renderer.setSize(innerWidth, innerHeight);
-  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+  const GP_HEIGHT = 16;
+  const GP_RADIUS = 240;
 
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(SKY);
-  scene.fog = new THREE.Fog(FOG, 55, 220);
-
-  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.5, 4000);
-
-  scene.add(new THREE.HemisphereLight(0xf5efe4, 0xc4a882, 0.95));
-  scene.add(new THREE.AmbientLight(0xead8c4, 0.28));
-
-  const sun = new THREE.DirectionalLight(0xfff1d8, 1.45);
-  sun.position.set(18, 24, 11);
-  scene.add(sun);
-
-  const fillSun = new THREE.DirectionalLight(0xe8eef8, 0.35);
-  fillSun.position.set(-10, 12, -6);
-  scene.add(fillSun);
-
-  if (renderer.outputEncoding !== undefined) {
-    renderer.outputEncoding = THREE.sRGBEncoding;
-  }
-
-  const GROUND_SIZE = 3200;
-  const GROUND_SEG = 128;
-  const SAND_TEX_REP = 42;
-
-  const SAND_NOISE = /* glsl */`
-    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
-    float snoise(vec2 v) {
-      const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-        -0.577350269189626, 0.024390243902439);
-      vec2 i  = floor(v + dot(v, C.yy));
-      vec2 x0 = v - i + dot(i, C.xx);
-      vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-      vec4 x12 = x0.xyxy + C.xxzz;
-      x12.xy -= i1;
-      i = mod289(i);
-      vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-      vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
-      m = m * m; m = m * m;
-      vec3 x = 2.0 * fract(p * C.www) - 1.0;
-      vec3 h = abs(x) - 0.5;
-      vec3 ox = floor(x + 0.5);
-      vec3 a0 = x - ox;
-      m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
-      vec3 g;
-      g.x  = a0.x * x0.x + h.x * x0.y;
-      g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-      return 130.0 * dot(m, g);
-    }
-    float fbm3(vec2 p) {
-      float v = 0.0, a = 0.52;
-      for (int i = 0; i < 3; i++) {
-        v += a * snoise(p);
-        p *= 2.18;
-        a *= 0.5;
-      }
-      return v;
-    }
-    float fbm5(vec2 p) {
-      float v = 0.0, a = 0.5;
-      for (int i = 0; i < 5; i++) {
-        v += a * snoise(p);
-        p *= 2.08;
-        a *= 0.48;
-      }
-      return v;
-    }
-  `;
-
-  const sandVertex = SAND_NOISE + /* glsl */`
-    uniform float u_time;
-    uniform sampler2D u_sandMap;
-    uniform vec2 u_texScale;
-    uniform float u_texDisp;
-    varying vec3 vWorldPos;
-    varying vec3 vWorldNorm;
-
-    float lumT(sampler2D smp, vec2 xz) {
-      vec2 uv = fract(xz * u_texScale + vec2(0.07, 0.03));
-      return dot(texture2D(smp, uv).rgb, vec3(0.299, 0.587, 0.114));
-    }
-
-    float heightMacro(vec2 xz) {
-      vec2 w = vec2(u_time * 0.55, u_time * 0.38);
-      vec2 p = xz + w * 0.06;
-      float d = fbm3(p * 0.00105) * 2.65;
-      d += fbm3(p * 0.014 + vec2(19.2, 8.7)) * 0.62;
-      d += fbm3(p * 0.048) * 0.16;
-      float th = (lumT(u_sandMap, xz) - 0.5) * u_texDisp;
-      return d + th;
-    }
-
-    void main() {
-      vec4 wpFlat = modelMatrix * vec4(position, 1.0);
-      vec2 xz = wpFlat.xz;
-      float e = 0.95;
-      float h0 = heightMacro(xz);
-      float hx = heightMacro(xz + vec2(e, 0.0)) - heightMacro(xz - vec2(e, 0.0));
-      float hz = heightMacro(xz + vec2(0.0, e)) - heightMacro(xz - vec2(0.0, e));
-      vec3 nLoc = normalize(vec3(-hx / (2.0 * e), 1.0, -hz / (2.0 * e)));
-      vec3 displaced = position + vec3(0.0, h0, 0.0);
-      mat3 mw = mat3(modelMatrix[0].xyz, modelMatrix[1].xyz, modelMatrix[2].xyz);
-      vWorldNorm = normalize(mw * nLoc);
-      vWorldPos = (modelMatrix * vec4(displaced, 1.0)).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
-    }
-  `;
-
-  const sandFragment = SAND_NOISE + /* glsl */`
-    uniform vec3 u_sunDir;
-    uniform vec3 u_camPos;
-    uniform vec3 u_fogColor;
-    uniform float u_fogNear;
-    uniform float u_fogFar;
-    uniform float u_time;
-    uniform sampler2D u_sandMap;
-    uniform vec2 u_texScale;
-    varying vec3 vWorldPos;
-    varying vec3 vWorldNorm;
-
-    vec2 sandUv(vec2 xz) {
-      return fract(xz * u_texScale + vec2(0.07, 0.03));
-    }
-
-    float grain(vec2 xz) {
-      vec2 w = vec2(u_time * 1.2, u_time * 0.9);
-      return fbm3(xz * 0.72 + w * 0.05);
-    }
-
-    float lumS(vec2 uv) {
-      return dot(texture2D(u_sandMap, uv).rgb, vec3(0.299, 0.587, 0.114));
-    }
-
-    void main() {
-      vec2 xz = vWorldPos.xz;
-      vec2 uv = sandUv(xz);
-      vec3 tex = texture2D(u_sandMap, uv).rgb;
-      float Y = dot(tex, vec3(0.299, 0.587, 0.114));
-      tex = pow(tex, vec3(0.92));
-      tex = mix(vec3(Y), tex, 1.12);
-      tex = (tex - 0.04) * 1.08;
-      tex = clamp(tex, 0.0, 1.0);
-
-      float dW = 0.11;
-      float h0 = lumS(uv);
-      float hx = lumS(sandUv(xz + vec2(dW, 0.0))) - h0;
-      float hz = lumS(sandUv(xz + vec2(0.0, dW))) - h0;
-      float bumpK = 22.0;
-      vec3 Ntex = normalize(vec3(-hx * bumpK, 1.0, -hz * bumpK));
-
-      float e = 0.038;
-      float gx = grain(xz + vec2(e, 0.0)) - grain(xz - vec2(e, 0.0));
-      float gz = grain(xz + vec2(0.0, e)) - grain(xz - vec2(0.0, e));
-      vec3 N = normalize(vWorldNorm + vec3(-gx * 2.4, 0.0, -gz * 2.4));
-      N = normalize(N * 0.55 + Ntex * 0.65);
-
-      float macro = fbm3(xz * 0.0037 + 3.1);
-      vec3 warm = vec3(1.02, 0.98, 0.92);
-      vec3 alb = tex * warm;
-      alb *= 0.96 + 0.08 * macro;
-      alb *= 0.97 + 0.06 * snoise(xz * 0.65);
-
-      vec3 sun = normalize(u_sunDir);
-      float diff = max(dot(N, sun), 0.0);
-      float hemi = clamp(N.y * 0.48 + 0.5, 0.0, 1.0);
-      vec3 fillDir = normalize(vec3(-sun.x * 0.35 + 0.25, 0.38, -sun.z * 0.35 - 0.2));
-      float fill = max(dot(N, fillDir), 0.0);
-      vec3 lit = alb * (0.28 + 0.62 * diff + 0.24 * hemi + 0.14 * fill);
-
-      float cavity = fbm5(xz * 0.22 + vec2(11.0, 4.0));
-      float ao = 1.0 - smoothstep(0.35, 0.88, cavity) * 0.14;
-      lit *= ao;
-
-      float dist = length(u_camPos - vWorldPos);
-      float fogF = clamp((dist - u_fogNear) / (u_fogFar - u_fogNear), 0.0, 1.0);
-      vec3 outC = mix(lit, u_fogColor, fogF);
-      gl_FragColor = vec4(outC, 1.0);
-    }
-  `;
-
-  const fogCol = new THREE.Color(FOG);
-  const sandTexScale = SAND_TEX_REP / GROUND_SIZE;
-  const sandPlacePix = new Uint8Array([128, 128, 128, 255]);
-  const sandPlaceTex = new THREE.DataTexture(sandPlacePix, 1, 1, THREE.RGBAFormat);
-  sandPlaceTex.needsUpdate = true;
-
-  const groundMat = new THREE.ShaderMaterial({
-    uniforms: {
-      u_time: { value: 0 },
-      u_sunDir: { value: new THREE.Vector3(18, 24, 11).normalize() },
-      u_camPos: { value: new THREE.Vector3() },
-      u_fogColor: { value: new THREE.Vector3(fogCol.r, fogCol.g, fogCol.b) },
-      u_fogNear: { value: 55 },
-      u_fogFar: { value: 220 },
-      u_sandMap: { value: sandPlaceTex },
-      u_texScale: { value: new THREE.Vector2(sandTexScale, sandTexScale) },
-      u_texDisp: { value: 2.35 },
-    },
-    vertexShader: sandVertex,
-    fragmentShader: sandFragment,
-  });
-
-  new THREE.TextureLoader().load(
-    'sand-albedo.png',
-    (t) => {
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      const cap = renderer.capabilities;
-      t.anisotropy = Math.min(12, cap.getMaxAnisotropy ? cap.getMaxAnisotropy() : (cap.maxAnisotropy || 8));
-      if (THREE.sRGBEncoding !== undefined) t.encoding = THREE.sRGBEncoding;
-      t.needsUpdate = true;
-      groundMat.uniforms.u_sandMap.value = t;
-    },
-    undefined,
-    () => {}
-  );
-
-  const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, GROUND_SEG, GROUND_SEG);
-  groundGeo.rotateX(-Math.PI / 2);
-  const groundFar = new THREE.Mesh(groundGeo, groundMat);
-  groundFar.position.y = -0.02;
-  groundFar.rotation.y = 0.08;
-  scene.add(groundFar);
+  let scene, camera, renderer;
+  let canopyGroup, tentMat, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
+  let hubRing, hubRingMat, oculus, oclMat;
+  let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
+  let radialCables;
 
   const T_RINGS = 46, T_SECTS = 72, T_OUTER = 9.55, T_H = 7.95;
   const N_FOLD = 6;
@@ -422,247 +209,33 @@
 
     void main() {
       vec3 n = normalize(v_wnorm);
-      vec3 sunDir  = normalize(vec3(18.0, 24.0, 11.0));
+      vec3 sunDir  = normalize(vec3(18.0, 40.0, 12.0));
       vec3 skyDir  = vec3(0.0, 1.0, 0.0);
-      float sun    = max(dot(n, sunDir),  0.0) * 0.82;
-      float sky    = 0.36 + max(dot(n, skyDir), 0.0) * 0.2;
-      float trans  = max(dot(-n, sunDir), 0.0) * 0.38;
+      float sun    = max(dot(n, sunDir),  0.0) * 0.72;
+      float sky    = 0.42 + max(dot(n, skyDir), 0.0) * 0.22;
+      float trans  = max(dot(-n, sunDir), 0.0) * 0.45;
       float light  = sky + sun + trans;
       vec3  fabric = vec3(0.97, 0.94, 0.88);
       vec3  color  = fabric * light;
       color *= 0.96 + 0.08 * trans;
       vec3  viewD  = normalize(cameraPosition - v_wpos);
-      float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.8) * 0.22;
+      float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.8) * 0.28;
       color += vec3(0.98, 0.94, 0.86) * rim;
       float dist = length(v_wpos - cameraPosition);
-      float fog  = smoothstep(24.0, 78.0, dist);
-      vec3 sandHaze = vec3(0.88, 0.80, 0.68);
-      color = mix(color, sandHaze, fog);
-      color = mix(sandHaze, color, u_fade);
+      float fog  = smoothstep(55.0, 160.0, dist);
+      vec3 haze = vec3(0.75, 0.82, 0.9);
+      color = mix(color, haze, fog * 0.35);
+      color = mix(haze * 0.85, color, u_fade);
       gl_FragColor = vec4(color, 1.0);
     }
   `;
 
-  const tentMat = new THREE.ShaderMaterial({
-    uniforms: { u_time: { value: 0 }, u_fade: { value: 0 } },
-    vertexShader: VERT,
-    fragmentShader: FRAG,
-    side: THREE.DoubleSide,
-  });
-
-  const canopyGroup = new THREE.Group();
-
-  (function buildCanopy() {
-    const pos = [], uvs = [], idx = [];
-    pos.push(0, tentH(0, 0), 0); uvs.push(0.5, 0.5);
-    for (let ri = 0; ri < T_RINGS; ri++) {
-      const v = (ri + 1) / T_RINGS;
-      for (let si = 0; si < T_SECTS; si++) {
-        const u = (si / T_SECTS) * Math.PI * 2;
-        const r = tentR(v, u);
-        pos.push(Math.cos(u) * r, tentH(v, u), Math.sin(u) * r);
-        uvs.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
-      }
-    }
-    for (let s = 0; s < T_SECTS; s++)
-      idx.push(0, 1 + s, 1 + (s + 1) % T_SECTS);
-    for (let r = 0; r < T_RINGS - 1; r++) {
-      const A = 1 + r * T_SECTS, B = 1 + (r + 1) * T_SECTS;
-      for (let s = 0; s < T_SECTS; s++) {
-        const a = A + s, b = A + (s + 1) % T_SECTS;
-        const c = B + s, d = B + (s + 1) % T_SECTS;
-        idx.push(a, c, b, b, c, d);
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    g.setIndex(idx);
-    canopyGroup.add(new THREE.Mesh(g, tentMat));
-  })();
-
-  const oclMat = new THREE.MeshLambertMaterial({
-    color: 0x8a8278,
-    transparent: true,
-    opacity: 0,
-    depthWrite: true,
-  });
-  const oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.06, 8, 36), oclMat);
-  oculus.position.y = T_H - 0.1;
-  oculus.rotation.x = Math.PI / 2;
-  oculus.visible = false;
-  canopyGroup.add(oculus);
-
-  scene.add(canopyGroup);
-
   const MAST_R = 10.45;
   const MAST_H = 8.4;
   const MAST_TOP = MAST_H - 0.05;
-  const mastMat = new THREE.MeshLambertMaterial({ color: 0x8a8580 });
-  const capMat = new THREE.MeshLambertMaterial({ color: 0x6e6a66 });
-
-  const mastGroup = new THREE.Group();
-  for (let i = 0; i < 6; i++) {
-    const ang = (i / 6) * Math.PI * 2 + Math.PI / 12;
-    const m = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.14, MAST_H, 8),
-      mastMat
-    );
-    m.position.set(Math.cos(ang) * MAST_R, MAST_H / 2, Math.sin(ang) * MAST_R);
-    mastGroup.add(m);
-
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.5), capMat);
-    cap.position.set(
-      Math.cos(ang) * (MAST_R - 0.02),
-      MAST_TOP,
-      Math.sin(ang) * (MAST_R - 0.02)
-    );
-    cap.lookAt(0, MAST_TOP, 0);
-    mastGroup.add(cap);
-  }
-  scene.add(mastGroup);
-
-  const cableMat = new THREE.LineBasicMaterial({
-    color: 0x5c564e,
-    transparent: true,
-    opacity: 0,
-  });
-  const cablePositions = new Float32Array(6 * 6);
-  const cableGeo = new THREE.BufferGeometry();
-  cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
-  const cableLines = new THREE.LineSegments(cableGeo, cableMat);
-  scene.add(cableLines);
-
-  const hubCY = T_H - 0.28;
-  const radialVerts = [];
-  for (let i = 0; i < N_FOLD; i++) {
-    const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 12;
-    const rr = tentR(1, u);
-    const hy = tentH(1, u);
-    radialVerts.push(0, hubCY, 0, Math.cos(u) * rr, hy, Math.sin(u) * rr);
-  }
-  const radialCableGeo = new THREE.BufferGeometry();
-  radialCableGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(radialVerts), 3));
-  const radialCables = new THREE.LineSegments(radialCableGeo, cableMat);
-  canopyGroup.add(radialCables);
-
-  const hubRingMat = new THREE.MeshLambertMaterial({
-    color: 0x9a9690,
-    transparent: true,
-    opacity: 0,
-  });
-  const hubRing = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.05, 8, 40), hubRingMat);
-  hubRing.position.y = T_H - 0.08;
-  hubRing.rotation.x = Math.PI / 2;
-  canopyGroup.add(hubRing);
-
   const RIM_R = 9.35;
   const RIM_Y_LOCAL = 0.08;
 
-  function updateCables(canopyWorldY, cableOpacity) {
-    cableMat.opacity = cableOpacity;
-    const yTop = MAST_TOP;
-    const yRim = canopyWorldY + RIM_Y_LOCAL;
-    let ix = 0;
-    for (let i = 0; i < 6; i++) {
-      const ang = (i / 6) * Math.PI * 2 + Math.PI / 12;
-      const x0 = Math.cos(ang) * MAST_R;
-      const z0 = Math.sin(ang) * MAST_R;
-      const x1 = Math.cos(ang) * RIM_R;
-      const z1 = Math.sin(ang) * RIM_R;
-      cablePositions[ix++] = x0; cablePositions[ix++] = yTop; cablePositions[ix++] = z0;
-      cablePositions[ix++] = x1; cablePositions[ix++] = yRim; cablePositions[ix++] = z1;
-    }
-    cableGeo.attributes.position.needsUpdate = true;
-  }
-
-  const shadowDisc = new THREE.Mesh(
-    new THREE.CircleGeometry(9.2, 40),
-    new THREE.MeshBasicMaterial({
-      color: 0x3d2e20,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    })
-  );
-  shadowDisc.rotation.x = -Math.PI / 2;
-  shadowDisc.position.y = 0.025;
-  scene.add(shadowDisc);
-
-  const BCOL = 0xffe8b8;
-  const bGrp = new THREE.Group();
-
-  const bHaloMat = new THREE.MeshBasicMaterial({
-    color: BCOL,
-    transparent: true,
-    opacity: 0,
-    side: THREE.BackSide,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  bGrp.add(new THREE.Mesh(
-    new THREE.CylinderGeometry(1.5, 5.8, 11, 26, 1, true),
-    bHaloMat
-  ));
-
-  const bCoreMat = new THREE.MeshBasicMaterial({
-    color: BCOL,
-    transparent: true,
-    opacity: 0,
-    side: THREE.FrontSide,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  bGrp.add(new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 3.6, 11, 22, 1, true),
-    bCoreMat
-  ));
-
-  bGrp.position.y = 3.2;
-  scene.add(bGrp);
-
-  const poolMat = new THREE.MeshBasicMaterial({
-    color: BCOL,
-    transparent: true,
-    opacity: 0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(5.2, 40), poolMat);
-  pool.rotation.x = -Math.PI / 2;
-  pool.position.y = 0.035;
-  scene.add(pool);
-
-  const rayGrp = new THREE.Group();
-  const rayMats = [];
-  const rayCount = 5;
-  for (let r = 0; r < rayCount; r++) {
-    const rm = new THREE.MeshBasicMaterial({
-      color: BCOL,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    rayMats.push(rm);
-    const mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18 + r * 0.06, 2.1 + r * 0.35, 14, 8, 1, true),
-      rm
-    );
-    mesh.rotation.z = (r - 2) * 0.09;
-    mesh.rotation.x = 0.12 + r * 0.04;
-    rayGrp.add(mesh);
-  }
-  rayGrp.position.set(0, 5.5, 0);
-  scene.add(rayGrp);
-
-  /* 6 keyframes → 5 scroll segments
-     0 Site
-     1 Structure: masts + suspended roof appears overhead (KF1→KF2)
-     2 Profile: canopy lowers onto masts + side camera
-     3 Beams
-     4 Interior */
   const KF = [
     { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 36, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
     { pos: [21.5, 16.5, 19.5], look: [0, 8.2, 0], canopyY: 36, tFade: 0.42, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
@@ -678,9 +251,7 @@
     const seg0 = i / NSEG;
     const seg1 = (i + 1) / NSEG;
     const span = seg1 - seg0;
-    const inAt = seg0 + span * 0.55;
-    const outAt = seg1 - 0.012;
-    LWIN.push([inAt, outAt]);
+    LWIN.push([seg0 + span * 0.55, seg1 - 0.012]);
   }
 
   const labels = [0, 1, 2, 3, 4].map(i => document.getElementById('sl' + i));
@@ -693,8 +264,7 @@
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
-  const lkA = new THREE.Vector3(), lkB = new THREE.Vector3();
-  const lkT = new THREE.Vector3();
+  const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
 
   let clk = 0, rawSP = 0, sp = 0;
   const targetFPS = 60;
@@ -749,21 +319,22 @@
     lastScrollY = y;
   }
 
-  window.addEventListener('scroll', () => {
-    applyScrollPhaseControl();
-    syncRawScrollProgress();
-  }, { passive: true });
-
-  window.addEventListener('wheel', (e) => {
-    if (e.ctrlKey) return;
-    const max = scrollPageMax();
-    if (max <= 0) return;
-    const capPx = scrollAllowedEnd * max;
-    const y = window.scrollY;
-    if (e.deltaY > 0 && scrollPhaseLock && y >= capPx - 6) {
-      e.preventDefault();
+  function updateCables(canopyWorldY, cableOpacity) {
+    cableMat.opacity = cableOpacity;
+    const yTop = MAST_TOP;
+    const yRim = canopyWorldY + RIM_Y_LOCAL;
+    let ix = 0;
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + Math.PI / 12;
+      const x0 = Math.cos(ang) * MAST_R;
+      const z0 = Math.sin(ang) * MAST_R;
+      const x1 = Math.cos(ang) * RIM_R;
+      const z1 = Math.sin(ang) * RIM_R;
+      cablePositions[ix++] = x0; cablePositions[ix++] = yTop; cablePositions[ix++] = z0;
+      cablePositions[ix++] = x1; cablePositions[ix++] = yRim; cablePositions[ix++] = z1;
     }
-  }, { passive: false });
+    cableGeo.attributes.position.needsUpdate = true;
+  }
 
   function updateScene(p) {
     const step = p * NSEG;
@@ -838,24 +409,269 @@
     syncRawScrollProgress();
     sp += (rawSP - sp) * 0.038;
 
-    groundMat.uniforms.u_time.value = clk;
-    groundMat.uniforms.u_camPos.value.copy(camera.position);
     tentMat.uniforms.u_time.value = clk;
     updateScene(sp);
     renderer.render(scene, camera);
 
     if (firstFrame) {
       firstFrame = false;
-      setTimeout(() => loader.classList.add('hide'), 80);
+      setTimeout(() => loader.classList.add('hide'), 120);
     }
   }
 
-  requestAnimationFrame(tick);
+  async function init() {
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-  window.addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 4000);
+
+    const envMap = await new Promise((resolve, reject) => {
+      new RGBELoader().load(HDR_URL, resolve, undefined, reject);
+    });
+    envMap.mapping = THREE.EquirectangularReflectionMapping;
+
+    const skybox = new GroundedSkybox(envMap, GP_HEIGHT, GP_RADIUS, 112);
+    skybox.position.y = GP_HEIGHT - 0.01;
+    scene.add(skybox);
+    scene.environment = envMap;
+    scene.background = null;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.06));
+    scene.add(new THREE.HemisphereLight(0xc8e0f0, 0xc4b898, 0.4));
+    const sun = new THREE.DirectionalLight(0xfff2dd, 0.95);
+    sun.position.set(22, 48, 14);
+    scene.add(sun);
+    const fillSun = new THREE.DirectionalLight(0xd8e8ff, 0.22);
+    fillSun.position.set(-12, 18, -8);
+    scene.add(fillSun);
+
+    tentMat = new THREE.ShaderMaterial({
+      uniforms: { u_time: { value: 0 }, u_fade: { value: 0 } },
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      side: THREE.DoubleSide,
+    });
+
+    canopyGroup = new THREE.Group();
+    (function buildCanopy() {
+      const pos = [], uvs = [], idx = [];
+      pos.push(0, tentH(0, 0), 0); uvs.push(0.5, 0.5);
+      for (let ri = 0; ri < T_RINGS; ri++) {
+        const v = (ri + 1) / T_RINGS;
+        for (let si = 0; si < T_SECTS; si++) {
+          const u = (si / T_SECTS) * Math.PI * 2;
+          const r = tentR(v, u);
+          pos.push(Math.cos(u) * r, tentH(v, u), Math.sin(u) * r);
+          uvs.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
+        }
+      }
+      for (let s = 0; s < T_SECTS; s++)
+        idx.push(0, 1 + s, 1 + (s + 1) % T_SECTS);
+      for (let r = 0; r < T_RINGS - 1; r++) {
+        const A = 1 + r * T_SECTS, B = 1 + (r + 1) * T_SECTS;
+        for (let s = 0; s < T_SECTS; s++) {
+          const a = A + s, b = A + (s + 1) % T_SECTS;
+          const c = B + s, d = B + (s + 1) % T_SECTS;
+          idx.push(a, c, b, b, c, d);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      g.setIndex(idx);
+      canopyGroup.add(new THREE.Mesh(g, tentMat));
+    })();
+
+    oclMat = new THREE.MeshLambertMaterial({
+      color: 0x8a8278,
+      transparent: true,
+      opacity: 0,
+      depthWrite: true,
+    });
+    oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.06, 8, 36), oclMat);
+    oculus.position.y = T_H - 0.1;
+    oculus.rotation.x = Math.PI / 2;
+    oculus.visible = false;
+    canopyGroup.add(oculus);
+
+    scene.add(canopyGroup);
+
+    const mastStd = {
+      color: 0x9a9590,
+      roughness: 0.55,
+      metalness: 0.35,
+      envMapIntensity: 1.0,
+    };
+    mastGroup = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + Math.PI / 12;
+      const m = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11, 0.14, MAST_H, 10),
+        new THREE.MeshStandardMaterial(mastStd)
+      );
+      m.position.set(Math.cos(ang) * MAST_R, MAST_H / 2, Math.sin(ang) * MAST_R);
+      mastGroup.add(m);
+
+      const cap = new THREE.Mesh(
+        new THREE.BoxGeometry(0.36, 0.12, 0.5),
+        new THREE.MeshStandardMaterial({ ...mastStd, metalness: 0.5 })
+      );
+      cap.position.set(Math.cos(ang) * (MAST_R - 0.02), MAST_TOP, Math.sin(ang) * (MAST_R - 0.02));
+      cap.lookAt(0, MAST_TOP, 0);
+      mastGroup.add(cap);
+    }
+    scene.add(mastGroup);
+
+    cableMat = new THREE.LineBasicMaterial({
+      color: 0x3a3835,
+      transparent: true,
+      opacity: 0,
+    });
+    cablePositions = new Float32Array(6 * 6);
+    cableGeo = new THREE.BufferGeometry();
+    cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
+    cableLines = new THREE.LineSegments(cableGeo, cableMat);
+    scene.add(cableLines);
+
+    const hubCY = T_H - 0.28;
+    const radialVerts = [];
+    for (let i = 0; i < N_FOLD; i++) {
+      const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 12;
+      const rr = tentR(1, u);
+      const hy = tentH(1, u);
+      radialVerts.push(0, hubCY, 0, Math.cos(u) * rr, hy, Math.sin(u) * rr);
+    }
+    const radialCableGeo = new THREE.BufferGeometry();
+    radialCableGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(radialVerts), 3));
+    radialCables = new THREE.LineSegments(radialCableGeo, cableMat);
+    canopyGroup.add(radialCables);
+
+    hubRingMat = new THREE.MeshStandardMaterial({
+      color: 0x9a9690,
+      metalness: 0.45,
+      roughness: 0.42,
+      transparent: true,
+      opacity: 0,
+      envMapIntensity: 0.9,
+    });
+    hubRing = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.05, 8, 40), hubRingMat);
+    hubRing.position.y = T_H - 0.08;
+    hubRing.rotation.x = Math.PI / 2;
+    canopyGroup.add(hubRing);
+
+    shadowDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(9.2, 40),
+      new THREE.MeshBasicMaterial({
+        color: 0x1a1510,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      })
+    );
+    shadowDisc.rotation.x = -Math.PI / 2;
+    shadowDisc.position.y = 0.025;
+    scene.add(shadowDisc);
+
+    const BCOL = 0xffe8b8;
+    bGrp = new THREE.Group();
+    bHaloMat = new THREE.MeshBasicMaterial({
+      color: BCOL,
+      transparent: true,
+      opacity: 0,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    bGrp.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.5, 5.8, 11, 26, 1, true),
+      bHaloMat
+    ));
+    bCoreMat = new THREE.MeshBasicMaterial({
+      color: BCOL,
+      transparent: true,
+      opacity: 0,
+      side: THREE.FrontSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    bGrp.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 3.6, 11, 22, 1, true),
+      bCoreMat
+    ));
+    bGrp.position.y = 3.2;
+    scene.add(bGrp);
+
+    poolMat = new THREE.MeshBasicMaterial({
+      color: BCOL,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    pool = new THREE.Mesh(new THREE.CircleGeometry(5.2, 40), poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.035;
+    scene.add(pool);
+
+    rayGrp = new THREE.Group();
+    rayMats = [];
+    for (let r = 0; r < 5; r++) {
+      const rm = new THREE.MeshBasicMaterial({
+        color: BCOL,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      rayMats.push(rm);
+      const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18 + r * 0.06, 2.1 + r * 0.35, 14, 8, 1, true),
+        rm
+      );
+      mesh.rotation.z = (r - 2) * 0.09;
+      mesh.rotation.x = 0.12 + r * 0.04;
+      rayGrp.add(mesh);
+    }
+    rayGrp.position.set(0, 5.5, 0);
+    scene.add(rayGrp);
+
+    window.addEventListener('scroll', () => {
+      applyScrollPhaseControl();
+      syncRawScrollProgress();
+    }, { passive: true });
+
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return;
+      const max = scrollPageMax();
+      if (max <= 0) return;
+      const capPx = scrollAllowedEnd * max;
+      const y = window.scrollY;
+      if (e.deltaY > 0 && scrollPhaseLock && y >= capPx - 6) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    requestAnimationFrame(tick);
+  }
+
+  init().catch((err) => {
+    console.error(err);
+    const dot = document.getElementById('loader-dot');
+    if (dot) dot.remove();
+    loader.textContent = 'HDR / WebGL failed to load. Use HTTPS or check network.';
   });
   </script>
 </body>
