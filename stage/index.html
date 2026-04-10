@@ -193,6 +193,10 @@
 
   const FABRIC_N = 6;
   const FABRIC_INNER_R = OCULUS_APERTURE_R * 0.96;
+  /* Membrane only from Profile onward: flies down from above during 0.4 → 0.6 scroll */
+  const FABRIC_SCROLL_START = 0.4;
+  const FABRIC_SCROLL_END = 0.6;
+  const FABRIC_FLY_OFFSET = 32;
 
   function createCableFabricGeometry() {
     const N = FABRIC_N;
@@ -374,10 +378,25 @@
     const cy = lerp(A.canopyY, B.canopyY, t);
     const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
-    updateCableFabricHeights(cy);
+
     if (fabricMat && fabricMesh) {
-      fabricMat.opacity = clamp(0.4 + 0.6 * clamp(tf, 0.5, 1), 0.42, 1);
-      fabricMesh.visible = tf > 0.04;
+      if (p < FABRIC_SCROLL_START) {
+        fabricMesh.visible = false;
+        updateCableFabricHeights(cy);
+      } else {
+        fabricMesh.visible = true;
+        let fabricCy = cy;
+        let flyFade = 1;
+        if (p < FABRIC_SCROLL_END) {
+          const uBlend = clamp((p - FABRIC_SCROLL_START) / (FABRIC_SCROLL_END - FABRIC_SCROLL_START), 0, 1);
+          const ue = ss(uBlend);
+          fabricCy = lerp(cy + FABRIC_FLY_OFFSET, cy, ue);
+          flyFade = clamp(uBlend / 0.22, 0, 1);
+        }
+        updateCableFabricHeights(fabricCy);
+        const baseOp = clamp(0.4 + 0.6 * clamp(tf, 0.5, 1), 0.42, 1);
+        fabricMat.opacity = baseOp * flyFade;
+      }
     }
 
     const mastS = lerp(A.mast, B.mast, t);
