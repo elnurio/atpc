@@ -158,7 +158,11 @@
   const OCULUS_MAJOR = 1.84;
   const OCULUS_TUBE = 0.11;
   const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
-  const RAY_LEN_BELOW = 23;
+  const RAY_LEN_SKY = 72;
+  const RAY_LEN_BELOW = 22;
+  const RAY_R_SKY = 2.45;
+  const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.992;
+  const RAY_R_IN_FLOOR = 1.78;
 
   function tentH(v, u) {
     const vn = Math.max(0, Math.min(1, v));
@@ -380,19 +384,27 @@
     const cab = lerp(A.cable, B.cable, t);
 
     const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
-    bCoreMat.opacity = 0.2 * bA * pulse;
-    bHaloMat.opacity = 0.085 * bA * pulse;
+    bCoreMat.opacity = 0.14 * bA * pulse;
+    bHaloMat.opacity = 0.055 * bA * pulse;
     poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
 
     const oculusWorldY = canopyGroup.position.y + OCULUS_Y_LOCAL;
     bGrp.position.set(0, oculusWorldY + 1.4, 0);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
-    /* Inward beams: top of cylinder (+Y) flush with oculus — volume only under the membrane */
-    rayGrp.position.set(0, oculusWorldY - RAY_LEN_BELOW * 0.5, 0);
-    rayMats.forEach((m, i) => {
-      m.opacity = 0.095 * rA * rayPulse * (0.75 + (i % 3) * 0.12);
-    });
+    rayGrp.position.set(0, 0, 0);
+    const oW = oculusWorldY;
+    /* [0] long sky → ring (wide above, exactly aperture at oculus); [1] only downward inside */
+    if (rayGrp.children[0]) {
+      rayGrp.children[0].position.set(0, oW + RAY_LEN_SKY * 0.5, 0);
+      rayGrp.children[0].rotation.x = 0.062;
+    }
+    if (rayGrp.children[1]) {
+      rayGrp.children[1].position.set(0, oW - RAY_LEN_BELOW * 0.5, 0);
+      rayGrp.children[1].rotation.x = 0.062;
+    }
+    if (rayMats[0]) rayMats[0].opacity = 0.038 * rA * rayPulse;
+    if (rayMats[1]) rayMats[1].opacity = 0.088 * rA * rayPulse;
 
     updateCables(canopyGroup.position.y, cab * 0.55);
 
@@ -635,27 +647,43 @@
 
     rayGrp = new THREE.Group();
     rayMats = [];
-    for (let r = 0; r < 5; r++) {
-      const rm = new THREE.MeshBasicMaterial({
-        color: BCOL,
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      rayMats.push(rm);
-      const rHole = OCULUS_APERTURE_R * (0.99 + r * 0.008);
-      const rSpread = 2.35 + r * 0.5;
-      const mesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(rHole, rSpread, RAY_LEN_BELOW, 16, 1, true),
-        rm
-      );
-      mesh.rotation.x = 0.045 + r * 0.012;
-      mesh.rotation.y = (r - 2) * 0.028;
-      mesh.rotation.z = 0.025;
-      rayGrp.add(mesh);
-    }
+    const raySegs = 24;
+    const skyMat = new THREE.MeshBasicMaterial({
+      color: BCOL,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    rayMats.push(skyMat);
+    const skyGeo = new THREE.CylinderGeometry(
+      RAY_R_SKY,
+      RAY_R_IN_BASE,
+      RAY_LEN_SKY,
+      raySegs, 1, true
+    );
+    const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    rayGrp.add(skyMesh);
+
+    const inMat = new THREE.MeshBasicMaterial({
+      color: BCOL,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    rayMats.push(inMat);
+    const inGeo = new THREE.CylinderGeometry(
+      RAY_R_IN_BASE,
+      RAY_R_IN_FLOOR,
+      RAY_LEN_BELOW,
+      raySegs, 1, true
+    );
+    const inMesh = new THREE.Mesh(inGeo, inMat);
+    rayGrp.add(inMesh);
+
     rayGrp.position.set(0, 0, 0);
     scene.add(rayGrp);
 
