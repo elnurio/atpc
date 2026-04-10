@@ -147,6 +147,7 @@
   const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 220);
 
   scene.add(new THREE.HemisphereLight(0xf5efe4, 0xc4a882, 0.95));
+  scene.add(new THREE.AmbientLight(0xead8c4, 0.28));
 
   const sun = new THREE.DirectionalLight(0xfff1d8, 1.45);
   sun.position.set(18, 24, 11);
@@ -156,40 +157,49 @@
   fillSun.position.set(-10, 12, -6);
   scene.add(fillSun);
 
-  function colorSandPlane(w, h, sx, sy, baseHex, altHex, jitter) {
-    const geo = new THREE.PlaneGeometry(w, h, sx, sy);
-    geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position;
-    const cols = [];
-    const c0 = new THREE.Color(baseHex);
-    const c1 = new THREE.Color(altHex);
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      const wv = Math.sin(x * 0.11 + z * 0.09) * 0.5 + 0.5;
-      const wv2 = Math.cos(x * 0.31 - z * 0.27) * 0.5 + 0.5;
-      const mix = (wv * 0.55 + wv2 * 0.45) * (1 - jitter * 0.5) + jitter * Math.random();
-      const c = c0.clone().lerp(c1, mix);
-      c.multiplyScalar(0.92 + Math.random() * 0.12);
-      cols.push(c.r, c.g, c.b);
-    }
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    return geo;
+  if (renderer.outputEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
   }
 
-  const sandFar = new THREE.Mesh(
-    colorSandPlane(88, 88, 56, 56, 0xd2b896, 0xb89a72, 0.22),
-    new THREE.MeshLambertMaterial({ vertexColors: true })
-  );
-  sandFar.position.y = -0.06;
-  scene.add(sandFar);
+  function makeSandGroundMesh(w, h, y, rot) {
+    const geo = new THREE.PlaneGeometry(w, h, 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.94,
+      metalness: 0,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = y;
+    mesh.rotation.y = rot || 0;
+    scene.add(mesh);
+    return { mesh, mat };
+  }
 
-  const sandPad = new THREE.Mesh(
-    colorSandPlane(28, 28, 36, 36, 0xc9ae84, 0xa88b62, 0.28),
-    new THREE.MeshLambertMaterial({ vertexColors: true })
+  const groundFar = makeSandGroundMesh(100, 100, -0.02, 0.08);
+
+  const texLoader = new THREE.TextureLoader();
+  texLoader.load(
+    'sand-ground.png',
+    (t) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      const cap = renderer.capabilities;
+      t.anisotropy = Math.min(8, cap.getMaxAnisotropy ? cap.getMaxAnisotropy() : (cap.maxAnisotropy || 4));
+      if (THREE.sRGBEncoding !== undefined) t.encoding = THREE.sRGBEncoding;
+      t.repeat.set(16, 16);
+      t.offset.set(0.12, 0.04);
+      t.needsUpdate = true;
+      groundFar.mat.map = t;
+      groundFar.mat.bumpMap = t;
+      groundFar.mat.bumpScale = 0.38;
+      groundFar.mat.roughness = 0.93;
+      groundFar.mat.needsUpdate = true;
+    },
+    undefined,
+    () => {
+      groundFar.mat.color.setHex(0xd4c4a8);
+    }
   );
-  sandPad.position.y = 0;
-  scene.add(sandPad);
 
   const T_RINGS = 34, T_SECTS = 56, T_OUTER = 9.6, T_H = 8.15;
 
@@ -251,6 +261,9 @@
       float light  = sky + sun + trans;
       vec3  fabric = vec3(0.96, 0.93, 0.86);
       vec3  color  = fabric * light;
+      vec3  viewD  = normalize(cameraPosition - v_wpos);
+      float rim    = pow(1.0 - max(dot(n, viewD), 0.0), 2.8) * 0.22;
+      color += vec3(0.98, 0.94, 0.86) * rim;
       float dist = length(v_wpos - cameraPosition);
       float fog  = smoothstep(24.0, 78.0, dist);
       vec3 sandHaze = vec3(0.88, 0.80, 0.68);
@@ -298,9 +311,15 @@
     canopyGroup.add(new THREE.Mesh(g, tentMat));
   })();
 
-  const oclMat = new THREE.MeshLambertMaterial({ color: 0xa89888 });
-  const oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.085, 8, 36), oclMat);
+  const oclMat = new THREE.MeshLambertMaterial({
+    color: 0x8a8278,
+    transparent: true,
+    opacity: 0,
+    depthWrite: true,
+  });
+  const oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.06, 8, 36), oclMat);
   oculus.position.y = T_H - 0.1;
+  oculus.visible = false;
   canopyGroup.add(oculus);
 
   scene.add(canopyGroup);
@@ -452,12 +471,12 @@
      4 God rays into bowl
      5 Interior fly-in */
   const KF = [
-    { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0 },
-    { pos: [22, 17, 20], look: [0, 3.2, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 1 },
-    { pos: [18, 14, 16], look: [0, 4.2, 0], canopyY: 0, tFade: 1, beam: 0.05, rays: 0, shadow: 0.14, cable: 0.85, mast: 1 },
-    { pos: [32, 5.5, 10], look: [0, 3.6, 0], canopyY: 0, tFade: 1, beam: 0.12, rays: 0.15, shadow: 0.11, cable: 0.9, mast: 1 },
-    { pos: [16, 9, 14], look: [0, 4.8, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1 },
-    { pos: [1.2, 2.4, 4.2], look: [0, 3.0, -0.6], canopyY: 0, tFade: 1, beam: 0.42, rays: 0.35, shadow: 0.05, cable: 0.88, mast: 1 },
+    { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
+    { pos: [22, 17, 20], look: [0, 3.2, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 1, oculusOp: 0 },
+    { pos: [18, 14, 16], look: [0, 4.2, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0, shadow: 0.12, cable: 0.85, mast: 1, oculusOp: 0 },
+    { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.02, rays: 0.05, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [16, 9, 14], look: [0, 4.8, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [1.2, 2.4, 4.2], look: [0, 3.0, -0.6], canopyY: 0, tFade: 1, beam: 0.42, rays: 0.35, shadow: 0.05, cable: 0.88, mast: 1, oculusOp: 0.85 },
   ];
 
   const NSEG = 5;
@@ -536,6 +555,10 @@
     });
 
     updateCables(canopyGroup.position.y, cab * 0.55);
+
+    const oOp = lerp(A.oculusOp, B.oculusOp, t);
+    oculus.material.opacity = oOp;
+    oculus.visible = oOp > 0.03;
 
     LWIN.forEach(([inAt, outAt], i) => {
       labels[i].classList.toggle('on', p >= inAt && p <= outAt);
