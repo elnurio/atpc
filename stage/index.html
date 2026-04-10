@@ -142,9 +142,9 @@
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY);
-  scene.fog = new THREE.Fog(FOG, 32, 92);
+  scene.fog = new THREE.Fog(FOG, 55, 220);
 
-  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 220);
+  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.5, 4000);
 
   scene.add(new THREE.HemisphereLight(0xf5efe4, 0xc4a882, 0.95));
   scene.add(new THREE.AmbientLight(0xead8c4, 0.28));
@@ -176,7 +176,8 @@
     return { mesh, mat };
   }
 
-  const groundFar = makeSandGroundMesh(100, 100, -0.02, 0.08);
+  const GROUND_SIZE = 3200;
+  const groundFar = makeSandGroundMesh(GROUND_SIZE, GROUND_SIZE, -0.02, 0.08);
 
   const texLoader = new THREE.TextureLoader();
   texLoader.load(
@@ -186,7 +187,8 @@
       const cap = renderer.capabilities;
       t.anisotropy = Math.min(8, cap.getMaxAnisotropy ? cap.getMaxAnisotropy() : (cap.maxAnisotropy || 4));
       if (THREE.sRGBEncoding !== undefined) t.encoding = THREE.sRGBEncoding;
-      t.repeat.set(16, 16);
+      const rep = 16 * (GROUND_SIZE / 100);
+      t.repeat.set(rep, rep);
       t.offset.set(0.12, 0.04);
       t.needsUpdate = true;
       groundFar.mat.map = t;
