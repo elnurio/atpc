@@ -8,7 +8,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html { background: #d8cbb8; }
-    body { height: 520vh; background: #d8cbb8; }
+    body { height: 1050vh; background: #d8cbb8; }
 
     canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
@@ -103,11 +103,11 @@
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Masts rise, then the mushroom canopy rides the cables into place</p>
+    <p>Six masts rise — the roof is still stowed above</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>Low, lateral read — the stage as a volume, not a plan</p>
+    <p>The canopy lowers onto the masts — a lateral read of the volume</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Beams</h2>
@@ -431,6 +431,7 @@
   });
   const oculus = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.06, 8, 36), oclMat);
   oculus.position.y = T_H - 0.1;
+  oculus.rotation.x = Math.PI / 2;
   oculus.visible = false;
   canopyGroup.add(oculus);
 
@@ -576,19 +577,18 @@
   scene.add(rayGrp);
 
   /* 6 keyframes → 5 scroll segments
-     0 Site (sand)
-     1 Masts
-     2 Canopy deploys + cables
-     3 Side profile
-     4 God rays into bowl
-     5 Interior fly-in */
+     0 Site
+     1 Masts only (canopy still high)
+     2 → 3 Profile: canopy lowers onto masts + side camera
+     4 Beams
+     5 Interior at threshold of entrance */
   const KF = [
     { pos: [26, 24, 26], look: [0, 0.8, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
     { pos: [22, 17, 20], look: [0, 3.2, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 1, oculusOp: 0 },
-    { pos: [18, 14, 16], look: [0, 4.2, 0], canopyY: 0, tFade: 1, beam: 0.03, rays: 0, shadow: 0.12, cable: 0.85, mast: 1, oculusOp: 0 },
-    { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.02, rays: 0.05, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [19.5, 15.5, 17.5], look: [0, 3.9, 0], canopyY: 26, tFade: 0, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 1, oculusOp: 0 },
+    { pos: [22, 3.6, 14], look: [0, 4.0, 0], canopyY: 0, tFade: 1, beam: 0.02, rays: 0.05, shadow: 0.08, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [16, 9, 14], look: [0, 4.8, 0], canopyY: 0, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [1.2, 2.4, 4.2], look: [0, 3.0, -0.6], canopyY: 0, tFade: 1, beam: 0.42, rays: 0.35, shadow: 0.05, cable: 0.88, mast: 1, oculusOp: 0.85 },
+    { pos: [6.2, 2.45, 10.2], look: [0, 3.75, -0.35], canopyY: 0, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -688,7 +688,7 @@
     lastFrame = now;
 
     clk += 0.006;
-    sp += (rawSP - sp) * 0.052;
+    sp += (rawSP - sp) * 0.034;
 
     groundMat.uniforms.u_time.value = clk;
     groundMat.uniforms.u_camPos.value.copy(camera.position);
