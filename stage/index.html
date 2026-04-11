@@ -240,9 +240,9 @@
 
   /** Tensile canopy mast layout (asymmetric); oculus / beam align with main peak projection */
   const TENSILE_PEAK_SPEC = [
-    { nx: -0.31, nz: 0.19, yLift: 1.22, pinR: 0.24, pull: 1.35 },
-    { nx: 0.37, nz: -0.29, yLift: 0.38, pinR: 0.19, pull: 1.05 },
-    { nx: -0.11, nz: -0.46, yLift: 0.15, pinR: 0.15, pull: 0.72 },
+    { nx: -0.31, nz: 0.19, yLift: 1.22, pinR: 0.24, pull: 1.58 },
+    { nx: 0.37, nz: -0.29, yLift: 0.38, pinR: 0.19, pull: 1.22 },
+    { nx: -0.11, nz: -0.46, yLift: 0.15, pinR: 0.15, pull: 0.88 },
   ];
   const OCULUS_APERTURE_R = DIAMOND_R * 0.124;
   const OCULUS_TUBE = Math.max(0.05 * TENT_SCALE, OCULUS_APERTURE_R * 0.068);
@@ -501,7 +501,8 @@
    */
   function createAnchors() {
     const R = DIAMOND_R;
-    const y = SQ_ROOF_Y - 0.065 * TENT_SCALE;
+    /** Верх периметра ближе к линии несущей рамы — нижний купол «надет» на контур */
+    const y = SQ_ROOF_Y - 0.03 * TENT_SCALE;
     const nPerEdge = 18;
     const corners = [
       new THREE.Vector3(0, y, -R),
@@ -616,8 +617,8 @@
         const b = ii * 3;
         pos[b] = x;
         pos[b + 1] = y0
-          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.0085 * TENT_SCALE
-          + Math.cos(v * 5.8 - u * 1.7) * 0.007 * TENT_SCALE;
+          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.0055 * TENT_SCALE
+          + Math.cos(v * 5.8 - u * 1.7) * 0.0045 * TENT_SCALE;
         pos[b + 2] = z;
 
         let kind = 0;
@@ -1039,10 +1040,10 @@
     const tensile = generateTensileSurface(anchorPoints, mastData, {
       nu: 78,
       nv: 78,
-      iterations: 175,
-      gravityY: -0.009 * TENT_SCALE,
-      kStructural: 1.04,
-      kShear: 0.4,
+      iterations: 188,
+      gravityY: -0.0042 * TENT_SCALE,
+      kStructural: 1.14,
+      kShear: 0.46,
     });
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
@@ -1172,9 +1173,9 @@
   const KF = [
     { pos: [620, 340, 560], look: [0, 125, 0], canopyY: 280, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
     { pos: [580, 285, 600], look: [0, 108, 0], canopyY: 295, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    /** Profile: камера дальше/выше, взгляд выше — весь купол + верхний слой (veil) и небо без обрезки сверху */
-    { pos: [736, 302, 168], look: [0, 212, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [652, 238, 552], look: [0, 188, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    /** Profile: плавное продолжение с Structure — без резкого «отъезда»; кадр купола через FOV + чуть выше look */
+    { pos: [588, 276, 548], look: [0, 138, 0], canopyY: 312, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [548, 248, 518], look: [4, 112, -10], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
     { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
@@ -1319,9 +1320,9 @@
     lkT.lerpVectors(lkA, lkB, t);
     camera.lookAt(lkT);
 
-    const profileFovAdd = isMobile ? 8.5 : 13;
+    const profileFovAdd = isMobile ? 7.5 : 11;
     const targetFov = s === 2 ? cameraBaseFov + profileFovAdd : cameraBaseFov;
-    camera.fov += (targetFov - camera.fov) * 0.24;
+    camera.fov += (targetFov - camera.fov) * 0.2;
     camera.updateProjectionMatrix();
 
     const cy = lerp(A.canopyY, B.canopyY, t);
