@@ -1406,10 +1406,10 @@
     { pos: [700, 245, 140], look: [0, 115, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [600, 165, 520], look: [0, 72, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
-    { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
-    /** Sky: still inside volume — look catches oculus ring + beams + peripheral textile walls */
-    { pos: [168, 84, 208], look: [-42, 250, 36], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /** Interior (конец фазы): камера уже внутри ромба по XZ, взгляд по объёму, не снаружи шатра */
+    { pos: [46, 70, 72], look: [-28, 112, -58], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    /** Sky: тот же внутренний объём — чуть выше/к окуляру, стены по периферии кадра */
+    { pos: [42, 84, 68], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
   const NSEG = 6;
