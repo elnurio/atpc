@@ -185,12 +185,12 @@
     <p>We move inside the shell</p>
   </div>
   <div class="slabel" id="sl5">
-    <h2>Sky</h2>
-    <p>Reposition — drift back into the volume; distance and enclosure read</p>
-  </div>
-  <div class="slabel" id="sl6">
     <h2>Space</h2>
     <p>Reveal — lift through the membrane to the oculus and sky beyond</p>
+  </div>
+  <div class="slabel" id="sl6">
+    <h2>Sky</h2>
+    <p>Reposition — drift back into the volume; distance and enclosure read</p>
   </div>
 
   <div id="hint"><span>Scroll</span><div id="hint-line"></div></div>
@@ -524,23 +524,23 @@
     c.width = w;
     c.height = h;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#B8D4E3';
+    ctx.fillStyle = '#D0E8F0';
     ctx.fillRect(0, 0, w, h);
     for (let y = 0; y < h; y += 3) {
-      ctx.strokeStyle = `rgba(130, 168, 196, ${0.05 + (y % 21 === 0 ? 0.035 : 0)})`;
+      ctx.strokeStyle = `rgba(150, 188, 210, ${0.048 + (y % 21 === 0 ? 0.032 : 0)})`;
       ctx.beginPath();
       ctx.moveTo(0, y + Math.sin(y * 0.07) * 2);
       ctx.lineTo(w, y + Math.cos(y * 0.05) * 1.2);
       ctx.stroke();
     }
     for (let x = 0; x < w; x += 5) {
-      ctx.strokeStyle = 'rgba(110, 152, 182, 0.042)';
+      ctx.strokeStyle = 'rgba(128, 172, 198, 0.04)';
       ctx.beginPath();
       ctx.moveTo(x + Math.sin(x * 0.11) * 2, 0);
       ctx.lineTo(x, h);
       ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(90, 130, 158, 0.032)';
+    ctx.fillStyle = 'rgba(110, 152, 178, 0.03)';
     for (let i = 0; i < 220; i++) {
       ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 5, 1);
     }
@@ -557,8 +557,8 @@
     for (let i = 0; i < d.length; i += 4) {
       const px = (i / 4) % 256;
       const py = (i / 4 / 256) | 0;
-      const n = 200 + Math.sin(px * 0.19) * 10 + Math.sin(py * 0.16) * 9 + (Math.random() - 0.5) * 14;
-      d[i] = d[i + 1] = d[i + 2] = Math.max(168, Math.min(238, n));
+      const n = 218 + Math.sin(px * 0.19) * 9 + Math.sin(py * 0.16) * 8 + (Math.random() - 0.5) * 12;
+      d[i] = d[i + 1] = d[i + 2] = Math.max(188, Math.min(248, n));
       d[i + 3] = 255;
     }
     bx.putImageData(id, 0, 0);
@@ -1327,7 +1327,8 @@
     roofVeilMat.depthWrite = false;
     roofVeilMat.side = THREE.DoubleSide;
     const roofVeilMesh = new THREE.Mesh(roofVeilGeo, roofVeilMat);
-    roofVeilMesh.position.y = 4.15 * TENT_SCALE;
+    /** Второй слой ближе к нижнему куполу — читается как наслоение, а не отдельный «летающий» объём */
+    roofVeilMesh.position.y = 3.38 * TENT_SCALE;
     roofVeilMesh.scale.set(1.042, 1, 1.042);
     roofVeilMesh.rotation.y = 0.011;
 
@@ -1360,7 +1361,7 @@
     tentFloorTex.map.anisotropy = bedding.map.anisotropy || 1;
     tentFloorTex.bumpMap.anisotropy = bedding.map.anisotropy || 1;
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xb8d4e3,
+      color: 0xd0e8f0,
       map: tentFloorTex.map,
       bumpMap: tentFloorTex.bumpMap,
       bumpScale: 0.048 * (TENT_SCALE / 4),
@@ -1368,8 +1369,8 @@
       metalness: 0,
       envMap,
       envMapIntensity: 0.28,
-      emissive: new THREE.Color(0xb8d4e3),
-      emissiveIntensity: 0.018,
+      emissive: new THREE.Color(0xd0e8f0),
+      emissiveIntensity: 0.016,
       side: THREE.DoubleSide,
       transparent: false,
       opacity: 1,
@@ -1719,22 +1720,23 @@
       const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
       const skyDim = upliftBoost * oculusOpKF;
       let sunI = lerp(0.68, 0.48, uDim) + 0.38 * upliftBoost;
-      sunI *= 1 - 0.28 * skyDim;
+      sunI *= 1 - 0.1 * skyDim;
       mainSun.intensity = Math.max(0.22, sunI);
-      let hemiI = (lerp(0.48, 0.38, uDim) + 0.08 * upliftBoost) * (1 - 0.52 * skyDim);
+      let hemiI = (lerp(0.48, 0.38, uDim) + 0.08 * upliftBoost) * (1 - 0.18 * skyDim);
       hemiMain.intensity = Math.max(0.12, hemiI);
       if (fillSun) {
-        fillSun.intensity = 0.16 * (1 - 0.82 * upliftBoost * oculusOpKF);
+        /** Луч/заливка остаются в кадре до конца SPACE — не гасим при взгляде вверх */
+        fillSun.intensity = 0.152;
       }
       mainSun.position.set(58, 132 + 48 * upliftBoost, 52);
     }
     if (sceneAmbient) {
-      sceneAmbient.intensity = 0.09 * (1 - 0.62 * upliftBoost * oculusOpKF);
+      sceneAmbient.intensity = 0.09 * (1 - 0.22 * upliftBoost * oculusOpKF);
     }
     if (oculusSpot) {
       const sb = upliftBoost * oculusOpKF;
       oculusSpot.visible = sb > 0.02;
-      oculusSpot.intensity = 3.6 * sb;
+      oculusSpot.intensity = Math.max(2.95, 3.65 * sb);
     }
 
     const mastS = lerp(A.mast, B.mast, t);
