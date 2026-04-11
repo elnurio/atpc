@@ -222,16 +222,6 @@
   function mastTopY(i) { return mastHeights[i] - 0.05 * TENT_SCALE; }
   const MAST_TOP_MAX = mastTopY(0);
 
-  const OCULUS_MAJOR = 0.52 * TENT_SCALE;
-  const OCULUS_TUBE = 0.05 * TENT_SCALE;
-  const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
-
-  const RAY_LEN_SKY = 72 * TENT_SCALE;
-  const RAY_LEN_BELOW = 22 * TENT_SCALE;
-  const RAY_R_SKY = 2.35 * TENT_SCALE;
-  const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.99;
-  const RAY_R_IN_FLOOR = 0.44 * TENT_SCALE;
-
   const MAST_R = 11.12 * TENT_SCALE;
   const RIM_R = 9.88 * TENT_SCALE;
   const RIM_Y_LOCAL = 0.08 * TENT_SCALE;
@@ -242,6 +232,17 @@
   const SQ_WALL_LIFT = 0.52 * TENT_SCALE;
   const SQ_ROOF_Y = SQ_POST_H * 0.98;
   const SQ_ROOF_OCULUS_Y = SQ_ROOF_Y - 0.14 * TENT_SCALE;
+
+  /** Ceiling opening + torus: tied to tent span (old TENT-only radii read as a pinhole on large shell) */
+  const OCULUS_APERTURE_R = SQ_HALF * 0.29;
+  const OCULUS_TUBE = Math.max(0.055 * TENT_SCALE, OCULUS_APERTURE_R * 0.065);
+  const OCULUS_MAJOR = OCULUS_APERTURE_R + OCULUS_TUBE;
+
+  const RAY_LEN_SKY = 72 * TENT_SCALE;
+  const RAY_LEN_BELOW = 22 * TENT_SCALE;
+  const RAY_R_SKY = 2.35 * TENT_SCALE;
+  const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.99;
+  const RAY_R_IN_FLOOR = 0.44 * TENT_SCALE;
 
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
@@ -559,7 +560,20 @@
     attachWallWindShader(wallMat, wallH);
     const fabricMaterials = [roofMat, wallMat];
 
-    const roof = new THREE.Mesh(new THREE.PlaneGeometry(span, span, 14, 14), roofMat);
+    const roofHoleR = OCULUS_APERTURE_R * 1.02;
+    const roofShape = new THREE.Shape();
+    const roofHalf = span * 0.5;
+    roofShape.moveTo(-roofHalf, -roofHalf);
+    roofShape.lineTo(roofHalf, -roofHalf);
+    roofShape.lineTo(roofHalf, roofHalf);
+    roofShape.lineTo(-roofHalf, roofHalf);
+    roofShape.lineTo(-roofHalf, -roofHalf);
+    const roofHolePath = new THREE.Path();
+    roofHolePath.absarc(0, 0, roofHoleR, 0, Math.PI * 2, true);
+    roofShape.holes.push(roofHolePath);
+    const roofGeo = new THREE.ShapeGeometry(roofShape, 56);
+    roofGeo.computeVertexNormals();
+    const roof = new THREE.Mesh(roofGeo, roofMat);
     roof.rotation.x = -Math.PI / 2;
     roof.position.y = SQ_ROOF_Y;
     g.add(roof);
