@@ -682,6 +682,268 @@
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
+
+    /** Ordered rim from relaxed ceiling (v=0 → u=1 → v=1 → u=0) for wall top attachment — geometry unchanged above. */
+    function vecFromPos(ii) {
+      const b = ii * 3;
+      return new THREE.Vector3(pos[b], pos[b + 1], pos[b + 2]);
+    }
+    const ceilingRing = [];
+    for (let i = 0; i <= nu; i++) ceilingRing.push(vecFromPos(idx(i, 0)));
+    for (let j = 1; j <= nv; j++) ceilingRing.push(vecFromPos(idx(nu, j)));
+    for (let i = nu - 1; i >= 0; i--) ceilingRing.push(vecFromPos(idx(i, nv)));
+    for (let j = nv - 1; j >= 1; j--) ceilingRing.push(vecFromPos(idx(0, j)));
+
+    return { geometry: geo, vertexCount: count, ceilingRing };
+  }
+
+  /**
+   * Ground pull points: same winding as ceilingRing, slightly outside + down (cable tension).
+   */
+  function createWallGroundAnchors(ceilingRing) {
+    const yG = 0.055 * TENT_SCALE;
+    const pull = 0.12 * TENT_SCALE;
+    return ceilingRing.map((p) => {
+      const h = Math.hypot(p.x, p.z) + 1e-6;
+      const ox = p.x / h;
+      const oz = p.z / h;
+      return new THREE.Vector3(p.x + ox * pull, yG, p.z + oz * pull);
+    });
+  }
+
+  /**
+   * Soft balloon-like wall: closed strip from ceiling rim to ground anchors, Verlet + wrap,
+   * outward bias + optional cable pinch targets — not flat panels.
+   */
+  function generateWallMembrane(ceilingRing, groundAnchors, options = {}) {
+    const nU = ceilingRing.length;
+    const nV = options.nV ?? 26;
+    const kStruct = options.kStructural ?? 0.9;
+    const kShear = options.kShear ?? 0.44;
+    const iters = options.iterations ?? 155;
+    const dt = options.dt ?? 0.24;
+    const damping = options.damping ?? 0.996;
+    const gY = options.gravityY ?? -0.012 * TENT_SCALE;
+    const outwardBias = options.outwardBias ?? 0.011 * TENT_SCALE;
+    const cableK = options.cableK ?? 0.085;
+
+    const widx = (u, v) => v * nU + u;
+    const count = nU * (nV + 1);
+    const pos = new Float32Array(count * 3);
+    const prev = new Float32Array(count * 3);
+    const pinned = new Uint8Array(count);
+    const pinTarget = new Float32Array(count * 3);
+
+    for (let v = 0; v <= nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const ii = widx(u, v);
+        const b = ii * 3;
+        const top = ceilingRing[u];
+        const bot = groundAnchors[u];
+        const t = v / nV;
+        if (v === 0) {
+          pos[b] = top.x;
+          pos[b + 1] = top.y;
+          pos[b + 2] = top.z;
+          pinned[ii] = 1;
+          pinTarget[b] = top.x;
+          pinTarget[b + 1] = top.y;
+          pinTarget[b + 2] = top.z;
+        } else if (v === nV) {
+          pos[b] = bot.x;
+          pos[b + 1] = bot.y;
+          pos[b + 2] = bot.z;
+          pinned[ii] = 1;
+          pinTarget[b] = bot.x;
+          pinTarget[b + 1] = bot.y;
+          pinTarget[b + 2] = bot.z;
+        } else {
+          let x = top.x + (bot.x - top.x) * t;
+          let y = top.y + (bot.y - top.y) * t;
+          let z = top.z + (bot.z - top.z) * t;
+          const hl = Math.hypot(x, z) + 1e-6;
+          const sWave = Math.sin((u / nU) * Math.PI * 2 * 3.1 + v * 0.35);
+          const bulge = Math.sin(Math.PI * t) * (0.092 + 0.05 * sWave) * TENT_SCALE;
+          x += (x / hl) * bulge;
+          z += (z / hl) * bulge;
+          y += Math.sin(Math.PI * t) * 0.038 * TENT_SCALE * Math.cos((u / nU) * Math.PI * 4 + 0.7);
+          pos[b] = x;
+          pos[b + 1] = y;
+          pos[b + 2] = z;
+          pinned[ii] = 0;
+        }
+      }
+    }
+
+    prev.set(pos);
+
+    const cableTargets = [];
+    const nCable = Math.min(48, Math.max(12, Math.floor(nU / 5)));
+    for (let c = 0; c < nCable; c++) {
+      const u = Math.floor((c + 0.37) * nU / nCable) % nU;
+      const top = ceilingRing[u];
+      const bot = groundAnchors[u];
+      const tv = 0.38 + 0.08 * Math.sin(c * 2.17);
+      let cx = top.x + (bot.x - top.x) * tv;
+      let cy = top.y + (bot.y - top.y) * tv;
+      let cz = top.z + (bot.z - top.z) * tv;
+      const ch = Math.hypot(cx, cz) + 1e-6;
+      const pinch = (0.072 + 0.035 * Math.sin(c * 1.9)) * TENT_SCALE;
+      cx -= (cx / ch) * pinch;
+      cz -= (cz / ch) * pinch;
+      cy -= 0.028 * TENT_SCALE;
+      cableTargets.push({ x: cx, y: cy, z: cz });
+    }
+
+    const edges = [];
+    function pushEdge(a, b, k) {
+      const ax = pos[a * 3];
+      const ay = pos[a * 3 + 1];
+      const az = pos[a * 3 + 2];
+      const bx = pos[b * 3];
+      const by = pos[b * 3 + 1];
+      const bz = pos[b * 3 + 2];
+      const rest = Math.hypot(bx - ax, by - ay, bz - az);
+      edges.push({ a, b, rest, k });
+    }
+
+    for (let v = 0; v < nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const a = widx(u, v);
+        const b = widx((u + 1) % nU, v);
+        const c = widx(u, v + 1);
+        const d = widx((u + 1) % nU, v + 1);
+        pushEdge(a, b, kStruct);
+        pushEdge(a, c, kStruct);
+        pushEdge(a, d, kShear);
+        pushEdge(b, c, kShear);
+      }
+    }
+
+    const acc = new Float32Array(count * 3);
+
+    for (let it = 0; it < iters; it++) {
+      acc.fill(0);
+      for (let e = 0, nE = edges.length; e < nE; e++) {
+        const ed = edges[e];
+        const ia = ed.a;
+        const ib = ed.b;
+        const ba = ia * 3;
+        const bb = ib * 3;
+        let dx = pos[bb] - pos[ba];
+        let dy = pos[bb + 1] - pos[ba + 1];
+        let dz = pos[bb + 2] - pos[ba + 2];
+        const len = Math.hypot(dx, dy, dz);
+        if (len < 1e-9) continue;
+        const s = ((len - ed.rest) / len) * ed.k;
+        dx *= s;
+        dy *= s;
+        dz *= s;
+        if (!pinned[ia]) {
+          acc[ba] += dx;
+          acc[ba + 1] += dy;
+          acc[ba + 2] += dz;
+        }
+        if (!pinned[ib]) {
+          acc[bb] -= dx;
+          acc[bb + 1] -= dy;
+          acc[bb + 2] -= dz;
+        }
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const b = vi * 3;
+        acc[b + 1] += gY;
+        const px = pos[b];
+        const pz = pos[b + 2];
+        const hl = Math.hypot(px, pz) + 1e-6;
+        acc[b] += (px / hl) * outwardBias * 0.045;
+        acc[b + 2] += (pz / hl) * outwardBias * 0.045;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const u = vi % nU;
+        const vRow = (vi / nU) | 0;
+        if (vRow === 0 || vRow === nV) continue;
+        const b = vi * 3;
+        const px = pos[b];
+        const py = pos[b + 1];
+        const pz = pos[b + 2];
+        const band = Math.floor((u / nU) * cableTargets.length) % cableTargets.length;
+        for (let k = -1; k <= 1; k++) {
+          const ct = cableTargets[(band + k + cableTargets.length) % cableTargets.length];
+          let dx = ct.x - px;
+          let dy = ct.y - py;
+          let dz = ct.z - pz;
+          const d2 = dx * dx + dy * dy + dz * dz + 420;
+          const w = k === 0 ? 1 : 0.45;
+          const f = (cableK * TENT_SCALE / d2) * w;
+          acc[b] += dx * f;
+          acc[b + 1] += dy * f;
+          acc[b + 2] += dz * f;
+        }
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const b = vi * 3;
+        const px = pos[b];
+        const py = pos[b + 1];
+        const pz = pos[b + 2];
+        const qx = prev[b];
+        const qy = prev[b + 1];
+        const qz = prev[b + 2];
+        const nx = px + (px - qx) * damping + acc[b] * dt * dt;
+        const ny = py + (py - qy) * damping + acc[b + 1] * dt * dt;
+        const nz = pz + (pz - qz) * damping + acc[b + 2] * dt * dt;
+        prev[b] = px;
+        prev[b + 1] = py;
+        prev[b + 2] = pz;
+        pos[b] = nx;
+        pos[b + 1] = ny;
+        pos[b + 2] = nz;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (!pinned[vi]) continue;
+        const b = vi * 3;
+        pos[b] = pinTarget[b];
+        pos[b + 1] = pinTarget[b + 1];
+        pos[b + 2] = pinTarget[b + 2];
+        prev[b] = pinTarget[b];
+        prev[b + 1] = pinTarget[b + 1];
+        prev[b + 2] = pinTarget[b + 2];
+      }
+    }
+
+    const verts = new Float32Array(count * 3);
+    verts.set(pos);
+    const uvs = new Float32Array(count * 2);
+    const indices = [];
+    for (let v = 0; v <= nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const ii = widx(u, v);
+        uvs[ii * 2] = u / nU;
+        uvs[ii * 2 + 1] = v / nV;
+      }
+    }
+    for (let v = 0; v < nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const a = widx(u, v);
+        const b = widx((u + 1) % nU, v);
+        const c = widx(u, v + 1);
+        const d = widx((u + 1) % nU, v + 1);
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
     return { geometry: geo, vertexCount: count };
   }
 
@@ -694,6 +956,12 @@
       nu: 78,
       nv: 78,
       iterations: 175,
+    });
+
+    const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
+    const wallMem = generateWallMembrane(tensile.ceilingRing, wallAnchors, {
+      nV: 26,
+      iterations: 155,
     });
 
     const roofBumpRep = 3.2;
@@ -720,7 +988,32 @@
     const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
     g.add(roofMesh);
 
-    const fabricMaterials = [roofMat];
+    const wallBumpRep = 4.2;
+    const wBump = bedding.bumpMap.clone();
+    wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
+    wBump.repeat.set(wallBumpRep * 1.9, wallBumpRep * 2.4);
+    const wallMap = bedding.map.clone();
+    wallMap.repeat.set(5.5, 4.2);
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0xf3eee4,
+      map: wallMap,
+      bumpMap: wBump,
+      bumpScale: 0.02 * (TENT_SCALE / 4),
+      roughness: 0.9,
+      metalness: 0,
+      envMap,
+      envMapIntensity: 0.38,
+      emissive: new THREE.Color(0x221c14),
+      emissiveIntensity: 0.022,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+    const wallMesh = new THREE.Mesh(wallMem.geometry, wallMat);
+    g.add(wallMesh);
+
+    const fabricMaterials = [roofMat, wallMat];
 
     return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: null };
   }
@@ -887,10 +1180,11 @@
         }
         squareBedTentGroup.position.y = dropY;
         const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
-        /** Sheer fabric canopy */
         const roofSheer = 0.66;
-        squareFabricMats.forEach((m) => {
-          m.opacity = Math.min(1, baseOp * flyFade * roofSheer);
+        const wallSheer = 0.54;
+        squareFabricMats.forEach((m, mi) => {
+          const sheer = mi === 0 ? roofSheer : wallSheer;
+          m.opacity = Math.min(1, baseOp * flyFade * sheer);
           m.transparent = true;
         });
         if (squareTentDiagMat) {
