@@ -245,9 +245,9 @@
 
   /** Tensile canopy mast layout (asymmetric); oculus / beam align with main peak projection */
   const TENSILE_PEAK_SPEC = [
-    { nx: -0.31, nz: 0.19, yLift: 1.22, pinR: 0.24, pull: 1.58 },
-    { nx: 0.37, nz: -0.29, yLift: 0.38, pinR: 0.19, pull: 1.22 },
-    { nx: -0.11, nz: -0.46, yLift: 0.15, pinR: 0.15, pull: 0.88 },
+    { nx: -0.31, nz: 0.19, yLift: 1.38, pinR: 0.26, pull: 1.78 },
+    { nx: 0.37, nz: -0.29, yLift: 0.48, pinR: 0.2, pull: 1.32 },
+    { nx: -0.11, nz: -0.46, yLift: 0.22, pinR: 0.16, pull: 0.98 },
   ];
   const OCULUS_APERTURE_R = DIAMOND_R * 0.124;
   const OCULUS_TUBE = Math.max(0.05 * TENT_SCALE, OCULUS_APERTURE_R * 0.068);
@@ -686,19 +686,21 @@
         const { x, z } = diamondUvToXz(u, v, R);
         const y0 = idwY(x, z);
         const man = Math.abs(u - 0.5) + Math.abs(v - 0.5);
-        const centerLift = Math.pow(Math.max(0, 1 - man * 1.02), 1.42);
+        /** Softer falloff → bulge reaches further toward perimeter (fuller tensile silhouette). */
+        const centerLift = Math.pow(Math.max(0, 1 - man * 0.88), 1.08);
         const convexY = convexBulgeAmp * TENT_SCALE * centerLift;
+        /** Long-wave sag/hill between peaks — smooth, not crinkled micro-folds. */
         const und =
           undulationAmp * TENT_SCALE * centerLift *
-          Math.sin(u * Math.PI * 2 * 2.05 + 0.31) *
-          Math.sin(v * Math.PI * 2 * 1.68 - 0.22);
+          Math.sin(u * Math.PI * 2 * 1.22 + 0.28) *
+          Math.sin(v * Math.PI * 2 * 0.98 - 0.18);
         const b = ii * 3;
         pos[b] = x;
         pos[b + 1] = y0
           + convexY
           + und
-          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.0082 * TENT_SCALE
-          + Math.cos(v * 5.8 - u * 1.7) * 0.0068 * TENT_SCALE;
+          + Math.sin(u * 3.8 + v * 1.25 + 0.5) * 0.0022 * TENT_SCALE
+          + Math.cos(v * 3.4 - u * 1.1) * 0.0019 * TENT_SCALE;
         pos[b + 2] = z;
 
         let kind = 0;
@@ -797,7 +799,7 @@
           const uu = i / nu;
           const vv = j / nv;
           const manI = Math.abs(uu - 0.5) + Math.abs(vv - 0.5);
-          const wt = Math.pow(Math.max(0, 1 - manI * 1.05), 1.28);
+          const wt = Math.pow(Math.max(0, 1 - manI * 0.88), 1.04);
           acc[vi * 3 + 1] += inflateK * TENT_SCALE * wt;
         }
       }
@@ -885,8 +887,8 @@
     const cx = OCULUS_CENTER_X;
     const cz = OCULUS_CENTER_Z;
     const craterR = OCULUS_APERTURE_R * 2.12;
-    const depth = 0.048 * TENT_SCALE;
-    const rimH = 0.016 * TENT_SCALE;
+    const depth = 0.056 * TENT_SCALE;
+    const rimH = 0.019 * TENT_SCALE;
     const uCap = 1.05;
     const bowlEdge = 0.74;
 
@@ -900,10 +902,8 @@
       const ang = Math.atan2(dz, dx);
       const edgeIrreg =
         1 +
-        0.072 * Math.sin(3 * ang + 0.58) +
-        0.046 * Math.sin(5 * ang - 1.05) +
-        0.034 * Math.sin(8 * ang + 1.55) +
-        0.022 * Math.sin(11 * ang - 0.4);
+        0.034 * Math.sin(3 * ang + 0.58) +
+        0.02 * Math.sin(5 * ang - 1.05);
       const u = r / (craterR * edgeIrreg);
       if (u > uCap + 0.2) continue;
 
@@ -1225,15 +1225,15 @@
     const anchorPoints = createAnchors();
     const mastData = createMasts();
     const tensile = generateTensileSurface(anchorPoints, mastData, {
-      nu: 78,
-      nv: 78,
-      iterations: 218,
-      gravityY: -0.0029 * TENT_SCALE,
-      kStructural: 1.02,
-      kShear: 0.41,
-      convexBulgeAmp: 0.062,
-      undulationAmp: 0.0082,
-      inflateK: 0.0058,
+      nu: 82,
+      nv: 82,
+      iterations: 252,
+      gravityY: -0.00175 * TENT_SCALE,
+      kStructural: 0.97,
+      kShear: 0.37,
+      convexBulgeAmp: 0.128,
+      undulationAmp: 0.017,
+      inflateK: 0.0155,
     });
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
@@ -1264,7 +1264,7 @@
       color: 0xede8de,
       map: bedding.map,
       bumpMap: rBump,
-      bumpScale: 0.017 * (TENT_SCALE / 4),
+      bumpScale: 0.011 * (TENT_SCALE / 4),
       roughness: 0.96,
       metalness: 0,
       envMap,
