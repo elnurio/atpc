@@ -555,8 +555,6 @@
   }
 
   const N_CEILING_LAYERS = 1;
-  /** Edge facing default SE camera: three slits; other sides = solid curtains */
-  const FRONT_WALL_INDEX = 3;
 
   function createMicroCityFabricEnclosure(bedding, envMap) {
     const g = new THREE.Group();
@@ -663,7 +661,7 @@
       const tangent = edge.clone().normalize();
       const mid = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
       const outward = mid.clone().normalize();
-      const eps = 0.04 * TENT_SCALE;
+      const eps = 0.055 * TENT_SCALE;
 
       const wallRoot = new THREE.Group();
       wallRoot.position.set(
@@ -680,32 +678,15 @@
       const hStrip = hFull + roofKiss;
       const yCenter = wallBottom + hStrip * 0.5;
 
-      if (wi !== FRONT_WALL_INDEX) {
-        const planeW = L * 0.93;
-        const geo = new THREE.PlaneGeometry(planeW, hStrip, 36, 30);
-        const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 1.85;
-        const wf = stripRnd(rnd, 0.65, 1.15);
-        addWindStripGeo(geo, planeW * 0.5, hStrip, phase, wf);
-        const curtain = new THREE.Mesh(geo, wallMat);
-        curtain.position.set(0, yCenter, 0);
-        wallRoot.add(curtain);
-      } else {
-        const useW = L * 0.9;
-        const gap = Math.max(1.15 * TENT_SCALE, useW * 0.068);
-        const stripW = (useW - 2 * gap) / 3;
-        const x0 = -useW * 0.5;
-        for (let si = 0; si < 3; si++) {
-          const uCenter = x0 + stripW * 0.5 + si * (stripW + gap);
-          const segsW = Math.max(8, Math.min(20, Math.floor(8 + stripW * 0.09)));
-          const geo = new THREE.PlaneGeometry(stripW * 0.97, hStrip, segsW, 26);
-          const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 2.1 + si * 0.95;
-          const wf = stripRnd(rnd, 0.72, 1.35);
-          addWindStripGeo(geo, stripW * 0.5, hStrip, phase, wf);
-          const strip = new THREE.Mesh(geo, wallMat);
-          strip.position.set(uCenter, yCenter, 0);
-          wallRoot.add(strip);
-        }
-      }
+      /* All four rhombus edges: single solid curtain each (fully enclosed perimeter) */
+      const planeW = L * 0.985;
+      const geo = new THREE.PlaneGeometry(planeW, hStrip, 38, 32);
+      const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 1.85;
+      const wf = stripRnd(rnd, 0.65, 1.15);
+      addWindStripGeo(geo, planeW * 0.5, hStrip, phase, wf);
+      const curtain = new THREE.Mesh(geo, wallMat);
+      curtain.position.set(0, yCenter, 0);
+      wallRoot.add(curtain);
     }
 
     return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: wallMat.userData.windUniforms };
