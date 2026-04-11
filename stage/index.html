@@ -203,9 +203,6 @@
 
   const HDR_URL = 'https://threejs.org/examples/textures/equirectangular/blouberg_sunrise_2_1k.hdr';
 
-  const GP_HEIGHT = 16;
-  const GP_RADIUS = 240;
-
   let scene, camera, renderer;
   let canopyGroup, fabricGeo, fabricMesh, fabricMat, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
   let hubRing, hubRingMat, oculus, oclMat;
@@ -214,7 +211,10 @@
   let interiorGroup;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
-  const TENT_SCALE = 2;
+  const TENT_SCALE = 4;
+  const GP_HEIGHT = 16;
+  const GP_RADIUS = 120 * TENT_SCALE;
+
   const T_OUTER = 10.08 * TENT_SCALE;
   const T_H = 8.12 * TENT_SCALE;
   const N_FOLD = 8;
@@ -275,7 +275,7 @@
   const INTERIOR_PROPS_FULL = 0.88;
   const INTERIOR_SCALE = 5;
   /** World footprint & mesh sizes vs previous layout (1 = old scale). */
-  const INTERIOR_LAYOUT = 2;
+  const INTERIOR_LAYOUT = 4;
   const INTERIOR_BURY_Y = 2.55 * INTERIOR_LAYOUT;
   const INTERIOR_STAGGER = 0.052;
 
@@ -421,12 +421,12 @@
 
   /* Camera scaled with TENT_SCALE — same framing vs larger ring */
   const KF = [
-    { pos: [96, 64, 84], look: [0, 20, 0], canopyY: 66, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [88, 52, 92], look: [0, 17, 0], canopyY: 70, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [108, 44, 16], look: [0, 18, 0], canopyY: 77, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [92, 28, 80], look: [0, 10, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [80, 40, 80], look: [0, 11, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [33, 6.7, 42], look: [0, 9.2, -13], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [192, 128, 168], look: [0, 40, 0], canopyY: 132, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [176, 104, 184], look: [0, 34, 0], canopyY: 140, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [216, 88, 32], look: [0, 36, 0], canopyY: 154, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [184, 56, 160], look: [0, 20, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [160, 80, 160], look: [0, 22, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [66, 13.4, 84], look: [0, 18.4, -26], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
