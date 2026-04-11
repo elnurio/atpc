@@ -1295,8 +1295,9 @@
 
     posA.set(...A.pos); posB.set(...B.pos);
     camera.position.lerpVectors(posA, posB, t);
+    const upliftBoost = s === 5 ? t : 0;
     const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
-    const wobbleAmt = 1 - 0.82 * interiorCamPhase;
+    let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
     camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
     camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
 
@@ -1318,10 +1319,12 @@
         squareWallMesh.visible = wallReveal > 0.004;
       }
       const fabricSheer = [0.64, 0.36, 0.5, 0.46];
+      const roofGlow = 1 + 0.14 * upliftBoost;
       squareFabricMats.forEach((m, mi) => {
         const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
         const wallMul = mi === 2 ? wallReveal : 1;
-        m.opacity = Math.min(1, baseOp * sheer * wallMul);
+        const topMul = mi <= 1 ? roofGlow : 1;
+        m.opacity = Math.min(1, baseOp * sheer * wallMul * topMul);
         m.transparent = true;
       });
       if (squareTentDiagMat) {
@@ -1331,8 +1334,12 @@
 
     if (mainSun && hemiMain) {
       const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
-      mainSun.intensity = lerp(0.68, 0.48, uDim);
-      hemiMain.intensity = lerp(0.48, 0.38, uDim);
+      mainSun.intensity = lerp(0.68, 0.48, uDim) + 0.42 * upliftBoost;
+      hemiMain.intensity = lerp(0.48, 0.38, uDim) + 0.1 * upliftBoost;
+      if (fillSun) {
+        fillSun.intensity = 0.16 * (1 - 0.72 * upliftBoost);
+      }
+      mainSun.position.set(58, 132 + 52 * upliftBoost, 52);
     }
 
     const mastS = lerp(A.mast, B.mast, t);
@@ -1347,10 +1354,11 @@
     const rA = lerp(A.rays, B.rays, t);
     const cab = lerp(A.cable, B.cable, t);
 
+    const rayBoost = 1 + 0.55 * upliftBoost;
     const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
-    bCoreMat.opacity = 0.14 * bA * pulse;
-    bHaloMat.opacity = 0.055 * bA * pulse;
-    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
+    bCoreMat.opacity = 0.14 * bA * pulse * rayBoost;
+    bHaloMat.opacity = 0.055 * bA * pulse * rayBoost;
+    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost);
 
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
     bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
@@ -1362,7 +1370,7 @@
       rayGrp.children[0].position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
       rayGrp.children[0].rotation.x = 0.062;
     }
-    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse;
+    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost;
 
     updateCables(canopyGroup.position.y, cab * 0.55);
 
@@ -1374,7 +1382,7 @@
       labels[i].classList.toggle('on', p >= inAt && p <= outAt);
     });
 
-    const activeDot = clamp(Math.floor(p * 5 + 0.08), 0, 4);
+    const activeDot = clamp(Math.floor(p * NSEG + 0.08), 0, NSEG - 1);
     dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
 
     hint.classList.toggle('hide', p > 0.06);
@@ -1396,7 +1404,8 @@
         const scM = 0.18 + 0.82 * ti;
         mesh.scale.setScalar(scM);
         if (mesh.material && mesh.material.opacity !== undefined) {
-          mesh.material.opacity = clamp(ti * 1.08, 0, 1);
+          const futonFade = 1 - 0.4 * upliftBoost;
+          mesh.material.opacity = clamp(ti * 1.08 * futonFade, 0, 1);
           mesh.material.transparent = mesh.material.opacity < 0.995;
         }
         const baseRy = ud.interiorRotY ?? 0;
