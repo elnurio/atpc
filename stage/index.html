@@ -265,21 +265,11 @@
 
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
-  /** Точки оттяжки к кольцу леса: высота — зона крепления к стволу/нижней кроне */
-  const NUM_TREE_GUYS = 28;
-  const treeGuyAnchors = [];
-  {
-    const trunkTieY = 0.51 * MAST_MAIN_H;
-    const treeR = DIAMOND_R * 1.52 + 58;
-    for (let i = 0; i < NUM_TREE_GUYS; i++) {
-      const a = (i / NUM_TREE_GUYS) * Math.PI * 2 + 0.38 + 0.062 * Math.sin(i * 2.97) + 0.038 * Math.sin(i * 5.2);
-      treeGuyAnchors.push(new THREE.Vector3(
-        Math.cos(a) * treeR,
-        trunkTieY,
-        Math.sin(a) * treeR
-      ));
-    }
-  }
+  /** Оттяжки к кольцу леса: мало линий, равный шаг по кромке, радиаль к якорю (без хаотичных пересечений) */
+  const NUM_TREE_GUYS = 12;
+  let treeGuyAnchors = [];
+  /** Индекс точки ceilingRing для каждого троса — задаётся в setupTreeGuyCablesFromRing */
+  let treeGuyRingIdx = [];
 
   /** Купол/пол с первого кадра; боковые стены — только с фазы Structure (скролл) */
   const WALLS_SCROLL_START = 1 / 6 + 0.02;
@@ -1471,8 +1461,6 @@
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
   const skyDollyDir = new THREE.Vector3();
-  const skyP1 = new THREE.Vector3();
-  const skyMid = new THREE.Vector3();
 
   let isMobile = false;
   let targetFPS = 60;
@@ -1557,14 +1545,35 @@
     [-DIAMOND_R, 0],
   ];
 
+  /**
+   * Равномерный шаг по периметру кромки + якорь в лесу по тому же азимуту → спицы без лишних перекрёстков.
+   */
+  function setupTreeGuyCablesFromRing(ceilingRing) {
+    if (!ceilingRing || ceilingRing.length < NUM_TREE_GUYS) return;
+    treeGuyAnchors = [];
+    treeGuyRingIdx = [];
+    const n = ceilingRing.length;
+    const trunkTieY = 0.51 * MAST_MAIN_H;
+    const treeR = DIAMOND_R * 1.52 + 58;
+    const phase = Math.floor(n / (NUM_TREE_GUYS * 2));
+    for (let i = 0; i < NUM_TREE_GUYS; i++) {
+      const ri = (Math.floor((i + 0.5) * n / NUM_TREE_GUYS) + phase) % n;
+      const p = ceilingRing[ri];
+      const h = Math.hypot(p.x, p.z) + 1e-8;
+      const ux = p.x / h;
+      const uz = p.z / h;
+      treeGuyRingIdx.push(ri);
+      treeGuyAnchors.push(new THREE.Vector3(ux * treeR, trunkTieY, uz * treeR));
+    }
+  }
+
   function updateTreeGuyCables(cableOpacity, tentGroupY) {
     cableMat.opacity = cableOpacity;
     if (!shelterCeilingRing || !shelterCeilingRing.length || !cablePositions) return;
-    const nRing = shelterCeilingRing.length;
+    if (treeGuyRingIdx.length !== NUM_TREE_GUYS || treeGuyAnchors.length !== NUM_TREE_GUYS) return;
     let ix = 0;
     for (let i = 0; i < NUM_TREE_GUYS; i++) {
-      const ri = Math.floor((i + 0.37) * nRing / NUM_TREE_GUYS) % nRing;
-      const p = shelterCeilingRing[ri];
+      const p = shelterCeilingRing[treeGuyRingIdx[i]];
       const ax = p.x;
       const ay = p.y + tentGroupY;
       const az = p.z;
@@ -1591,22 +1600,29 @@
     let upliftBoost;
     if (s === 5) {
       const uScroll = t;
-      const uFlow = smootherstep(uScroll);
+      /** One smooth parameter for the whole beat — no staggered uDolly/uLift/uLook snaps. */
+      const U = smootherstep(uScroll);
 
-      const uDolly = smootherstep(clamp(uFlow / 0.52, 0, 1));
-      const uLift = smootherstep(clamp((uFlow - 0.34) / 0.66, 0, 1));
-      const uLook = smootherstep(clamp((uFlow - 0.44) / 0.56, 0, 1));
-
+      /** Horizontal dolly only: step back through the space (no vertical shove from the rig vector). */
       skyDollyDir.subVectors(posA, lkA);
-      if (skyDollyDir.lengthSq() < 1e-6) skyDollyDir.set(0.4, 0.15, -0.2);
+      skyDollyDir.y = 0;
+      if (skyDollyDir.lengthSq() < 1e-6) skyDollyDir.set(0.4, 0, -0.2);
       skyDollyDir.normalize();
-      skyP1.copy(posA).addScaledVector(skyDollyDir, 14);
 
-      skyMid.lerpVectors(posA, skyP1, uDolly);
-      camera.position.lerpVectors(skyMid, posB, uLift);
+      /** Cosine ease along KF5→KF6: slow start/end, no punchy acceleration. */
+      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * U);
+      camera.position.lerpVectors(posA, posB, posEase);
 
-      lkT.lerpVectors(lkA, lkB, uLook);
-      upliftBoost = uLook;
+      /** Extra pullback that peaks mid-scroll and returns to 0 at ends → still lands on KF positions. */
+      const pullMag = 22;
+      camera.position.addScaledVector(skyDollyDir, pullMag * Math.sin(Math.PI * U));
+
+      /** Tilt up: small early hold (read interior), then long eased blend — not a late snap to the sky. */
+      const tiltPhase = clamp((U - 0.12) / 0.88, 0, 1);
+      const wLook = smootherstep(smootherstep(tiltPhase));
+
+      lkT.lerpVectors(lkA, lkB, wLook);
+      upliftBoost = wLook;
     } else {
       camera.position.lerpVectors(posA, posB, t);
       lkT.lerpVectors(lkA, lkB, t);
@@ -1621,7 +1637,7 @@
 
     camera.lookAt(lkT);
 
-    camera.fov = cameraBaseFov + upliftBoost * 5.5;
+    camera.fov = cameraBaseFov + upliftBoost * 3.4;
     camera.updateProjectionMatrix();
 
     const cy = lerp(A.canopyY, B.canopyY, t);
@@ -1877,6 +1893,7 @@
     squareWallMesh = sqTent.wallMesh;
     squareTentStakeMesh = sqTent.stakeMesh;
     shelterCeilingRing = sqTent.ceilingRing;
+    setupTreeGuyCablesFromRing(shelterCeilingRing);
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
@@ -1926,7 +1943,7 @@
     scene.add(mastGroup);
 
     cableMat = new THREE.LineBasicMaterial({
-      color: 0x3a4236,
+      color: 0x4a564c,
       transparent: true,
       opacity: 0,
     });
