@@ -1427,16 +1427,16 @@
     const floorTopY = 0.2 * TENT_SCALE;
     const minClearAboveFloor = 0.34 * TENT_SCALE;
     const voileMat = new THREE.MeshStandardMaterial({
-      color: 0xf7f4ef,
-      roughness: 0.995,
+      color: 0xf5f2ec,
+      roughness: 0.97,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.18,
-      emissive: new THREE.Color(0xf2eee8),
-      emissiveIntensity: 0.028,
+      envMapIntensity: 0.32,
+      emissive: new THREE.Color(0xede8df),
+      emissiveIntensity: 0.055,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.52,
       depthWrite: false,
     });
     function hfDiamondOk(px, pz) {
@@ -1457,7 +1457,7 @@
         pz = Math.sin(t) * rad * (0.8 + hfRnd() * 0.38);
         px += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
         pz += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
-        const minD = (0.086 + hfRnd() * 0.062) * DIAMOND_R;
+        const minD = (0.098 + hfRnd() * 0.072) * DIAMOND_R;
         let spaced = true;
         for (let i = 0; i < hfPlaced.length; i++) {
           if (Math.hypot(hfPlaced[i].x - px, hfPlaced[i].z - pz) < minD) {
@@ -1469,14 +1469,15 @@
       }
       if (!ok) continue;
       hfPlaced.push({ x: px, z: pz });
-      const topY = SQ_ROOF_Y * (0.56 + hfRnd() * 0.36);
-      const maxLen = Math.max(0.18 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
-      const wantLen = SQ_ROOF_Y * (0.28 + hfRnd() * 0.5);
-      const len = Math.max(0.2 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.72 + hfRnd() * 0.28)));
-      const w = (0.018 + hfRnd() * 0.034) * DIAMOND_R;
-      const stripGeo = new THREE.PlaneGeometry(w, len, 1, 6);
+      /** Подвес у самого верха купола (линия SQ_ROOF_Y), лёгкий разброс по высоте крепления */
+      const topY = SQ_ROOF_Y * (0.965 + hfRnd() * 0.048);
+      const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
+      const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
+      const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
+      const w = (0.042 + hfRnd() * 0.078) * DIAMOND_R;
+      const stripGeo = new THREE.PlaneGeometry(w, len, 1, 8);
       const mat = voileMat.clone();
-      mat.opacity = 0.19 + hfRnd() * 0.1;
+      mat.opacity = 0.44 + hfRnd() * 0.2;
       mat.transparent = true;
       mat.depthWrite = false;
       const strip = new THREE.Mesh(stripGeo, mat);
@@ -2425,6 +2426,8 @@
 
     /** Чертёж: 1 ед ≈ 1 м → локаль interiorGroup (ромб шатра) */
     const M2I = 3.52;
+    /** Толщина матраса (м), было 0.38 — чуть выше для объёма */
+    const FUTON_H_M = 0.47;
     const intFloorY = 0.036 * L * invS;
     const intEnv = scene.environment;
     const futonMatOpts = {
@@ -2451,7 +2454,7 @@
     });
     const cushionMat = new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0x88b8c8 });
 
-    const mattGeo = makeRoundedBox(2.0 * M2I, 0.38 * M2I, 3.2 * M2I);
+    const mattGeo = makeRoundedBox(2.0 * M2I, FUTON_H_M * M2I, 3.2 * M2I);
     const pillGeoSm = makePillowGeo(0.82 * M2I, 0.22 * M2I, 0.56 * M2I);
     const pillGeoWide = makePillowGeo(1.72 * M2I, 0.22 * M2I, 0.56 * M2I);
     const cushGeo = makePillowGeo(0.82 * M2I, 0.2 * M2I, 0.82 * M2I);
@@ -2460,17 +2463,18 @@
       const group = new THREE.Group();
       group.name = 'futonAssembly';
       const matt = new THREE.Mesh(mattGeo, futonMats[mi % futonMats.length].clone());
-      matt.position.y = 0.19 * M2I;
+      matt.position.y = (FUTON_H_M * 0.5) * M2I;
       matt.castShadow = true;
       matt.receiveShadow = true;
       group.add(matt);
 
+      const quiltY = (FUTON_H_M - 0.006) * M2I;
       [-0.85 * M2I, 0, 0.85 * M2I].forEach((zi) => {
         const q = new THREE.Mesh(
           new THREE.BoxGeometry(1.85 * M2I, 0.008 * M2I, 0.014 * M2I),
           quiltMat.clone()
         );
-        q.position.set(0, 0.375 * M2I, zi);
+        q.position.set(0, quiltY, zi);
         group.add(q);
       });
       [-0.55 * M2I, 0, 0.55 * M2I].forEach((xi) => {
@@ -2478,21 +2482,22 @@
           new THREE.BoxGeometry(0.014 * M2I, 0.008 * M2I, 3.05 * M2I),
           quiltMat.clone()
         );
-        q.position.set(xi, 0.375 * M2I, 0);
+        q.position.set(xi, quiltY, 0);
         group.add(q);
       });
 
+      const pillowTopY = (FUTON_H_M + 0.11) * M2I;
       const pm = pillowMats[mi % pillowMats.length].clone();
       if (pillows === 'two') {
         [-0.52 * M2I, 0.52 * M2I].forEach((px) => {
           const p = new THREE.Mesh(pillGeoSm, pm.clone());
-          p.position.set(px, 0.49 * M2I, -1.26 * M2I);
+          p.position.set(px, pillowTopY, -1.26 * M2I);
           p.castShadow = true;
           group.add(p);
         });
       } else {
         const p = new THREE.Mesh(pillGeoWide, pm.clone());
-        p.position.set(0, 0.49 * M2I, -1.26 * M2I);
+        p.position.set(0, pillowTopY, -1.26 * M2I);
         p.castShadow = true;
         group.add(p);
       }
@@ -2515,13 +2520,19 @@
     makeFutonAssembly(-6.2, -4.5, Math.PI * 0.1, 0, 'two', 2, rndRange(-0.06, 0.06));
     makeFutonAssembly(1.2, -5.5, Math.PI * 0.5, 1, 'one', 3, rndRange(-0.05, 0.05));
     makeFutonAssembly(6.2, -3.0, Math.PI * -0.15, 2, 'two', 4, rndRange(-0.07, 0.07));
-    makeFutonAssembly(-5.2, 2.8, Math.PI * 0.72, 3, 'two', 5, rndRange(-0.05, 0.05));
-    makeFutonAssembly(4.8, 3.2, Math.PI * -0.33, 4, 'one', 6, rndRange(-0.06, 0.06));
+    /** (-5.2, 2.8) в локали интерьера совпадал с зоной DJ-стола (окуляр) — убран */
+    makeFutonAssembly(4.8, 3.2, Math.PI * -0.33, 4, 'one', 5, rndRange(-0.06, 0.06));
 
     addLooseCushion(-2.6, -3.2, 8, rndRange(-0.04, 0.04));
     addLooseCushion(3.6, -1.4, 9, rndRange(-0.03, 0.03));
     addLooseCushion(-0.4, 1.6, 10, rndRange(-0.05, 0.05));
     addLooseCushion(0.6, -0.8, 11, rndRange(-0.04, 0.04));
+    addLooseCushion(-3.4, 4.5, 12, rndRange(-0.05, 0.05));
+    addLooseCushion(2.5, 4.0, 13, rndRange(-0.04, 0.04));
+    addLooseCushion(-5.0, -1.5, 14, rndRange(-0.06, 0.04));
+    addLooseCushion(5.2, 1.8, 15, rndRange(-0.03, 0.06));
+    addLooseCushion(-1.8, -4.8, 16, rndRange(-0.05, 0.03));
+    addLooseCushion(4.0, -2.2, 17, rndRange(-0.04, 0.05));
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
