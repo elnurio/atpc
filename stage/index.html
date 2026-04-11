@@ -202,7 +202,7 @@
 
   <script type="module">
   import * as THREE from 'three';
-  import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+  import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
   let scene, camera, renderer;
   let canopyGroup, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
@@ -511,6 +511,58 @@
     bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
     bumpMap.repeat.set(9, 9);
 
+    return { map, bumpMap };
+  }
+
+  /** Пол внутри шатра: мат/настил, без травяного тона — закрывает весь ромб */
+  function makeTentInteriorFloorTextures() {
+    const w = 512;
+    const h = 512;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#c4b69a';
+    ctx.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 3) {
+      ctx.strokeStyle = `rgba(92, 84, 72, ${0.055 + (y % 21 === 0 ? 0.04 : 0)})`;
+      ctx.beginPath();
+      ctx.moveTo(0, y + Math.sin(y * 0.07) * 2);
+      ctx.lineTo(w, y + Math.cos(y * 0.05) * 1.2);
+      ctx.stroke();
+    }
+    for (let x = 0; x < w; x += 5) {
+      ctx.strokeStyle = 'rgba(72, 66, 56, 0.048)';
+      ctx.beginPath();
+      ctx.moveTo(x + Math.sin(x * 0.11) * 2, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(38, 32, 28, 0.035)';
+    for (let i = 0; i < 220; i++) {
+      ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 5, 1);
+    }
+    const map = new THREE.CanvasTexture(c);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.wrapS = map.wrapT = THREE.RepeatWrapping;
+    map.repeat.set(5.8, 5.8);
+    const cb = document.createElement('canvas');
+    cb.width = 256;
+    cb.height = 256;
+    const bx = cb.getContext('2d');
+    const id = bx.createImageData(256, 256);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const px = (i / 4) % 256;
+      const py = (i / 4 / 256) | 0;
+      const n = 118 + Math.sin(px * 0.19) * 8 + Math.sin(py * 0.16) * 7 + (Math.random() - 0.5) * 12;
+      d[i] = d[i + 1] = d[i + 2] = Math.max(68, Math.min(168, n));
+      d[i + 3] = 255;
+    }
+    bx.putImageData(id, 0, 0);
+    const bumpMap = new THREE.CanvasTexture(cb);
+    bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
+    bumpMap.repeat.set(11, 11);
     return { map, bumpMap };
   }
 
@@ -913,7 +965,13 @@
           const archRadial = archBarrelAmp * Math.sin(Math.PI * t) ** 2;
           x += (x / hl) * (bulge + archRadial);
           z += (z / hl) * (bulge + archRadial);
+          const uAz = (u / nU) * Math.PI * 2;
+          const drapeTwist = 0.055 * TENT_SCALE * Math.sin(uAz * 2.15 + v * 0.33) * Math.sin(Math.PI * t);
+          const drapeDiag = 0.042 * TENT_SCALE * Math.cos(uAz * 1.25 - v * 0.48) * t * (1 - t);
+          x += (z / hl) * drapeTwist;
+          z -= (x / hl) * drapeTwist * 0.74;
           y += Math.sin(Math.PI * t) * 0.038 * TENT_SCALE * Math.cos((u / nU) * Math.PI * 4 + 0.7);
+          y += drapeDiag;
           pos[b] = x;
           pos[b + 1] = y;
           pos[b + 2] = z;
@@ -1124,29 +1182,61 @@
     const rBump = bedding.bumpMap.clone();
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
     rBump.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
-    const roofMat = new THREE.MeshStandardMaterial({
-      color: 0xede6d8,
+    const wallBumpRep = 4.2;
+    const wBump = bedding.bumpMap.clone();
+    wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
+    wBump.repeat.set(wallBumpRep * 1.9, wallBumpRep * 2.4);
+    const wallMapSkin = bedding.map.clone();
+    wallMapSkin.repeat.set(5.8, 4.5);
+
+    const skinRoofMat = new THREE.MeshStandardMaterial({
+      color: 0xede8de,
       map: bedding.map,
       bumpMap: rBump,
-      bumpScale: 0.016 * (TENT_SCALE / 4),
-      roughness: 0.93,
+      bumpScale: 0.017 * (TENT_SCALE / 4),
+      roughness: 0.96,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.32,
-      emissive: new THREE.Color(0xf4efe5),
-      emissiveIntensity: 0.035,
+      envMapIntensity: 0.3,
+      emissive: new THREE.Color(0xf3ede4),
+      emissiveIntensity: 0.034,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.58,
+      opacity: 0.55,
       depthWrite: false,
     });
+    const skinWallMat = skinRoofMat.clone();
+    skinWallMat.color.setHex(0xe4dbcf);
+    skinWallMat.map = wallMapSkin;
+    skinWallMat.bumpMap = wBump;
+    skinWallMat.bumpScale = 0.022 * (TENT_SCALE / 4);
+    skinWallMat.roughness = 0.97;
+    skinWallMat.envMapIntensity = 0.26;
+    skinWallMat.opacity = 0.5;
 
     const roofGeo = tensile.geometry.clone();
     applyRoofCraterDisplacement(roofGeo);
-    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+    const wallGeoForMerge = wallMem.geometry.clone();
+    const roofIndexCount = roofGeo.index.count;
+    const wallIndexCount = wallGeoForMerge.index.count;
+    let mergedSkinGeo = mergeGeometries([roofGeo, wallGeoForMerge], false);
+    mergedSkinGeo = mergeVertices(mergedSkinGeo, 3.6);
+    mergedSkinGeo.clearGroups();
+    mergedSkinGeo.addGroup(0, roofIndexCount, 0);
+    mergedSkinGeo.addGroup(roofIndexCount, wallIndexCount, 1);
+    mergedSkinGeo.computeVertexNormals();
+
+    const unifiedSkinMesh = new THREE.Mesh(mergedSkinGeo, [skinRoofMat, skinWallMat]);
+    unifiedSkinMesh.name = 'unifiedTentSkin';
+    unifiedSkinMesh.visible = false;
+    g.add(unifiedSkinMesh);
 
     const roofVeilGeo = tensile.geometry.clone();
-    const roofVeilMat = roofMat.clone();
+    const rBumpVeil = bedding.bumpMap.clone();
+    rBumpVeil.wrapS = rBumpVeil.wrapT = THREE.RepeatWrapping;
+    rBumpVeil.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
+    const roofVeilMat = skinRoofMat.clone();
+    roofVeilMat.bumpMap = rBumpVeil;
     roofVeilMat.opacity = 0.34;
     roofVeilMat.emissiveIntensity = 0.048;
     roofVeilMat.envMapIntensity = 0.26;
@@ -1158,37 +1248,11 @@
 
     const fabricRoofGroup = new THREE.Group();
     fabricRoofGroup.visible = false;
-    fabricRoofGroup.add(roofMesh);
     fabricRoofGroup.add(roofVeilMesh);
     g.add(fabricRoofGroup);
 
-    const wallBumpRep = 4.2;
-    const wBump = bedding.bumpMap.clone();
-    wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
-    wBump.repeat.set(wallBumpRep * 1.9, wallBumpRep * 2.4);
-    const wallMap = bedding.map.clone();
-    wallMap.repeat.set(5.5, 4.2);
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0xe8e0d4,
-      map: wallMap,
-      bumpMap: wBump,
-      bumpScale: 0.021 * (TENT_SCALE / 4),
-      roughness: 0.94,
-      metalness: 0,
-      envMap,
-      envMapIntensity: 0.3,
-      emissive: new THREE.Color(0xeee8dc),
-      emissiveIntensity: 0.026,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.48,
-      depthWrite: false,
-    });
-    const wallMesh = new THREE.Mesh(wallMem.geometry, wallMat);
-    wallMesh.visible = false;
-    g.add(wallMesh);
-
-    const fR = DIAMOND_R * 0.996;
+    const tentFloorTex = makeTentInteriorFloorTextures();
+    const fR = DIAMOND_R * 1.01;
     const floorShape = new THREE.Shape();
     floorShape.moveTo(0, -fR);
     floorShape.lineTo(fR, 0);
@@ -1208,36 +1272,38 @@
     }
     fPos.needsUpdate = true;
     floorGeo.computeVertexNormals();
-    const floorTex = bedding.map.clone();
-    floorTex.repeat.set(6.2, 6.2);
-    const fBump = bedding.bumpMap.clone();
-    fBump.repeat.set(7, 7);
+    tentFloorTex.map.anisotropy = bedding.map.anisotropy || 1;
+    tentFloorTex.bumpMap.anisotropy = bedding.map.anisotropy || 1;
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xe5dccf,
-      map: floorTex,
-      bumpMap: fBump,
-      bumpScale: 0.024 * (TENT_SCALE / 4),
-      roughness: 0.95,
+      color: 0xd9cfba,
+      map: tentFloorTex.map,
+      bumpMap: tentFloorTex.bumpMap,
+      bumpScale: 0.038 * (TENT_SCALE / 4),
+      roughness: 0.94,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.24,
-      emissive: new THREE.Color(0xddd5c8),
-      emissiveIntensity: 0.018,
+      envMapIntensity: 0.22,
+      emissive: new THREE.Color(0xcec4b4),
+      emissiveIntensity: 0.014,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.5,
-      depthWrite: false,
+      opacity: 0.97,
+      depthWrite: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
     });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.position.y = 0.1 * TENT_SCALE;
+    floorMesh.position.y = 0.14 * TENT_SCALE;
     g.add(floorMesh);
 
-    const fabricMaterials = [roofMat, roofVeilMat, wallMat, floorMat];
+    const fabricMaterials = [skinRoofMat, roofVeilMat, skinWallMat, floorMat];
 
     return {
       group: g,
       fabricMaterials,
-      wallMesh,
+      wallMesh: unifiedSkinMesh,
+      unifiedSkinMesh,
       fabricRoofGroup,
       ceilingRing: tensile.ceilingRing,
       diagMat: null,
