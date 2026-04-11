@@ -259,8 +259,8 @@
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
   /** Купол/пол с первого кадра; боковые стены — только с фазы Structure (скролл) */
-  const WALLS_SCROLL_START = 1 / 5 + 0.02;
-  const WALLS_SCROLL_END = 1 / 5 + 0.16;
+  const WALLS_SCROLL_START = 1 / 6 + 0.02;
+  const WALLS_SCROLL_END = 1 / 6 + 0.14;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
@@ -1166,9 +1166,11 @@
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
     { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    /** Entry look-up: у порога, короткий шаг внутрь, взгляд на купол и проём света */
+    { pos: [171, 76, 229], look: [-38, 272, 30], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
-  const NSEG = 5;
+  const NSEG = 6;
   const LWIN = [];
   for (let i = 0; i < NSEG; i++) {
     const seg0 = i / NSEG;
@@ -1177,8 +1179,8 @@
     LWIN.push([seg0 + span * 0.55, seg1 - 0.012]);
   }
 
-  const labels = [0, 1, 2, 3, 4].map(i => document.getElementById('sl' + i));
-  const dots = [0, 1, 2, 3, 4].map(i => document.getElementById('d' + i));
+  const labels = [0, 1, 2, 3, 4, 5].map(i => document.getElementById('sl' + i));
+  const dots = [0, 1, 2, 3, 4, 5].map(i => document.getElementById('d' + i));
   const hint = document.getElementById('hint');
   const loader = document.getElementById('loader');
 
@@ -1445,7 +1447,7 @@
     mainSun = new THREE.DirectionalLight(0xfff6e8, 0.68);
     mainSun.position.set(58, 132, 52);
     scene.add(mainSun);
-    const fillSun = new THREE.DirectionalLight(0xd8eadc, 0.16);
+    fillSun = new THREE.DirectionalLight(0xd8eadc, 0.16);
     fillSun.position.set(-42, 62, -32);
     scene.add(fillSun);
 
