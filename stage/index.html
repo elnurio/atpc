@@ -784,32 +784,6 @@
     const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
     g.add(roofMesh);
 
-    const floorShape = new THREE.Shape();
-    floorShape.moveTo(0, -DIAMOND_R * 0.998);
-    floorShape.lineTo(DIAMOND_R * 0.998, 0);
-    floorShape.lineTo(0, DIAMOND_R * 0.998);
-    floorShape.lineTo(-DIAMOND_R * 0.998, 0);
-    floorShape.closePath();
-    const floorGeo = new THREE.ShapeGeometry(floorShape, 10);
-    floorGeo.rotateX(-Math.PI / 2);
-    const floorTex = bedding.map.clone();
-    floorTex.repeat.set(5.5, 5.5);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xede6dc,
-      map: floorTex,
-      roughness: 0.94,
-      metalness: 0,
-      envMap,
-      envMapIntensity: 0.22,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-    });
-    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.position.y = 0.09 * TENT_SCALE;
-    g.add(floorMesh);
-
     const wallRepW = Math.max(3.6, edgeLen * 0.42);
     const wallRepH = Math.max(3.2, wallH * 0.11);
     const wBump = bedding.bumpMap.clone();
@@ -833,7 +807,7 @@
     });
     attachWallWindShader(wallMat, wallH);
 
-    const fabricMaterials = [roofMat, wallMat, floorMat];
+    const fabricMaterials = [roofMat, wallMat];
 
     function stripWallRng(seed) {
       let s = seed >>> 0;
