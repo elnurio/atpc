@@ -209,7 +209,7 @@
   let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
-  let squareBedTentGroup, squareFabricMats, squareTentDiagMat, squareWallMesh;
+  let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh;
   let mainSun, hemiMain, fillSun;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
@@ -261,6 +261,9 @@
   /** Купол/пол с первого кадра; боковые стены — только с фазы Structure (скролл) */
   const WALLS_SCROLL_START = 1 / 6 + 0.02;
   const WALLS_SCROLL_END = 1 / 6 + 0.14;
+  /** Индекс сегмента скролла «Profile» (sl2) — тканевый купол появляется только здесь */
+  const ROOF_PROFILE_SEG = 2;
+  const ROOF_DESCEND_Y = 3.05 * TENT_SCALE;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
@@ -1067,7 +1070,6 @@
     });
 
     const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
-    g.add(roofMesh);
 
     const roofVeilGeo = tensile.geometry.clone();
     const roofVeilMat = roofMat.clone();
@@ -1079,7 +1081,12 @@
     roofVeilMesh.position.y = 4.15 * TENT_SCALE;
     roofVeilMesh.scale.set(1.042, 1, 1.042);
     roofVeilMesh.rotation.y = 0.011;
-    g.add(roofVeilMesh);
+
+    const fabricRoofGroup = new THREE.Group();
+    fabricRoofGroup.visible = false;
+    fabricRoofGroup.add(roofMesh);
+    fabricRoofGroup.add(roofVeilMesh);
+    g.add(fabricRoofGroup);
 
     const wallBumpRep = 4.2;
     const wBump = bedding.bumpMap.clone();
@@ -1153,7 +1160,7 @@
 
     const fabricMaterials = [roofMat, roofVeilMat, wallMat, floorMat];
 
-    return { group: g, fabricMaterials, wallMesh, diagMat: null, wallWindUniforms: null };
+    return { group: g, fabricMaterials, wallMesh, fabricRoofGroup, diagMat: null, wallWindUniforms: null };
   }
 
   /* Camera path — independent of TENT_SCALE; enlarge shell only via TENT_SCALE above */
@@ -1171,6 +1178,8 @@
   ];
 
   const NSEG = 6;
+  const ROOF_SCROLL_START = ROOF_PROFILE_SEG / NSEG;
+  const ROOF_SCROLL_END = (ROOF_PROFILE_SEG + 1) / NSEG;
   const LWIN = [];
   for (let i = 0; i < NSEG; i++) {
     const seg0 = i / NSEG;
@@ -1318,13 +1327,25 @@
       if (squareWallMesh) {
         squareWallMesh.visible = wallReveal > 0.004;
       }
+      const roofProg = clamp((p - ROOF_SCROLL_START) / (ROOF_SCROLL_END - ROOF_SCROLL_START), 0, 1);
+      const roofInstallEase = ss(roofProg);
+      if (squareFabricRoofGroup) {
+        const roofOn = p >= ROOF_SCROLL_START - 1e-8;
+        squareFabricRoofGroup.visible = roofOn;
+        squareFabricRoofGroup.position.y = roofOn ? (1 - roofInstallEase) * ROOF_DESCEND_Y : ROOF_DESCEND_Y;
+      }
       const fabricSheer = [0.64, 0.36, 0.5, 0.46];
       const roofGlow = 1 + 0.14 * upliftBoost;
       squareFabricMats.forEach((m, mi) => {
         const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
         const wallMul = mi === 2 ? wallReveal : 1;
         const topMul = mi <= 1 ? roofGlow : 1;
-        m.opacity = Math.min(1, baseOp * sheer * wallMul * topMul);
+        let op = Math.min(1, baseOp * sheer * wallMul * topMul);
+        if (mi <= 1) {
+          if (p < ROOF_SCROLL_START) op = 0;
+          else op *= roofInstallEase;
+        }
+        m.opacity = op;
         m.transparent = true;
       });
       if (squareTentDiagMat) {
@@ -1479,6 +1500,7 @@
     bedding.map.anisotropy = maxAni;
     const sqTent = createMicroCityFabricEnclosure(bedding, scene.environment);
     squareBedTentGroup = sqTent.group;
+    squareFabricRoofGroup = sqTent.fabricRoofGroup;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
     squareWallMesh = sqTent.wallMesh;
