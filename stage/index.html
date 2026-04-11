@@ -1313,6 +1313,8 @@
     const upliftBoost = s === 5 ? t : 0;
     const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
     let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
+    const wobbleGate = p < 4 / NSEG ? 0 : ss(clamp((p - 4 / NSEG) / 0.07, 0, 1));
+    wobbleAmt *= 0.4 * wobbleGate;
     camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
     camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
 
@@ -1321,8 +1323,17 @@
     camera.lookAt(lkT);
 
     const profileFovAdd = isMobile ? 7.5 : 11;
-    const targetFov = s === 2 ? cameraBaseFov + profileFovAdd : cameraBaseFov;
-    camera.fov += (targetFov - camera.fov) * 0.2;
+    const pLo = ROOF_SCROLL_START;
+    const pHi = ROOF_SCROLL_END;
+    const spanPH = pHi - pLo;
+    const fovRamp = Math.min(0.026, spanPH * 0.24);
+    let pFov = 0;
+    if (p > pLo && p < pHi) {
+      if (p < pLo + fovRamp) pFov = ss((p - pLo) / fovRamp);
+      else if (p > pHi - fovRamp) pFov = ss((pHi - p) / fovRamp);
+      else pFov = 1;
+    }
+    camera.fov = cameraBaseFov + profileFovAdd * pFov;
     camera.updateProjectionMatrix();
 
     const cy = lerp(A.canopyY, B.canopyY, t);
