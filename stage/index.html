@@ -593,16 +593,16 @@
       const uEnd = span * 0.46;
       let si = 0;
       while (u < uEnd) {
-        const gap = (stripRnd(rnd, 0.35, 1.45) + stripRnd(rnd, 0, 0.4)) * TENT_SCALE;
+        const gap = (stripRnd(rnd, 0.22, 1.05) + stripRnd(rnd, 0, 0.32)) * TENT_SCALE;
         u += gap;
-        const stripW = stripRnd(rnd, 0.42, 1.48) * TENT_SCALE;
+        const stripW = stripRnd(rnd, 0.78, 2.12) * TENT_SCALE;
         if (u + stripW > uEnd) break;
         const hFull = wallTop - wallBottom;
         const roofKiss = 0.025 * TENT_SCALE;
         const hStrip = hFull + roofKiss;
         const yCenter = wallBottom + hStrip * 0.5;
         const uCenter = u + stripW * 0.5;
-        const segsW = Math.max(3, Math.min(10, Math.floor(5 + stripW * 0.22)));
+        const segsW = Math.max(4, Math.min(14, Math.floor(6 + stripW * 0.16)));
         const segsH = Math.max(14, Math.min(32, Math.floor(14 + hFull * 0.42)));
 
         const geo = new THREE.PlaneGeometry(stripW, hStrip, segsW, segsH);
