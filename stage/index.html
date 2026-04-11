@@ -1166,8 +1166,8 @@
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
     { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
-    /** Entry look-up: у порога, короткий шаг внутрь, взгляд на купол и проём света */
-    { pos: [171, 76, 229], look: [-38, 272, 30], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /** Entry look-up: чуть глубже внутрь тента (фаза Sky), затем взгляд на купол и проём света */
+    { pos: [166, 80, 222], look: [-40, 273, 26], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
   const NSEG = 6;
@@ -1650,6 +1650,7 @@
     }
 
     /* Low DJ bench — proportions from low_dj_planning_design_sheet (wide monolithic top, three legs, decks) */
+    const DJ_BOOTH_SCALE = 1.38;
     const benchTopMat = new THREE.MeshStandardMaterial({
       color: 0xf3ead9,
       roughness: 0.82,
@@ -1676,13 +1677,13 @@
       emissiveIntensity: 0.12,
       envMapIntensity: 0.45,
     });
-    const legH = 0.36 * L;
-    const topTy = 0.1 * L;
-    const topW = 1.52 * L;
-    const topD = 0.58 * L;
-    const legW = 0.2 * L;
-    const legD = 0.44 * L;
-    const lx = 0.41 * L;
+    const legH = 0.36 * L * DJ_BOOTH_SCALE;
+    const topTy = 0.1 * L * DJ_BOOTH_SCALE;
+    const topW = 1.52 * L * DJ_BOOTH_SCALE;
+    const topD = 0.58 * L * DJ_BOOTH_SCALE;
+    const legW = 0.2 * L * DJ_BOOTH_SCALE;
+    const legD = 0.44 * L * DJ_BOOTH_SCALE;
+    const lx = 0.41 * L * DJ_BOOTH_SCALE;
     const lowDjBooth = new THREE.Group();
     const topSlab = new THREE.Mesh(new THREE.BoxGeometry(topW, topTy, topD), benchTopMat);
     topSlab.position.y = legH + 0.5 * topTy;
@@ -1695,24 +1696,24 @@
     addLeg(-lx);
     addLeg(0);
     addLeg(lx);
-    const deckY = legH + topTy + 0.014 * L;
-    const deckT = 0.026 * L;
-    const deckZ = -0.04 * L;
-    const deckL = new THREE.Mesh(new THREE.BoxGeometry(0.34 * L, deckT, 0.38 * L), deckMat);
-    deckL.position.set(-0.38 * L, deckY, deckZ);
+    const deckY = legH + topTy + 0.014 * L * DJ_BOOTH_SCALE;
+    const deckT = 0.026 * L * DJ_BOOTH_SCALE;
+    const deckZ = -0.04 * L * DJ_BOOTH_SCALE;
+    const deckL = new THREE.Mesh(new THREE.BoxGeometry(0.34 * L * DJ_BOOTH_SCALE, deckT, 0.38 * L * DJ_BOOTH_SCALE), deckMat);
+    deckL.position.set(-0.38 * L * DJ_BOOTH_SCALE, deckY, deckZ);
     lowDjBooth.add(deckL);
-    const deckC = new THREE.Mesh(new THREE.BoxGeometry(0.33 * L, deckT * 1.08, 0.4 * L), deckMat);
-    deckC.position.set(0, deckY - 0.004 * L, deckZ + 0.012 * L);
+    const deckC = new THREE.Mesh(new THREE.BoxGeometry(0.33 * L * DJ_BOOTH_SCALE, deckT * 1.08, 0.4 * L * DJ_BOOTH_SCALE), deckMat);
+    deckC.position.set(0, deckY - 0.004 * L * DJ_BOOTH_SCALE, deckZ + 0.012 * L * DJ_BOOTH_SCALE);
     lowDjBooth.add(deckC);
-    const deckR = new THREE.Mesh(new THREE.BoxGeometry(0.3 * L, deckT, 0.38 * L), deckMat);
-    deckR.position.set(0.37 * L, deckY, deckZ);
+    const deckR = new THREE.Mesh(new THREE.BoxGeometry(0.3 * L * DJ_BOOTH_SCALE, deckT, 0.38 * L * DJ_BOOTH_SCALE), deckMat);
+    deckR.position.set(0.37 * L * DJ_BOOTH_SCALE, deckY, deckZ);
     lowDjBooth.add(deckR);
-    const cue = new THREE.Mesh(new THREE.CylinderGeometry(0.028 * L, 0.028 * L, 0.018 * L, 14), cueMat);
+    const cue = new THREE.Mesh(new THREE.CylinderGeometry(0.028 * L * DJ_BOOTH_SCALE, 0.028 * L * DJ_BOOTH_SCALE, 0.018 * L * DJ_BOOTH_SCALE, 14), cueMat);
     cue.rotation.x = Math.PI / 2;
-    cue.position.set(0.06 * L, deckY + 0.012 * L, deckZ + 0.14 * L);
+    cue.position.set(0.06 * L * DJ_BOOTH_SCALE, deckY + 0.012 * L * DJ_BOOTH_SCALE, deckZ + 0.14 * L * DJ_BOOTH_SCALE);
     lowDjBooth.add(cue);
-    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.022 * L, 0.022 * L, 0.55 * L, 8), deckMat);
-    cable.position.set(0.34 * L, legH * 0.35, 0.22 * L);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.022 * L * DJ_BOOTH_SCALE, 0.022 * L * DJ_BOOTH_SCALE, 0.55 * L * DJ_BOOTH_SCALE, 8), deckMat);
+    cable.position.set(0.34 * L * DJ_BOOTH_SCALE, legH * 0.35, 0.22 * L * DJ_BOOTH_SCALE);
     cable.rotation.z = 0.52;
     cable.rotation.x = 0.28;
     lowDjBooth.add(cable);
@@ -1731,40 +1732,99 @@
     const futonPlaced = [];
     const mPerWorldUnit = 24 / (2 * DIAMOND_R);
     const futonMinGapLocal = FUTON_MIN_SPACING_M / mPerWorldUnit / INTERIOR_SCALE;
-    const futonMinSep = 1.52 * L * invS + futonMinGapLocal;
+    /** Доп. «воздух» между лежаками (край–край), локальные единицы интерьера */
+    const futonBreathLocal = futonMinGapLocal + 0.1 * L * invS;
     const futonHubExcl = 0.62 * L * invS;
     const futonMaxReach = 4.85 * L * invS;
-    function futonSpotFree(x, z) {
-      if (Math.hypot(x, z) < futonHubExcl) return false;
-      if (Math.abs(x) + Math.abs(z) > futonMaxReach * 1.02) return false;
+    const djLocalX = OCULUS_CENTER_X / INTERIOR_SCALE;
+    const djLocalZ = OCULUS_CENTER_Z / INTERIOR_SCALE;
+    const djExclR = 0.5 * Math.hypot(topW, topD) + 0.24 * L * invS;
+
+    function futonHalfDiag(fw, fd) {
+      return 0.5 * Math.hypot(fw, fd);
+    }
+    function futonPlacementValid(x, z, halfDiag) {
+      const hubR = futonHubExcl + halfDiag + futonBreathLocal * 0.55;
+      if (Math.hypot(x, z) < hubR) return false;
+      if (Math.abs(x) + Math.abs(z) + halfDiag * 1.42 > futonMaxReach * 0.98) return false;
+      if (Math.hypot(x - djLocalX, z - djLocalZ) < djExclR + halfDiag + futonBreathLocal) return false;
       for (let i = 0; i < futonPlaced.length; i++) {
         const o = futonPlaced[i];
-        if (Math.hypot(o.x - x, o.z - z) < futonMinSep) return false;
+        const need = o.halfDiag + halfDiag + futonBreathLocal;
+        if (Math.hypot(o.x - x, o.z - z) < need - 1e-6) return false;
       }
       return true;
     }
-    const nFutons = 21;
-    for (let fi = 0; fi < nFutons; fi++) {
+    function sampleFutonXZ(fi, attempt) {
+      const span = Math.max(0.15 * L * invS, futonMaxReach - futonHubExcl);
+      const u = rnd();
+      let rMin = futonHubExcl + span * 0.04;
+      let rMax = futonMaxReach * 0.93;
+      if (u < 0.24) {
+        rMax = futonHubExcl + span * 0.44;
+      } else if (u < 0.48) {
+        rMin = futonHubExcl + span * 0.22;
+        rMax = futonHubExcl + span * 0.68;
+      } else if (u < 0.72) {
+        rMin = futonHubExcl + span * 0.45;
+        rMax = futonHubExcl + span * 0.9;
+      } else {
+        rMin = futonHubExcl + span * 0.58;
+        rMax = futonMaxReach * 0.97;
+      }
+      if (rMax <= rMin) rMax = rMin + span * 0.08;
+      const ang = rnd() * Math.PI * 2 + fi * 0.41 + attempt * 0.017;
+      const rad = rMin + rnd() * (rMax - rMin);
+      const ex = 0.74 + rnd() * 0.34;
+      const ez = 0.72 + rnd() * 0.36;
+      let x = Math.cos(ang) * rad * ex;
+      let z = Math.sin(ang) * rad * ez;
+      x += (rnd() - 0.5) * 0.26 * L * invS;
+      z += (rnd() - 0.5) * 0.26 * L * invS;
+      if (rnd() < 0.14) {
+        const edge = futonMaxReach * (0.58 + rnd() * 0.38);
+        const sx = rnd() < 0.5 ? 1 : -1;
+        const sz = rnd() < 0.5 ? 1 : -1;
+        x = sx * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.18 * L * invS;
+        z = sz * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.18 * L * invS;
+      }
+      return { x, z };
+    }
+    function shuffleIndices(n) {
+      const a = Array.from({ length: n }, (_, i) => i);
+      for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        const t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+      }
+      return a;
+    }
+
+    const nFutonsTarget = 21;
+    const maxAttemptsPer = 520;
+    const futonOrder = shuffleIndices(nFutonsTarget);
+    for (let k = 0; k < futonOrder.length; k++) {
+      const fi = futonOrder[k];
+      const fw = (1.55 + rnd() * 0.72) * L;
+      const fd = (0.82 + rnd() * 0.52) * L;
+      const fh = (0.075 + rnd() * 0.045) * L;
+      const halfDiag = futonHalfDiag(fw, fd);
+      let placed = false;
       let x = 0;
       let z = 0;
-      let placed = false;
-      for (let att = 0; att < 190 && !placed; att++) {
-        const ang = rnd() * Math.PI * 2 + fi * 0.73;
-        const rad = futonHubExcl + rnd() * (futonMaxReach - futonHubExcl);
-        const squash = 0.68 + rnd() * 0.48;
-        x = Math.cos(ang) * rad * squash + (rnd() - 0.5) * 0.62 * L * invS;
-        z = Math.sin(ang) * rad * (0.74 + rnd() * 0.52) + (rnd() - 0.5) * 0.62 * L * invS;
-        if (futonSpotFree(x, z)) placed = true;
+      for (let att = 0; att < maxAttemptsPer && !placed; att++) {
+        const s = sampleFutonXZ(fi, att);
+        x = s.x;
+        z = s.z;
+        if (futonPlacementValid(x, z, halfDiag)) placed = true;
       }
       if (!placed) continue;
-      futonPlaced.push({ x, z });
-      const fw = (1.65 + rnd() * 0.75) * L;
-      const fd = (0.88 + rnd() * 0.48) * L;
-      const fh = (0.075 + rnd() * 0.045) * L;
+      futonPlaced.push({ x, z, halfDiag });
       const futon = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, fd), futonMatBase);
       futon.position.set(x, 0.5 * fh * invS, z);
-      futon.rotation.y = rnd() * Math.PI * 2 + fi * 0.19;
-      const twist = rndRange(-0.14, 0.14);
+      futon.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.38, 0.38);
+      const twist = rndRange(-0.16, 0.16);
       registerInteriorRise(futon, 1 + Math.floor(fi * 1.35 + rnd() * 4), twist, futonMatBase);
       interiorGroup.add(futon);
     }
