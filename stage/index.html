@@ -541,27 +541,23 @@
     const roofMat = mkMat(3.6, 3.6);
     const wallRepW = Math.max(3.6, span * 0.38);
     const wallRepH = Math.max(3.2, wallH * 0.11);
-    const wMap = bedding.map.clone();
     const wBump = bedding.bumpMap.clone();
-    wMap.wrapS = wMap.wrapT = THREE.RepeatWrapping;
     wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
-    wMap.repeat.set(wallRepW, wallRepH);
     wBump.repeat.set(wallRepW * 2.1, wallRepH * 2.1);
     const wallMat = new THREE.MeshPhysicalMaterial({
-      color: 0xf7f4ef,
-      map: wMap,
+      color: 0xffffff,
       bumpMap: wBump,
-      bumpScale: 0.038 * (TENT_SCALE / 4),
-      roughness: 0.68,
+      bumpScale: 0.032 * (TENT_SCALE / 4),
+      roughness: 0.62,
       metalness: 0,
       sheen: 1.0,
-      sheenRoughness: 0.9,
+      sheenRoughness: 0.85,
       sheenColor: new THREE.Color(0xffffff),
       envMap,
-      envMapIntensity: 0.52,
+      envMapIntensity: 0.48,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.92,
       depthWrite: false,
     });
     attachWallWindShader(wallMat, wallH);
@@ -1113,8 +1109,16 @@
       transparent: true,
       opacity: 0,
     });
-    function registerInteriorRise(mesh, delaySteps, twist = 0) {
-      mesh.material = intMatBase.clone();
+    const futonMatBase = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.88,
+      metalness: 0,
+      envMapIntensity: 0.5,
+      transparent: true,
+      opacity: 0,
+    });
+    function registerInteriorRise(mesh, delaySteps, twist = 0, mat = intMatBase) {
+      mesh.material = mat.clone();
       mesh.userData.interiorBase = { bx: mesh.position.x, by: mesh.position.y, bz: mesh.position.z };
       mesh.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
       mesh.userData.interiorRotY = mesh.rotation.y;
@@ -1136,24 +1140,24 @@
     interiorGroup.add(lowTable);
 
     const futonGeo = new THREE.BoxGeometry(2.05 * L, 0.1 * L, 1.05 * L);
-    const futonL = new THREE.Mesh(futonGeo, intMatBase);
+    const futonL = new THREE.Mesh(futonGeo, futonMatBase);
     futonL.position.set(
       (-4.35 + rndRange(-0.2, 0.2)) * L * invS,
       0.05 * L * invS,
       (2.95 + rndRange(-0.28, 0.28)) * L * invS
     );
     futonL.rotation.y = 0.35 + rndRange(-0.12, 0.12);
-    registerInteriorRise(futonL, 1, 0.08);
+    registerInteriorRise(futonL, 1, 0.08, futonMatBase);
     interiorGroup.add(futonL);
 
-    const futonR = new THREE.Mesh(futonGeo, intMatBase);
+    const futonR = new THREE.Mesh(futonGeo, futonMatBase);
     futonR.position.set(
       (4.35 + rndRange(-0.2, 0.2)) * L * invS,
       0.05 * L * invS,
       (-2.95 + rndRange(-0.28, 0.28)) * L * invS
     );
     futonR.rotation.y = Math.PI - 0.35 + rndRange(-0.12, 0.12);
-    registerInteriorRise(futonR, 2, -0.08);
+    registerInteriorRise(futonR, 2, -0.08, futonMatBase);
     interiorGroup.add(futonR);
 
     const cMul = 0.34;
