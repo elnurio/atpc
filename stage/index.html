@@ -6,193 +6,130 @@
   <title>ATPC — Stage</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: #e0d8cc; }
+    body { height: 600vh; background: #e0d8cc; }
+    canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
-    /* Body is tall — creates scroll depth; canvas is fixed */
-    html { background: #020206; }
-    body { height: 500vh; background: #020206; }
-
-    canvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      display: block;
-    }
-
-    /* ── Preloader ─────────────────────────────────────────────────────── */
     #loader {
-      position: fixed; inset: 0; z-index: 100;
-      background: #020206;
+      position: fixed; inset: 0; z-index: 100; background: #e0d8cc;
       display: flex; align-items: center; justify-content: center;
-      transition: opacity 0.8s ease;
+      transition: opacity 1s ease;
     }
     #loader.hide { opacity: 0; pointer-events: none; }
     #loader-dot {
-      width: 5px; height: 5px;
-      background: rgba(255,255,255,.35);
-      border-radius: 50%;
-      animation: ldot 1.3s ease-in-out infinite;
+      width: 5px; height: 5px; border-radius: 50%; background: rgba(0,0,0,.18);
+      animation: ldot 1.4s ease-in-out infinite;
     }
-    @keyframes ldot {
-      0%,100% { transform: scale(1);   opacity: .2; }
-      50%      { transform: scale(2.2); opacity: .9; }
-    }
+    @keyframes ldot { 0%,100%{transform:scale(1);opacity:.2} 50%{transform:scale(2.2);opacity:.75} }
 
-    /* ── Navigation ────────────────────────────────────────────────────── */
     #back {
       position: fixed; top: 36px; left: 40px; z-index: 30;
-      color: rgba(255,255,255,.15);
-      font: 300 10px/1 'Helvetica Neue', sans-serif;
+      color: rgba(0,0,0,.22); font: 300 10px/1 'Helvetica Neue', sans-serif;
       letter-spacing: .25em; text-transform: uppercase; text-decoration: none;
       transition: color .4s;
     }
-    #back:hover { color: rgba(255,255,255,.5); }
+    #back:hover { color: rgba(0,0,0,.55); }
 
-    /* ── Step labels ────────────────────────────────────────────────────── */
     .slabel {
-      position: fixed;
-      bottom: 18vh; left: 50%;
+      position: fixed; bottom: 18vh; left: 50%;
       transform: translateX(-50%) translateY(12px);
-      text-align: center; pointer-events: none;
-      opacity: 0;
-      transition: opacity .7s ease, transform .7s ease;
-      z-index: 20;
-      white-space: nowrap;
+      text-align: center; pointer-events: none; opacity: 0;
+      transition: opacity .65s ease, transform .65s ease;
+      z-index: 20; white-space: nowrap;
     }
-    .slabel.on {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+    .slabel.on { opacity: 1; transform: translateX(-50%) translateY(0); }
     .slabel h2 {
-      color: rgba(255,255,255,.82);
-      font: 200 clamp(26px, 4.5vw, 56px)/1 'Helvetica Neue', sans-serif;
-      letter-spacing: .14em; text-transform: uppercase;
-      margin-bottom: 10px;
+      color: rgba(0,0,0,.7);
+      font: 200 clamp(24px, 4vw, 52px)/1 'Helvetica Neue', sans-serif;
+      letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
     }
     .slabel p {
-      color: rgba(255,255,255,.28);
+      color: rgba(0,0,0,.28);
       font: 300 10px/1.6 'Helvetica Neue', sans-serif;
       letter-spacing: .22em; text-transform: uppercase;
     }
 
-    /* ── Scroll hint ────────────────────────────────────────────────────── */
     #hint {
-      position: fixed; bottom: 36px; left: 50%;
-      transform: translateX(-50%);
+      position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
       display: flex; flex-direction: column; align-items: center; gap: 10px;
-      pointer-events: none; z-index: 20;
-      transition: opacity .8s ease;
+      pointer-events: none; z-index: 20; transition: opacity .8s ease;
     }
     #hint.hide { opacity: 0; }
-    #hint span {
-      color: rgba(255,255,255,.18);
-      font: 300 9px/1 'Helvetica Neue', sans-serif;
-      letter-spacing: .3em; text-transform: uppercase;
-    }
+    #hint span { color: rgba(0,0,0,.2); font: 300 9px/1 'Helvetica Neue', sans-serif; letter-spacing: .3em; text-transform: uppercase; }
     #hint-line {
       width: 1px; height: 32px;
-      background: linear-gradient(to bottom, rgba(255,255,255,.22), transparent);
-      animation: drip 2.2s ease-in-out infinite;
-      transform-origin: top;
+      background: linear-gradient(to bottom, rgba(0,0,0,.2), transparent);
+      animation: drip 2.2s ease-in-out infinite; transform-origin: top;
     }
-    @keyframes drip {
-      0%   { transform: scaleY(0); opacity: 1; }
-      60%  { transform: scaleY(1); opacity: 1; }
-      100% { transform: scaleY(1); opacity: 0; }
-    }
+    @keyframes drip { 0%{transform:scaleY(0);opacity:1} 60%{transform:scaleY(1);opacity:1} 100%{transform:scaleY(1);opacity:0} }
 
-    /* ── Step dots ──────────────────────────────────────────────────────── */
     #dots {
-      position: fixed; right: 28px; top: 50%;
-      transform: translateY(-50%);
-      display: flex; flex-direction: column; gap: 14px;
-      z-index: 20; pointer-events: none;
+      position: fixed; right: 28px; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 14px; z-index: 20; pointer-events: none;
     }
     .dot {
       width: 3px; height: 3px; border-radius: 50%;
-      background: rgba(255,255,255,.18);
-      transition: background .4s, transform .4s;
+      background: rgba(0,0,0,.15); transition: background .4s, transform .4s;
     }
-    .dot.on {
-      background: rgba(255,255,255,.75);
-      transform: scale(1.8);
-    }
+    .dot.on { background: rgba(0,0,0,.65); transform: scale(1.8); }
   </style>
 </head>
 <body>
-
   <div id="loader"><div id="loader-dot"></div></div>
   <a href="../" id="back">← ATPC</a>
 
-  <!-- Step labels: shown one at a time -->
-  <div class="slabel" id="sl0">
-    <h2>Stage</h2>
-    <p>An ambient zone for the festival</p>
-  </div>
-  <div class="slabel" id="sl1">
-    <h2>Canopy</h2>
-    <p>A pneumatic fabric structure breathing in space</p>
-  </div>
-  <div class="slabel" id="sl2">
-    <h2>Light</h2>
-    <p>Volumetric beams pierce through the fabric</p>
-  </div>
-  <div class="slabel" id="sl3">
-    <h2>Ground</h2>
-    <p>Light meets earth — you are inside</p>
-  </div>
-  <div class="slabel" id="sl4">
-    <h2>ATPC Stage</h2>
-    <p>Festival 2025</p>
-  </div>
+  <div class="slabel" id="sl0"><h2>Location</h2><p>Sandy site — an open ground for the festival</p></div>
+  <div class="slabel" id="sl1"><h2>Structure</h2><p>Support poles rise — the suspension system takes form</p></div>
+  <div class="slabel" id="sl2"><h2>Stage</h2><p>The pneumatic canopy inflates above the space</p></div>
+  <div class="slabel" id="sl3"><h2>Light</h2><p>Sunlight pierces through the fabric</p></div>
+  <div class="slabel" id="sl4"><h2>Interior</h2><p>Step inside the ambient zone</p></div>
 
   <div id="hint"><span>Scroll</span><div id="hint-line"></div></div>
-
   <div id="dots">
-    <div class="dot on" id="d0"></div>
-    <div class="dot"    id="d1"></div>
-    <div class="dot"    id="d2"></div>
-    <div class="dot"    id="d3"></div>
-    <div class="dot"    id="d4"></div>
+    <div class="dot on" id="d0"></div><div class="dot" id="d1"></div>
+    <div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script>
   'use strict';
 
-  // ── Renderer ──────────────────────────────────────────────────────────────
+  // ── Renderer ──────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setSize(innerWidth, innerHeight);
   document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x020206);
+  scene.background = new THREE.Color(0xe0d8cc);
+  scene.fog = new THREE.Fog(0xe0d8cc, 25, 80);
 
-  const camera = new THREE.PerspectiveCamera(54, innerWidth / innerHeight, 0.1, 120);
+  const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
 
-  // ── Lights ────────────────────────────────────────────────────────────────
-  scene.add(new THREE.AmbientLight(0x0d1020, 1));
-  const keyL = new THREE.DirectionalLight(0xd8eeff, 1.4);
-  keyL.position.set(4, 10, 5);
-  scene.add(keyL);
-  const fillL = new THREE.DirectionalLight(0x5570a0, 0.5);
-  fillL.position.set(-5, 3, -3);
-  scene.add(fillL);
-  const underL = new THREE.PointLight(0x6888b8, 0.7, 20, 2);
-  underL.position.set(0, -1, 0);
-  scene.add(underL);
+  // ── Lights ────────────────────────────────────────────────────────
+  scene.add(new THREE.HemisphereLight(0xdde6f0, 0xc8b080, 0.85));
+  const sun = new THREE.DirectionalLight(0xffe8c8, 1.8);
+  sun.position.set(14, 20, 8);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xfff4e8, 0.35);
+  fill.position.set(-8, 8, -5);
+  scene.add(fill);
 
-  // ── Floor ─────────────────────────────────────────────────────────────────
-  const floorMat = new THREE.MeshPhongMaterial({
-    color: 0x05050d, shininess: 40, specular: 0x141828,
-    transparent: true, opacity: 0,
-  });
-  const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), floorMat);
-  floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.y = -5.8;
-  scene.add(floorMesh);
+  // ── Ground — sandy desert ─────────────────────────────────────────
+  // Outer earth
+  scene.add(Object.assign(
+    new THREE.Mesh(new THREE.PlaneGeometry(80, 80),
+      new THREE.MeshLambertMaterial({ color: 0xa08860 })),
+    { rotation: { x: -Math.PI / 2 }, position: { x: 0, y: -0.04, z: 0 } }
+  ));
+  // Sandy plaza (stage footprint)
+  scene.add(Object.assign(
+    new THREE.Mesh(new THREE.PlaneGeometry(22, 22),
+      new THREE.MeshLambertMaterial({ color: 0xc0a878 })),
+    { rotation: { x: -Math.PI / 2 }, position: { x: 0, y: 0, z: 0 } }
+  ));
 
-  // ── Canopy — GPU shader ───────────────────────────────────────────────────
+  // ── Canopy — Rotational Pneu — GPU shader ─────────────────────────
   const VERT = /* glsl */`
     uniform float u_time;
     varying vec3 v_wpos;
@@ -200,23 +137,21 @@
 
     float disp(float x, float z, float t) {
       float r  = length(vec2(x, z));
-      float br = sin(t * 0.45) * 0.15;
-      float w1 = sin(x * 0.55 + t * 1.4) * cos(z * 0.40 + t * 0.90) * 0.12;
-      float w2 = sin(r * 0.60 - t * 1.10) * 0.09;
-      float w3 = cos(x * 0.28 - z * 0.22 + t * 2.20) * 0.07;
-      return br + w1 + w2 + w3;
+      float br = sin(t * 0.28) * 0.07;
+      float w1 = sin(x * 0.38 + t * 0.85) * cos(z * 0.28 + t * 0.65) * 0.05;
+      float w2 = sin(r * 0.45 - t * 0.70) * 0.04;
+      return br + w1 + w2;
     }
 
     void main() {
       float v   = clamp(length(position.xz) / 5.5, 0.0, 1.0);
       float dy  = disp(position.x, position.z, u_time) * v;
       vec3  pos = position + vec3(0.0, dy, 0.0);
-
-      float e   = 0.10;
-      float dyx = disp(position.x + e, position.z,     u_time) * v;
-      float dyz = disp(position.x,     position.z + e, u_time) * v;
-      vec3  tx  = normalize(vec3(e, dyx - dy, 0.0));
-      vec3  tz  = normalize(vec3(0.0, dyz - dy, e));
+      float e   = 0.12;
+      float dyx = disp(position.x + e, position.z, u_time) * v;
+      float dyz = disp(position.x, position.z + e, u_time) * v;
+      vec3 tx   = normalize(vec3(e, dyx - dy, 0.0));
+      vec3 tz   = normalize(vec3(0.0, dyz - dy, e));
       v_wnorm = normalize(mat3(modelMatrix) * normalize(cross(tz, tx)));
       v_wpos  = (modelMatrix * vec4(pos, 1.0)).xyz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -231,22 +166,25 @@
 
     void main() {
       vec3 n       = normalize(v_wnorm);
-      vec3 keyDir  = normalize(vec3(4.0, 10.0, 5.0));
-      vec3 fillDir = normalize(vec3(-5.0, 3.0, -3.0));
+      vec3 sunDir  = normalize(vec3(14.0, 20.0, 8.0));
+      vec3 skyDir  = vec3(0.0, 1.0, 0.0);
 
-      float key     = max(dot(n,  keyDir),  0.0) * 0.88;
-      float keyBack = max(dot(-n, keyDir),  0.0) * 0.18;
-      float fill    = max(dot(n,  fillDir), 0.0) * 0.35;
-      float light   = 0.14 + key + keyBack + fill;
+      float sun    = max(dot(n,  sunDir), 0.0) * 0.82;
+      float sky    = 0.36 + max(dot(n, skyDir), 0.0) * 0.20;
+      float trans  = max(dot(-n, sunDir), 0.0) * 0.38; // backlit translucency
+      float light  = sky + sun + trans;
 
-      vec3 color = vec3(0.93, 0.90, 0.86) * light;
+      vec3 color   = vec3(0.97, 0.95, 0.90) * light;
 
-      float dist = length(v_wpos - cameraPosition);
-      float fog  = smoothstep(10.0, 32.0, dist);
-      color = mix(color, vec3(0.008, 0.008, 0.024), fog);
+      float dist   = length(v_wpos - cameraPosition);
+      float fog    = smoothstep(20.0, 70.0, dist);
+      color = mix(color, vec3(0.878, 0.847, 0.800), fog);
 
-      // Fade to black — no transparency needed
-      gl_FragColor = vec4(color * u_fade, 1.0);
+      // Fade from scene background (sandy mist) to full fabric
+      vec3 bg = vec3(0.878, 0.847, 0.800);
+      color   = mix(bg, color, u_fade);
+
+      gl_FragColor = vec4(color, 1.0);
     }
   `;
 
@@ -256,212 +194,231 @@
     side: THREE.DoubleSide,
   });
 
-  // Build radial pneu once — 40 rings × 60 sectors
-  const RINGS = 40, SECTS = 60, BR = 3.8;
-  function pH(v, u) {
-    const w = Math.cos(2 * u);
+  // Rotational Pneu shape: bilateral mushroom / manta-ray
+  const RINGS = 40, SECTS = 60, BASE_R = 4.5;
+  const CANOPY_Y = 4.4; // settled height above ground
+
+  function pneuH(v, u) {
+    const wing = Math.cos(2 * u);
     let h = v <= 0.5
-      ? 1.8 + (v / 0.5) * (1 - v / 0.5) * 7.2
-      : 1.8 - Math.pow((v - 0.5) / 0.5, 2) * 5.5;
-    if (v > 0.5) h += w * (v - 0.5);
+      ? 2.6 + (v / 0.5) * (1 - v / 0.5) * 10.5
+      : 2.6 - Math.pow((v - 0.5) / 0.5, 2) * 5.5;
+    if (v > 0.5) h += wing * (v - 0.5);
     return h;
   }
+  function pneuR(v, u) {
+    return v * BASE_R * (1 + 0.35 * Math.cos(2 * u));
+  }
+
+  const tentGroup = new THREE.Group();
+
   (function buildPneu() {
     const pos = [], uvs = [], idx = [];
-    pos.push(0, pH(0, 0), 0); uvs.push(0.5, 0.5);
+    pos.push(0, pneuH(0, 0), 0); uvs.push(0.5, 0.5);
     for (let ri = 0; ri < RINGS; ri++) {
       const v = (ri + 1) / RINGS;
       for (let si = 0; si < SECTS; si++) {
         const u = (si / SECTS) * Math.PI * 2;
-        const r = v * BR * (1 + 0.35 * Math.cos(2 * u));
-        pos.push(Math.cos(u) * r, pH(v, u), Math.sin(u) * r);
+        pos.push(Math.cos(u) * pneuR(v, u), pneuH(v, u), Math.sin(u) * pneuR(v, u));
         uvs.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
       }
     }
-    for (let s = 0; s < SECTS; s++)
-      idx.push(0, 1 + s, 1 + (s + 1) % SECTS);
+    for (let s = 0; s < SECTS; s++) idx.push(0, 1 + s, 1 + (s + 1) % SECTS);
     for (let r = 0; r < RINGS - 1; r++) {
       const A = 1 + r * SECTS, B = 1 + (r + 1) * SECTS;
       for (let s = 0; s < SECTS; s++) {
         const a = A + s, b = A + (s + 1) % SECTS;
         const c = B + s, d = B + (s + 1) % SECTS;
-        idx.push(a, c, b,  b, c, d);
+        idx.push(a, c, b, b, c, d);
       }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
     g.setIndex(idx);
-    const pneu = new THREE.Mesh(g, canopyMat);
-    pneu.position.y = 2.5;
-    scene.add(pneu);
+    tentGroup.add(new THREE.Mesh(g, canopyMat));
   })();
 
-  // ── Light beams ───────────────────────────────────────────────────────────
+  tentGroup.position.y = CANOPY_Y;
+  scene.add(tentGroup);
+
+  // ── Poles + suspension cables ─────────────────────────────────────
+  // 6 tall poles around the pneu perimeter
+  const N_POLES = 6;
+  const POLE_R  = 6.2;   // radius from centre
+  const POLE_H  = 9.5;   // pole height
+  const poleMat = new THREE.MeshPhongMaterial({ color: 0x6e6a62, shininess: 60, specular: 0x181810 });
+  const cableMat = new THREE.LineBasicMaterial({ color: 0x888070 });
+
+  const polesGroup = new THREE.Group();
+
+  for (let i = 0; i < N_POLES; i++) {
+    const u = (i / N_POLES) * Math.PI * 2;
+    const px = Math.cos(u) * POLE_R, pz = Math.sin(u) * POLE_R;
+
+    // Pole
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.09, POLE_H, 6),
+      poleMat
+    );
+    pole.position.set(px, POLE_H / 2, pz);
+    polesGroup.add(pole);
+
+    // Cable from pole top to canopy attachment (v≈0.78 in world space)
+    const v  = 0.78;
+    const localR = pneuR(v, u);
+    const localH = pneuH(v, u) + CANOPY_Y; // world y when settled
+    const cx = Math.cos(u) * localR;
+    const cz = Math.sin(u) * localR;
+
+    const cableGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(px, POLE_H, pz),
+      new THREE.Vector3(cx, localH, cz),
+    ]);
+    polesGroup.add(new THREE.Line(cableGeo, cableMat));
+  }
+
+  // Start invisible — fade in with scroll
+  polesGroup.traverse(c => { if (c.material) { c.material = c.material.clone(); c.material.transparent = true; c.material.opacity = 0; } });
+  scene.add(polesGroup);
+
+  // ── Sun beams — warm golden cones ────────────────────────────────
+  // 4 beams through the fabric, slightly tilted toward sun
   const BEAM_DEFS = [
-    [-1.3,  0.7,  0.08, -0.05, 1.0, 0.0],
-    [ 1.6, -0.7, -0.07,  0.09, 0.9, 1.8],
-    [ 0.2,  1.8,  0.10,  0.03, 0.8, 3.5],
-    [-0.5, -1.6, -0.05, -0.08, 1.0, 2.2],
+    [-0.8,  0.4, 0.06, -0.04, 1.0, 0.0],
+    [ 1.0, -0.6,-0.05,  0.07, 0.85, 2.1],
+    [ 0.2,  1.2, 0.08,  0.02, 0.9, 3.8],
+    [-0.5, -1.0,-0.04, -0.06, 0.95, 1.4],
   ];
-  const BC = 0xb8d4f0, BH = 14, BCY = 7.5 - BH * 0.5;
+  const BCOL = 0xffe8a0;
 
   const beams = BEAM_DEFS.map(([x, z, rx, rz, intens, phase]) => {
-    const grp = new THREE.Group();
+    const g = new THREE.Group();
     const hMat = new THREE.MeshBasicMaterial({
-      color: BC, transparent: true, opacity: 0,
+      color: BCOL, transparent: true, opacity: 0,
       side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
     });
     const cMat = new THREE.MeshBasicMaterial({
-      color: BC, transparent: true, opacity: 0,
+      color: BCOL, transparent: true, opacity: 0,
       side: THREE.FrontSide, blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 2.6, BH, 12, 1, true), hMat));
-    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 1.9, BH, 12, 1, true), cMat));
-    grp.position.set(x, BCY, z);
-    grp.rotation.set(rx, 0, rz);
-    scene.add(grp);
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 3.0, 9, 16, 1, true), hMat));
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 1.8, 9, 16, 1, true), cMat));
+    // Beam from y=CANOPY_Y+3 (inside fabric dome) down to y=CANOPY_Y-9/2
+    g.position.set(x, CANOPY_Y - 0.5, z);
+    g.rotation.set(rx, 0, rz);
+    scene.add(g);
 
     const pMat = new THREE.MeshBasicMaterial({
-      color: BC, transparent: true, opacity: 0,
+      color: BCOL, transparent: true, opacity: 0,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), pMat);
-    pool.rotation.x = -Math.PI / 2;
-    pool.position.set(x, -5.7, z);
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 24), pMat);
+    pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.01, z);
     scene.add(pool);
 
-    const spot = new THREE.SpotLight(0xd0e8ff, 0, 24, Math.PI / 10, 0.4, 1.8);
-    spot.position.set(x, 8.5, z);
-    spot.target.position.set(x, -6, z);
-    scene.add(spot, spot.target);
-
-    return { cMat, hMat, pMat, spot, phase, intens };
+    return { g, cMat, hMat, pMat, phase, intens };
   });
 
-  // ── Scroll stage keyframes ─────────────────────────────────────────────────
-  //
-  // Each keyframe: camera position + lookAt + what's visible
-  //
+  // ── 5 scroll keyframes ────────────────────────────────────────────
+  // p * 4 → step 0–4, lerp between KF[s] and KF[s+1]
   const KF = [
-    { pos: [0, 10, 16],  look: [0, 3, 0],   canopy: 0, beam: 0, floor: 0 }, // 0 empty space
-    { pos: [10, 3, 11],  look: [0, 3, 0],   canopy: 1, beam: 0, floor: 0 }, // 1 canopy
-    { pos: [6, -0.5, 9], look: [0, 2, 0],   canopy: 1, beam: 1, floor: 0 }, // 2 beams
-    { pos: [2, -3.5, 7], look: [0, 0.5, 0], canopy: 1, beam: 1, floor: 1 }, // 3 ground
-    { pos: [-5, 1, 8],   look: [0, 2.5, 0], canopy: 1, beam: 1, floor: 1 }, // 4 full
+    { pos:[20, 28, 20], look:[0, 0,   0] }, // 0 — aerial empty
+    { pos:[16, 22, 16], look:[0, 5,   0] }, // 1 — aerial + structure
+    { pos:[16,  8,  2], look:[0, 6.5, 0] }, // 2 — side view (stage silhouette)
+    { pos:[12,  4,  0], look:[0, 6.0, 0] }, // 3 — side view + beams
+    { pos:[ 1,  2,  4], look:[0, 6.5, 0] }, // 4 — inside, looking up
   ];
 
-  // Label visibility windows [inAt, outAt] for each step (in progress 0-1)
+  // Label windows [inAt, outAt]
   const LWIN = [
-    [0.00, 0.14],
-    [0.21, 0.40],
-    [0.46, 0.62],
-    [0.68, 0.80],
-    [0.87, 1.00],
+    [0.02, 0.18],
+    [0.25, 0.42],
+    [0.50, 0.65],
+    [0.72, 0.85],
+    [0.90, 1.00],
   ];
 
-  const labels  = [0,1,2,3,4].map(i => document.getElementById('sl' + i));
-  const dots    = [0,1,2,3,4].map(i => document.getElementById('d' + i));
-  const hint    = document.getElementById('hint');
-  const loader  = document.getElementById('loader');
+  const labels = [0,1,2,3,4].map(i => document.getElementById('sl' + i));
+  const dots   = [0,1,2,3,4].map(i => document.getElementById('d' + i));
+  const loader = document.getElementById('loader');
+  const hint   = document.getElementById('hint');
 
-  // ── Lerp helpers ──────────────────────────────────────────────────────────
-  function lerp(a, b, t) { return a + (b - a) * t; }
-  function smoothstep(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  // Pre-allocated vectors
+  // ── Helpers ───────────────────────────────────────────────────────
+  const lerp = (a,b,t) => a + (b - a) * t;
+  const ss   = t => { t = Math.max(0, Math.min(1, t)); return t*t*(3-2*t); }
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA  = new THREE.Vector3(), lkB  = new THREE.Vector3();
   const lkT  = new THREE.Vector3();
 
-  // ── State ─────────────────────────────────────────────────────────────────
-  let clk    = 0;           // animation clock (always runs)
-  let rawSP  = 0;           // raw scroll progress 0–1
-  let sp     = 0;           // smoothed scroll progress
+  // ── State ─────────────────────────────────────────────────────────
+  let clk = 0, rawSP = 0, sp = 0;
+  let lastFrame = 0, firstFrame = true;
+  const FPS = 60;
 
   window.addEventListener('scroll', () => {
     const max = document.documentElement.scrollHeight - innerHeight;
     rawSP = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
   }, { passive: true });
 
-  // ── Main update ───────────────────────────────────────────────────────────
+  // ── Scene update ──────────────────────────────────────────────────
   function updateScene(p) {
-    // Which transition segment (0–3) and local progress within it
     const step4 = p * 4;
-    const s     = clamp(Math.floor(step4), 0, 3);
-    const t     = smoothstep(step4 - s);
+    const s = clamp(Math.floor(step4), 0, 3);
+    const t = ss(step4 - s);
 
-    const A = KF[s], B = KF[s + 1];
-
-    // Camera position
-    posA.set(...A.pos); posB.set(...B.pos);
+    // Camera
+    posA.set(...KF[s].pos);   posB.set(...KF[s+1].pos);
+    lkA.set(...KF[s].look);   lkB.set(...KF[s+1].look);
     camera.position.lerpVectors(posA, posB, t);
-    // Subtle life wobble on top
-    camera.position.x += Math.sin(clk * 0.18) * 0.25;
-    camera.position.y += Math.cos(clk * 0.13) * 0.18;
-
-    // Camera lookAt
-    lkA.set(...A.look); lkB.set(...B.look);
+    camera.position.x += Math.sin(clk * 0.15) * 0.20;
+    camera.position.y += Math.cos(clk * 0.11) * 0.12;
     lkT.lerpVectors(lkA, lkB, t);
     camera.lookAt(lkT);
 
-    // Canopy fade
-    canopyMat.uniforms.u_fade.value = lerp(A.canopy, B.canopy, t);
+    // Poles: fade in p=0.18→0.26
+    const pA = clamp((p - 0.18) / 0.10, 0, 1);
+    polesGroup.traverse(c => { if (c.material && 'opacity' in c.material) c.material.opacity = pA; });
 
-    // Beams
-    const beamA = lerp(A.beam, B.beam, t);
-    beams.forEach(({ cMat, hMat, pMat, spot, phase, intens }) => {
-      const pulse = 0.82 + Math.sin(clk * 0.22 + phase) * 0.18;
-      cMat.opacity = 0.068 * intens * beamA * pulse;
-      hMat.opacity = 0.036 * intens * beamA * pulse;
-      pMat.opacity = 0.09  * intens * beamA * (0.78 + Math.sin(clk * 0.3 + phase) * 0.22);
-      spot.intensity = 1.5 * intens * beamA;
+    // Canopy: fade in p=0.25→0.35
+    canopyMat.uniforms.u_fade.value = clamp((p - 0.25) / 0.12, 0, 1);
+
+    // Beams: appear p=0.68→0.80
+    const bA = clamp((p - 0.68) / 0.12, 0, 1);
+    beams.forEach(({ cMat, hMat, pMat, phase, intens }) => {
+      const pulse = bA > 0.01 ? (0.82 + Math.sin(clk * 0.25 + phase) * 0.18) : 0;
+      cMat.opacity = 0.18 * intens * bA * pulse;
+      hMat.opacity = 0.08 * intens * bA * pulse;
+      pMat.opacity = 0.32 * intens * bA * (0.78 + Math.sin(clk * 0.3 + phase) * 0.22);
     });
-
-    // Floor
-    floorMat.opacity = lerp(A.floor, B.floor, t);
 
     // Labels
-    LWIN.forEach(([inAt, outAt], i) => {
-      const vis = p >= inAt && p <= outAt;
-      labels[i].classList.toggle('on', vis);
-    });
+    LWIN.forEach(([inAt, outAt], i) => labels[i].classList.toggle('on', p >= inAt && p <= outAt));
 
     // Active dot
-    const activeDot = Math.round(p * 4);
-    dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
+    const ad = clamp(Math.floor(p * 5), 0, 4);
+    dots.forEach((d, i) => d.classList.toggle('on', i === ad));
 
-    // Scroll hint
     hint.classList.toggle('hide', p > 0.07);
   }
 
-  // ── Render loop ───────────────────────────────────────────────────────────
-  let firstFrame = true;
-  const targetFPS = 60;
-  let lastFrameTime = 0;
-
+  // ── Render loop — FPS capped ──────────────────────────────────────
   function tick(now) {
     requestAnimationFrame(tick);
-
-    // Frame-rate cap (same as elnurio.com)
-    if (now - lastFrameTime < 1000 / targetFPS) return;
-    lastFrameTime = now;
+    if (now - lastFrame < 1000 / FPS) return;
+    lastFrame = now;
 
     clk += 0.006;
-
-    // Smooth scroll progress
-    sp += (rawSP - sp) * 0.055;
+    sp  += (rawSP - sp) * 0.055;
 
     canopyMat.uniforms.u_time.value = clk;
+    tentGroup.rotation.y = clk * 0.008; // slow rotation of the pneu
+
     updateScene(sp);
     renderer.render(scene, camera);
 
-    // Remove preloader after first render
-    if (firstFrame) {
-      firstFrame = false;
-      setTimeout(() => loader.classList.add('hide'), 100);
-    }
+    if (firstFrame) { firstFrame = false; setTimeout(() => loader.classList.add('hide'), 80); }
   }
 
   requestAnimationFrame(tick);
