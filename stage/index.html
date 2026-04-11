@@ -7,7 +7,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { background: #e0d8cc; }
-    body { height: 600vh; background: #e0d8cc; }
+    body { background: #e0d8cc; overscroll-behavior: none; }
     canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
     #loader {
@@ -97,14 +97,18 @@
   // ── Renderer ──────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  renderer.setSize(innerWidth, innerHeight);
+  // Lock height once — prevents mobile browser chrome (address bar)
+  // from changing innerHeight mid-scroll and causing the canvas to jump
+  let lockedH = innerHeight;
+  document.body.style.height = (lockedH * 6) + 'px';
+  renderer.setSize(innerWidth, lockedH);
   document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xe0d8cc);
   scene.fog = new THREE.Fog(0xe0d8cc, 25, 80);
 
-  const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
+  const camera = new THREE.PerspectiveCamera(42, innerWidth / lockedH, 0.1, 200);
 
   // ── Lights ────────────────────────────────────────────────────────
   scene.add(new THREE.HemisphereLight(0xdde6f0, 0xc8b080, 0.85));
@@ -417,7 +421,7 @@
   const FPS = 60;
 
   window.addEventListener('scroll', () => {
-    const max = document.documentElement.scrollHeight - innerHeight;
+    const max = document.documentElement.scrollHeight - lockedH;
     rawSP = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
   }, { passive: true });
 
@@ -486,10 +490,17 @@
 
   requestAnimationFrame(tick);
 
+  // Only respond to width changes (e.g. orientation flip).
+  // Height-only changes = mobile browser chrome hide/show → ignore.
+  let _lastW = innerWidth;
   window.addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
+    if (innerWidth === _lastW) return;
+    _lastW = innerWidth;
+    lockedH = innerHeight; // re-lock after orientation change
+    document.body.style.height = (lockedH * 6) + 'px';
+    camera.aspect = innerWidth / lockedH;
     camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
+    renderer.setSize(innerWidth, lockedH);
   });
   </script>
 </body>
