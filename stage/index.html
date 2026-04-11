@@ -269,73 +269,75 @@
 
   // ── Interior furniture — Structure phase ──────────────────────────
   const interiorGroup = new THREE.Group();
-  const fabMat  = new THREE.MeshLambertMaterial({ color: 0xeeeae0 }); // soft white fabric
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0xd8d2c6 }); // pale natural wood
-  const djMat   = new THREE.MeshLambertMaterial({ color: 0xe4ddd2 }); // equipment white
+  // Bright white — high contrast against sandy floor
+  const fabMat  = new THREE.MeshLambertMaterial({ color: 0xf8f5ee });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0xe8e2d8 });
+  const djMat   = new THREE.MeshLambertMaterial({ color: 0xf0ece4 });
 
-  // ─ Low Japanese table (centre) ─
-  const tableTop = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.08, 1.6), woodMat);
-  tableTop.position.set(0, 0.22, 0);
+  // ─ Low Japanese table (centre) — thick slab visible from above ─
+  const tableTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.50, 1.8), woodMat);
+  tableTop.position.set(0, 0.25, 0);
   interiorGroup.add(tableTop);
-  [[-1.22, -0.68], [1.22, -0.68], [-1.22, 0.68], [1.22, 0.68]].forEach(([tx, tz]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.20, 0.06), woodMat);
-    leg.position.set(tx, 0.10, tz);
+  [[-1.35, -0.72], [1.35, -0.72], [-1.35, 0.72], [1.35, 0.72]].forEach(([tx, tz]) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.48, 0.12), woodMat);
+    leg.position.set(tx, -0.01, tz);
     interiorGroup.add(leg);
   });
 
   // ─ DJ console on table ─
-  const djBody = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.15, 1.2), djMat);
-  djBody.position.set(0, 0.375, 0);
+  const djBody = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.40, 1.4), djMat);
+  djBody.position.set(0, 0.70, 0);
   interiorGroup.add(djBody);
-  [-0.72, 0.72].forEach(x => {  // platters
-    const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 24), djMat);
-    pl.position.set(x, 0.475, 0);
+  [-0.80, 0.80].forEach(x => {  // platters — discs sticking up
+    const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.14, 24), djMat);
+    pl.position.set(x, 0.97, 0);
     interiorGroup.add(pl);
   });
-  const mixer = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.14, 0.95), djMat);
-  mixer.position.set(0, 0.525, 0);
-  interiorGroup.add(mixer);
+  const mixerBlock = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.30, 1.20), djMat);
+  mixerBlock.position.set(0, 1.05, 0);
+  interiorGroup.add(mixerBlock);
 
-  // ─ Loungers / futons (4 around the table) ─
+  // ─ Loungers / futons — thick mattresses ─
   [
     [-3.0,  1.2,  0.6],
     [ 3.0,  1.2, -0.6],
     [-2.5, -2.8,  1.3],
     [ 2.5, -2.8, -1.3],
   ].forEach(([lx, lz, ry]) => {
-    const mattress = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.16, 0.95), fabMat);
-    mattress.position.set(lx, 0.08, lz);
+    // thick mattress
+    const mattress = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.55, 1.10), fabMat);
+    mattress.position.set(lx, 0.275, lz);
     mattress.rotation.y = ry;
     interiorGroup.add(mattress);
-    // pillow at head end
-    const pil = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 7), fabMat);
-    pil.scale.set(1.0, 0.38, 0.82);
-    pil.position.set(lx - Math.cos(ry) * 0.75, 0.19, lz - Math.sin(ry) * 0.75);
+    // large bolster pillow at head
+    const pil = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8), fabMat);
+    pil.scale.set(1.1, 0.75, 0.9);
+    pil.position.set(lx - Math.cos(ry) * 0.85, 0.65, lz - Math.sin(ry) * 0.85);
     interiorGroup.add(pil);
-    // blanket lump
-    const bk = new THREE.Mesh(new THREE.SphereGeometry(0.36, 8, 6), fabMat);
-    bk.scale.set(1.25, 0.35, 0.88);
-    bk.position.set(lx + Math.cos(ry) * 0.3, 0.18, lz + Math.sin(ry) * 0.3);
+    // blanket lump — big and round
+    const bk = new THREE.Mesh(new THREE.SphereGeometry(0.60, 10, 8), fabMat);
+    bk.scale.set(1.4, 0.70, 1.0);
+    bk.position.set(lx + Math.cos(ry) * 0.35, 0.60, lz + Math.sin(ry) * 0.35);
     interiorGroup.add(bk);
   });
 
-  // ─ Scattered floor pillows ─
+  // ─ Scattered floor pillows — big puffy spheres ─
   [
-    [ 0.8,  3.6, 0.4], [-0.7,  3.9, 1.2],
-    [ 1.6, -3.6,-0.3], [-4.3,  0.5, 0.8],
-    [ 4.2, -0.9,-0.5],
+    [ 1.0,  3.8, 0.4], [-0.8,  4.2, 1.2],
+    [ 1.8, -3.8,-0.3], [-4.5,  0.6, 0.8],
+    [ 4.4, -1.0,-0.5],
   ].forEach(([x, z, ry]) => {
-    const fp = new THREE.Mesh(new THREE.SphereGeometry(0.30, 10, 6), fabMat);
-    fp.scale.y = 0.32;
-    fp.position.set(x, 0.10, z);
+    const fp = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 8), fabMat);
+    fp.scale.y = 0.62;
+    fp.position.set(x, 0.34, z);
     fp.rotation.y = ry;
     interiorGroup.add(fp);
   });
 
-  // ─ Column speakers (2, near edges) ─
-  [[-4.5, -1.2], [4.5, 1.2]].forEach(([x, z]) => {
-    const spk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 1.1, 18), djMat);
-    spk.position.set(x, 0.55, z);
+  // ─ Column speakers — tall cylinders ─
+  [[-4.8, -1.4], [4.8, 1.4]].forEach(([x, z]) => {
+    const spk = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 1.8, 18), djMat);
+    spk.position.set(x, 0.90, z);
     interiorGroup.add(spk);
   });
 
