@@ -1306,10 +1306,15 @@
       const settleFade = 1 - ss(clamp(p / 0.38, 0, 1));
       squareBedTentGroup.position.y = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
       const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
+      const wallReveal = ss(clamp((p - WALLS_SCROLL_START) / (WALLS_SCROLL_END - WALLS_SCROLL_START), 0, 1));
+      if (squareWallMesh) {
+        squareWallMesh.visible = wallReveal > 0.004;
+      }
       const fabricSheer = [0.64, 0.36, 0.5, 0.46];
       squareFabricMats.forEach((m, mi) => {
         const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
-        m.opacity = Math.min(1, baseOp * sheer);
+        const wallMul = mi === 2 ? wallReveal : 1;
+        m.opacity = Math.min(1, baseOp * sheer * wallMul);
         m.transparent = true;
       });
       if (squareTentDiagMat) {
