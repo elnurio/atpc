@@ -405,19 +405,18 @@
   }
 
   /**
-   * Wind on wall fabric: inject before project_vertex so morph/skinning do not overwrite displaced positions.
-   * Amplitude scales with wall height (large tent = visible motion from far camera).
+   * Wind on curtain strips: top is clamped to frame (no motion); only free-hanging mid→hem moves.
+   * Local plane: y = +stripHalfH is top attachment, y = -stripHalfH is hem. Corners at top (|x| large) extra rigid.
    */
-  function attachWallWindShader(material, wallH) {
-    const halfH = wallH * 0.5;
-    const windAmp = Math.max(0.85, wallH * 0.016 + 0.42);
+  function attachWallWindShader(material, wallFullH) {
+    const windAmp = Math.max(1.05, wallFullH * 0.019 + 0.52);
     const uniforms = {
       uTime: { value: 0 },
       uWindAmp: { value: windAmp },
-      uWallHalfH: { value: halfH },
+      uSideAmp: { value: 0.62 },
     };
     material.userData.windUniforms = uniforms;
-    material.customProgramCacheKey = () => '_bedtent_wind_v2';
+    material.customProgramCacheKey = () => '_bedtent_wind_v5_top_anchor';
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms);
       shader.vertexShader = shader.vertexShader.replace(
@@ -425,24 +424,36 @@
         `#include <common>
         uniform float uTime;
         uniform float uWindAmp;
-        uniform float uWallHalfH;
-        attribute float windPhase;`
+        uniform float uSideAmp;
+        attribute float windPhase;
+        attribute float stripHalfH;
+        attribute float stripHalfW;
+        attribute float windFreq;`
       );
       shader.vertexShader = shader.vertexShader.replace(
         '#include <project_vertex>',
         `{
-          float t = uTime + windPhase;
-          float hh = uWallHalfH;
-          float hMask = smoothstep(-hh - 0.02, hh * 0.38, transformed.y);
-          hMask = 0.05 + 0.95 * hMask;
-          float ax = transformed.x * 0.062;
-          float ay = transformed.y * 0.045;
-          float w1 = sin(t * 1.18 + ax + ay) * uWindAmp;
-          float w2 = sin(t * 2.02 - ax * 1.25 + ay * 0.95) * uWindAmp * 0.62;
-          float w3 = sin(t * 2.88 + ax * 0.55 + sin(ay * 0.14 + t * 0.52) * 2.4) * uWindAmp * 0.45;
-          float w4 = sin(t * 4.1 + transformed.x * 0.31) * uWindAmp * 0.22;
-          float w = (w1 + w2 + w3 + w4) * hMask;
-          transformed += normalize(objectNormal) * w;
+          float t = uTime * windFreq + windPhase;
+          float hh = stripHalfH;
+          float hw = stripHalfW;
+          float spanY = max(2.0 * hh, 1e-4);
+          float v = clamp((hh - transformed.y) / spanY, 0.0, 1.0);
+          float hang = smoothstep(0.36, 0.86, v);
+          float xn = abs(transformed.x) / max(hw, 1e-4);
+          float topZone = 1.0 - smoothstep(0.22, 0.52, v);
+          float cornerClamp = topZone * smoothstep(0.48, 0.98, xn);
+          float hMask = hang * (1.0 - 0.92 * cornerClamp);
+          float ax = transformed.x * 0.095;
+          float ay = transformed.y * 0.062;
+          float w1 = sin(t * 1.2 + ax * 1.1 + ay * 0.85) * uWindAmp;
+          float w2 = sin(t * 2.25 - ax * 1.55 + ay * 1.05) * uWindAmp * 0.72;
+          float w3 = sin(t * 3.1 + sin(ay * 0.18 + t * 0.48) * 3.0 + ax * 0.4) * uWindAmp * 0.58;
+          float w4 = sin(t * 4.35 + ax * 0.55) * uWindAmp * 0.32;
+          float wN = (w1 + w2 + w3 + w4) * hMask;
+          float side = sin(t * 1.48 + windPhase * 1.85 + ay * 0.14) * uWindAmp * uSideAmp * hMask;
+          float flutter = cos(t * 3.9 + ax * 2.4 + windPhase) * uWindAmp * uSideAmp * 0.42 * hMask;
+          vec3 alongStrip = vec3(1.0, 0.0, 0.0);
+          transformed += normalize(objectNormal) * wN + alongStrip * (side + flutter);
         }
         #include <project_vertex>`
       );
@@ -475,12 +486,13 @@
 
     const g = new THREE.Group();
     const wallH = SQ_ROOF_Y - SQ_WALL_LIFT;
-    const yMid = (SQ_WALL_LIFT + SQ_ROOF_Y) / 2;
     const span = 2 * SQ_HALF;
+    const wallBottom = SQ_WALL_LIFT;
+    const wallTop = SQ_ROOF_Y;
 
     const roofMat = mkMat(3.6, 3.6);
-    const wallRepW = Math.max(2.8, span * 0.22);
-    const wallRepH = Math.max(2.2, wallH * 0.18);
+    const wallRepW = Math.max(3.6, span * 0.38);
+    const wallRepH = Math.max(3.2, wallH * 0.11);
     const wMap = bedding.map.clone();
     const wBump = bedding.bumpMap.clone();
     wMap.wrapS = wMap.wrapT = THREE.RepeatWrapping;
@@ -491,17 +503,17 @@
       color: 0xf7f4ef,
       map: wMap,
       bumpMap: wBump,
-      bumpScale: 0.032 * (TENT_SCALE / 4),
-      roughness: 0.71,
+      bumpScale: 0.038 * (TENT_SCALE / 4),
+      roughness: 0.68,
       metalness: 0,
       sheen: 1.0,
-      sheenRoughness: 0.92,
+      sheenRoughness: 0.9,
       sheenColor: new THREE.Color(0xffffff),
       envMap,
-      envMapIntensity: 0.58,
+      envMapIntensity: 0.52,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 1,
+      opacity: 0.9,
       depthWrite: false,
     });
     attachWallWindShader(wallMat, wallH);
@@ -512,21 +524,69 @@
     roof.position.y = SQ_ROOF_Y;
     g.add(roof);
 
+    function stripWallRng(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return (s & 0xffffff) / 0xffffff;
+      };
+    }
+    function stripRnd(r, a, b) {
+      return a + r() * (b - a);
+    }
+
     const wallDefs = [
       { x: 0, z: -SQ_HALF, ry: 0 },
       { x: SQ_HALF, z: 0, ry: Math.PI / 2 },
       { x: 0, z: SQ_HALF, ry: Math.PI },
       { x: -SQ_HALF, z: 0, ry: -Math.PI / 2 },
     ];
+
     wallDefs.forEach((wd, wi) => {
-      const wall = new THREE.Mesh(new THREE.PlaneGeometry(span, wallH, 40, 24), wallMat);
-      const n = wall.geometry.attributes.position.count;
-      const phases = new Float32Array(n);
-      phases.fill(wi * Math.PI * 0.5 + 0.17 * Math.sin(wi * 1.7));
-      wall.geometry.setAttribute('windPhase', new THREE.BufferAttribute(phases, 1));
-      wall.position.set(wd.x, yMid, wd.z);
-      wall.rotation.y = wd.ry;
-      g.add(wall);
+      const rnd = stripWallRng(582901 + wi * 7919);
+      const wallRoot = new THREE.Group();
+      wallRoot.position.set(wd.x, 0, wd.z);
+      wallRoot.rotation.y = wd.ry;
+      g.add(wallRoot);
+
+      let u = -span * 0.46;
+      const uEnd = span * 0.46;
+      let si = 0;
+      while (u < uEnd) {
+        const gap = (stripRnd(rnd, 0.35, 1.45) + stripRnd(rnd, 0, 0.4)) * TENT_SCALE;
+        u += gap;
+        const stripW = stripRnd(rnd, 0.42, 1.48) * TENT_SCALE;
+        if (u + stripW > uEnd) break;
+        const hRel = stripRnd(rnd, 0.58, 1.0);
+        const hStrip = (wallTop - wallBottom) * hRel;
+        const yCenter = wallBottom + hStrip * 0.5;
+        const uCenter = u + stripW * 0.5;
+        const segsW = Math.max(3, Math.min(10, Math.floor(5 + stripW * 0.22)));
+        const segsH = Math.max(10, Math.min(24, Math.floor(9 + hStrip * 0.38)));
+
+        const geo = new THREE.PlaneGeometry(stripW, hStrip, segsW, segsH);
+        const nc = geo.attributes.position.count;
+        const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 2.33 + si * 0.81;
+        const wf = stripRnd(rnd, 0.72, 1.48);
+        const phases = new Float32Array(nc);
+        const halfHs = new Float32Array(nc);
+        const halfWs = new Float32Array(nc);
+        const freqs = new Float32Array(nc);
+        phases.fill(phase);
+        halfHs.fill(hStrip * 0.5);
+        halfWs.fill(stripW * 0.5);
+        freqs.fill(wf);
+        geo.setAttribute('windPhase', new THREE.BufferAttribute(phases, 1));
+        geo.setAttribute('stripHalfH', new THREE.BufferAttribute(halfHs, 1));
+        geo.setAttribute('stripHalfW', new THREE.BufferAttribute(halfWs, 1));
+        geo.setAttribute('windFreq', new THREE.BufferAttribute(freqs, 1));
+
+        const strip = new THREE.Mesh(geo, wallMat);
+        strip.position.set(uCenter, yCenter, 0);
+        wallRoot.add(strip);
+        u += stripW;
+        si += 1;
+      }
     });
 
     const yDiag = SQ_ROOF_Y + 0.035 * TENT_SCALE;
@@ -711,9 +771,10 @@
         }
         squareBedTentGroup.position.y = dropY;
         const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
-        squareFabricMats.forEach((m) => {
-          m.opacity = baseOp * flyFade;
-          m.transparent = m.opacity < 0.99;
+        squareFabricMats.forEach((m, mi) => {
+          const cap = mi === 0 ? 1 : 0.84;
+          m.opacity = Math.min(1, baseOp * flyFade * cap);
+          m.transparent = m.opacity < 0.995;
         });
         if (squareTentDiagMat) {
           squareTentDiagMat.opacity = 0.48 * baseOp * flyFade;
