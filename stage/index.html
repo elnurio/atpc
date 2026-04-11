@@ -2012,7 +2012,8 @@
       const scG = (0.9 + 0.1 * ss(uGroup)) * INTERIOR_SCALE;
       interiorGroup.scale.setScalar(scG);
 
-      const riseSpan = 0.52;
+      /** Напольные подушки: короче окно подъёма — заметны уже в ходе Light */
+      const riseSpanDefault = 0.52;
       /** uNode ≤ 1; большие interiorDelay давали t0=0. Масштабируем задержки в [0 … riseDelayCap], порядок сохраняем */
       const riseDelayCap = 0.34;
       const interiorDelayRef = 2.4;
@@ -2031,11 +2032,14 @@
         const uNode =
           node.name === 'lowDjBooth' || node.userData.interiorReveal === 'table'
             ? uTable
-            : uProps;
+            : node.userData.interiorReveal === 'lounge'
+              ? uGroup
+              : uProps;
         const dEff = Math.min(
           riseDelayCap * (ud.interiorDelay / interiorDelayRef),
           riseDelayCap
         );
+        const riseSpan = ud.interiorReveal === 'lounge' ? 0.36 : riseSpanDefault;
         const t0 = clamp((uNode - dEff) / riseSpan, 0, 1);
         const ti = interiorRiseEase(t0);
         const { bx, by, bz } = ud.interiorBase;
@@ -2565,12 +2569,19 @@
       transparent: true,
       depthWrite: false,
     });
-    const cushionMat = new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0x88b8c8 });
+    /** Отдельные напольные подушки: белые, спокойная ткань (не синий accent) */
+    const floorCushionMat = new THREE.MeshStandardMaterial({
+      ...futonMatOpts,
+      color: 0xedeff4,
+      emissive: 0x2a2c30,
+      emissiveIntensity: 0.04,
+    });
 
     const mattGeo = makeRoundedBox(2.0 * M2I, FUTON_H_M * M2I, 3.2 * M2I);
     const pillGeoSm = makePillowGeo(0.82 * M2I, 0.22 * M2I, 0.56 * M2I);
     const pillGeoWide = makePillowGeo(1.72 * M2I, 0.22 * M2I, 0.56 * M2I);
-    const cushGeo = makePillowGeo(0.82 * M2I, 0.2 * M2I, 0.82 * M2I);
+    /** Крупнее базового чертежа — читаемость с дистанции в фазе Light */
+    const floorCushionGeo = makePillowGeo(1.14 * M2I, 0.28 * M2I, 1.14 * M2I);
 
     function makeFutonAssembly(xm, zm, rotY, mi, pillows, delaySteps, twist = 0) {
       const group = new THREE.Group();
@@ -2621,12 +2632,17 @@
       interiorGroup.add(group);
     }
 
-    function addLooseCushion(xm, zm, delaySteps, twist = 0) {
-      const mesh = new THREE.Mesh(cushGeo, cushionMat);
-      mesh.position.set(xm * M2I, intFloorY + 0.1 * M2I, zm * M2I);
+    /**
+     * Напольные подушки в зоне отдыха: фаза Light (uTable) + дальше uGroup; без DJ и без пересечения с футонами.
+     */
+    function addFloorCushion(xLoc, zLoc, delaySteps, twist = 0, rotY = 0) {
+      const mesh = new THREE.Mesh(floorCushionGeo, floorCushionMat);
+      mesh.name = 'floorCushion';
+      mesh.position.set(xLoc, intFloorY + 0.15 * M2I, zLoc);
+      mesh.rotation.y = rotY;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      registerInteriorRise(mesh, delaySteps, twist, cushionMat, 'table');
+      registerInteriorRise(mesh, delaySteps, twist, floorCushionMat, 'lounge');
       interiorGroup.add(mesh);
     }
 
@@ -2636,16 +2652,50 @@
     /** (-5.2, 2.8) в локали интерьера совпадал с зоной DJ-стола (окуляр) — убран */
     makeFutonAssembly(4.8, 3.2, Math.PI * -0.33, 4, 'one', 5, rndRange(-0.06, 0.06));
 
-    addLooseCushion(-2.6, -3.2, 8, rndRange(-0.04, 0.04));
-    addLooseCushion(3.6, -1.4, 9, rndRange(-0.03, 0.03));
-    addLooseCushion(-0.4, 1.6, 10, rndRange(-0.05, 0.05));
-    addLooseCushion(0.6, -0.8, 11, rndRange(-0.04, 0.04));
-    addLooseCushion(-3.4, 4.5, 12, rndRange(-0.05, 0.05));
-    addLooseCushion(2.5, 4.0, 13, rndRange(-0.04, 0.04));
-    addLooseCushion(-5.0, -1.5, 14, rndRange(-0.06, 0.04));
-    addLooseCushion(5.2, 1.8, 15, rndRange(-0.03, 0.06));
-    addLooseCushion(-1.8, -4.8, 16, rndRange(-0.05, 0.03));
-    addLooseCushion(4.0, -2.2, 17, rndRange(-0.04, 0.05));
+    const futonBlockLocal = [
+      { x: -6.2 * M2I, z: -4.5 * M2I, r: 2.45 * M2I },
+      { x: 1.2 * M2I, z: -5.5 * M2I, r: 2.45 * M2I },
+      { x: 6.2 * M2I, z: -3.0 * M2I, r: 2.45 * M2I },
+      { x: 4.8 * M2I, z: 3.2 * M2I, r: 2.45 * M2I },
+    ];
+    const djCxLoc = OCULUS_CENTER_X / INTERIOR_SCALE;
+    const djCzLoc = OCULUS_CENTER_Z / INTERIOR_SCALE;
+    const djClearR = Math.hypot(topW, topD) * 0.52 + 2.35 * M2I;
+    const cushFootR = 0.62 * M2I;
+    const minCushGap = 1.12 * M2I;
+    const loungeManhattan = (DIAMOND_R / INTERIOR_SCALE) * 0.82;
+
+    const placedCush = [];
+    function okFloorCushionSpot(x, z) {
+      if (Math.abs(x) + Math.abs(z) > loungeManhattan) return false;
+      const dDj = Math.hypot(x - djCxLoc, z - djCzLoc);
+      if (dDj < djClearR + cushFootR) return false;
+      for (const f of futonBlockLocal) {
+        if (Math.hypot(x - f.x, z - f.z) < f.r + cushFootR) return false;
+      }
+      for (const [px, pz] of placedCush) {
+        if (Math.hypot(x - px, z - pz) < minCushGap) return false;
+      }
+      return true;
+    }
+
+    const targetFloorCushions = 16;
+    let tries = 0;
+    while (placedCush.length < targetFloorCushions && tries < 900) {
+      tries++;
+      const x = rndRange(-loungeManhattan * 0.88, loungeManhattan * 0.88);
+      const z = rndRange(-loungeManhattan * 0.88, loungeManhattan * 0.88);
+      if (!okFloorCushionSpot(x, z)) continue;
+      placedCush.push([x, z]);
+      const delaySteps = 1 + Math.floor(rnd() * 6);
+      addFloorCushion(
+        x + rndRange(-0.22, 0.22) * M2I,
+        z + rndRange(-0.22, 0.22) * M2I,
+        delaySteps,
+        rndRange(-0.05, 0.05),
+        rnd() * Math.PI * 2
+      );
+    }
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
