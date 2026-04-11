@@ -206,7 +206,6 @@
   let interiorGroup;
   let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
   let squareWallWindUniforms;
-  let nylonFloorMesh, nylonFloorMat;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 24;
@@ -235,10 +234,22 @@
   const SQ_ROOF_Y = SQ_POST_H * 0.98;
   const SQ_ROOF_OCULUS_Y = SQ_ROOF_Y - 0.14 * TENT_SCALE;
 
-  /** Ceiling opening + torus: tied to tent span (old TENT-only radii read as a pinhole on large shell) */
-  const OCULUS_APERTURE_R = SQ_HALF * 0.29;
-  const OCULUS_TUBE = Math.max(0.055 * TENT_SCALE, OCULUS_APERTURE_R * 0.065);
+  /** Three perforated ceiling openings (ref: floating canopy); beam uses middle hole */
+  const CEILING_HOLE_RADII = [
+    DIAMOND_R * 0.108,
+    DIAMOND_R * 0.142,
+    DIAMOND_R * 0.098,
+  ];
+  const CEILING_HOLE_POS = [
+    { x: -0.26 * DIAMOND_R, z: 0.055 * DIAMOND_R },
+    { x: 0.055 * DIAMOND_R, z: -0.045 * DIAMOND_R },
+    { x: 0.34 * DIAMOND_R, z: 0.075 * DIAMOND_R },
+  ];
+  const OCULUS_APERTURE_R = CEILING_HOLE_RADII[1] * 0.98;
+  const OCULUS_TUBE = Math.max(0.05 * TENT_SCALE, OCULUS_APERTURE_R * 0.068);
   const OCULUS_MAJOR = OCULUS_APERTURE_R + OCULUS_TUBE;
+  const OCULUS_CENTER_X = CEILING_HOLE_POS[1].x;
+  const OCULUS_CENTER_Z = CEILING_HOLE_POS[1].z;
 
   const RAY_LEN_SKY = 72 * TENT_SCALE;
   const RAY_LEN_BELOW = 22 * TENT_SCALE;
@@ -260,11 +271,6 @@
   const INTERIOR_LAYOUT = 4;
   const INTERIOR_BURY_Y = 2.55 * INTERIOR_LAYOUT;
   const INTERIOR_STAGGER = 0.052;
-  /** Nylon deck inside tent — fades in during Structure (scroll segment 1). */
-  const NYLON_FLOOR_START = 0.2;
-  const NYLON_FLOOR_FULL = 0.34;
-  const NYLON_FLOOR_Y = 0.095 * TENT_SCALE;
-  const NYLON_FLOOR_BURY = 1.85 * TENT_SCALE;
 
   function interiorRiseEase(t) {
     t = clamp(t, 0, 1);
@@ -299,48 +305,6 @@
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.generateMipmaps = true;
-    return tex;
-  }
-
-  /** Fine grid + sheen-friendly nylon / packcloth for interior deck */
-  function makeNylonWeaveTexture() {
-    const w = 512;
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = w;
-    const ctx = c.getContext('2d');
-    const g = ctx.createLinearGradient(0, 0, w, w);
-    g.addColorStop(0, '#dedfe3');
-    g.addColorStop(0.5, '#e6e8ec');
-    g.addColorStop(1, '#d8dadf');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, w);
-    ctx.strokeStyle = 'rgba(88, 96, 110, 0.09)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < w; i += 4) {
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(w, i);
-      ctx.stroke();
-    }
-    for (let i = 0; i < w; i += 4) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, w);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-    for (let i = 0; i < w; i += 11) {
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(w, i + 40);
-      ctx.stroke();
-    }
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
     return tex;
@@ -511,42 +475,71 @@
     };
   }
 
-  /** Subdivided diamond canopy in XZ with sag + optional circular oculus cut (floating ceiling fields). */
-  function buildDiamondCeilingLayer(R, segs, holeR, sagAmp, phase) {
+  /** Organic tensile canopy (ref) + three circular perforations + sag */
+  function organicBoundaryR(theta, R0) {
+    return R0 * (
+      1 +
+      0.13 * Math.sin(2 * theta + 0.38) +
+      0.09 * Math.sin(3 * theta - 0.85) +
+      0.055 * Math.cos(5 * theta + 0.25)
+    );
+  }
+
+  function buildOrganicPerforatedCanopy(R0, segs, sagAmp, phase, holes) {
+    const Rb = R0 * 1.26;
     const verts = [];
     const uvs = [];
     const indices = [];
+    function clampOrganic(x, z) {
+      const th = Math.atan2(z, x);
+      const rm = organicBoundaryR(th, R0);
+      const r = Math.sqrt(x * x + z * z);
+      if (r <= rm) return { x, z };
+      const s = rm / Math.max(r, 1e-8);
+      return { x: x * s, z: z * s };
+    }
+    function applyHoleCut(x, z) {
+      let px = x;
+      let pz = z;
+      for (let hi = 0; hi < holes.length; hi++) {
+        const { cx, cz, rad } = holes[hi];
+        const dx = px - cx;
+        const dz = pz - cz;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d < rad && d > 1e-6) {
+          px = cx + (dx / d) * rad;
+          pz = cz + (dz / d) * rad;
+        }
+      }
+      return { x: px, z: pz };
+    }
     for (let j = 0; j <= segs; j++) {
       for (let i = 0; i <= segs; i++) {
         const u = i / segs;
         const v = j / segs;
-        let x = (u - 0.5) * 2 * R;
-        let z = (v - 0.5) * 2 * R;
-        const d1 = Math.abs(x) + Math.abs(z);
-        if (d1 > R) {
-          const s = R / Math.max(d1, 1e-6);
-          x *= s;
-          z *= s;
-        }
-        if (holeR > 0) {
-          const rr = Math.sqrt(x * x + z * z);
-          if (rr < holeR && rr > 1e-5) {
-            x *= holeR / rr;
-            z *= holeR / rr;
-          }
-        }
+        let x = (u - 0.5) * 2 * Rb;
+        let z = (v - 0.5) * 2 * Rb;
+        const c0 = clampOrganic(x, z);
+        x = c0.x;
+        z = c0.z;
+        const h0 = applyHoleCut(x, z);
+        x = h0.x;
+        z = h0.z;
+        const c1 = clampOrganic(x, z);
+        x = c1.x;
+        z = c1.z;
         const sag = sagAmp * (
-          Math.sin(x * 0.061 + phase) * 0.42 +
-          Math.sin(z * 0.047 + phase * 1.63) * 0.36 +
-          Math.sin((x * 1.2 + z * 0.85) * 0.051 + phase * 0.5) * 0.3
+          Math.sin(x * 0.044 + phase) * 0.36 +
+          Math.sin(z * 0.037 + phase * 1.45) * 0.3 +
+          Math.sin((x * 1.1 + z * 0.85) * 0.041 + phase * 0.35) * 0.24
         );
         verts.push(x, sag, z);
         uvs.push(u, v);
       }
     }
-    for (let j = 0; j < segs; j++) {
-      for (let i = 0; i < segs; i++) {
-        const a = j * (segs + 1) + i;
+    for (let jj = 0; jj < segs; jj++) {
+      for (let ii = 0; ii < segs; ii++) {
+        const a = jj * (segs + 1) + ii;
         const b = a + 1;
         const c = a + segs + 1;
         const d = c + 1;
@@ -561,7 +554,9 @@
     return geo;
   }
 
-  const N_CEILING_LAYERS = 3;
+  const N_CEILING_LAYERS = 1;
+  /** Edge facing default SE camera: three slits; other sides = solid curtains */
+  const FRONT_WALL_INDEX = 3;
 
   function createMicroCityFabricEnclosure(bedding, envMap) {
     const g = new THREE.Group();
@@ -574,11 +569,11 @@
     const rBump = bedding.bumpMap.clone();
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
     rBump.repeat.set(roofBumpRep * 2.1, roofBumpRep * 2.1);
-    const roofBase = {
+    const roofMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       bumpMap: rBump,
-      bumpScale: 0.024 * (TENT_SCALE / 4),
-      roughness: 0.56,
+      bumpScale: 0.022 * (TENT_SCALE / 4),
+      roughness: 0.54,
       metalness: 0,
       sheen: 1.0,
       sheenRoughness: 0.88,
@@ -589,7 +584,17 @@
       transparent: true,
       opacity: 0.55,
       depthWrite: false,
-    };
+    });
+
+    const holeSpecs = CEILING_HOLE_POS.map((p, i) => ({
+      cx: p.x,
+      cz: p.z,
+      rad: CEILING_HOLE_RADII[i],
+    }));
+    const roofGeo = buildOrganicPerforatedCanopy(DIAMOND_R * 1.08, 52, 0.38 * TENT_SCALE, 0.85, holeSpecs);
+    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+    roofMesh.position.y = SQ_ROOF_Y + 0.06 * TENT_SCALE;
+    g.add(roofMesh);
 
     const wallRepW = Math.max(3.6, edgeLen * 0.42);
     const wallRepH = Math.max(3.2, wallH * 0.11);
@@ -614,28 +619,7 @@
     });
     attachWallWindShader(wallMat, wallH);
 
-    const fabricMaterials = [];
-    const holeCut = OCULUS_APERTURE_R * 1.02;
-    const sag0 = 0.2 * TENT_SCALE;
-    const sag1 = 0.36 * TENT_SCALE;
-    const sag2 = 0.52 * TENT_SCALE;
-    const layers = [
-      { rMul: 1.16, hole: 0, sag: sag0, phase: 0.2, yOff: 2.75 * TENT_SCALE, segs: 28 },
-      { rMul: 1.06, hole: 0, sag: sag1, phase: 2.35, yOff: 1.05 * TENT_SCALE, segs: 32 },
-      { rMul: 1.0, hole: holeCut, sag: sag2, phase: 4.5, yOff: 0.04 * TENT_SCALE, segs: 36 },
-    ];
-    layers.forEach((ly) => {
-      const mat = new THREE.MeshPhysicalMaterial({ ...roofBase, bumpMap: bedding.bumpMap.clone() });
-      mat.bumpMap.wrapS = mat.bumpMap.wrapT = THREE.RepeatWrapping;
-      mat.bumpMap.repeat.set(roofBumpRep * 2.1, roofBumpRep * 2.1);
-      const geo = buildDiamondCeilingLayer(DIAMOND_R * ly.rMul, ly.segs, ly.hole, ly.sag, ly.phase);
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = SQ_ROOF_Y + ly.yOff;
-      g.add(mesh);
-      fabricMaterials.push(mat);
-    });
-
-    fabricMaterials.push(wallMat);
+    const fabricMaterials = [roofMat, wallMat];
 
     function stripWallRng(seed) {
       let s = seed >>> 0;
@@ -646,6 +630,22 @@
     }
     function stripRnd(r, a, b) {
       return a + r() * (b - a);
+    }
+
+    function addWindStripGeo(geo, stripW, hStrip, phase, wf) {
+      const nc = geo.attributes.position.count;
+      const phases = new Float32Array(nc);
+      const halfHs = new Float32Array(nc);
+      const halfWs = new Float32Array(nc);
+      const freqs = new Float32Array(nc);
+      phases.fill(phase);
+      halfHs.fill(hStrip * 0.5);
+      halfWs.fill(stripW * 0.5);
+      freqs.fill(wf);
+      geo.setAttribute('windPhase', new THREE.BufferAttribute(phases, 1));
+      geo.setAttribute('stripHalfH', new THREE.BufferAttribute(halfHs, 1));
+      geo.setAttribute('stripHalfW', new THREE.BufferAttribute(halfWs, 1));
+      geo.setAttribute('windFreq', new THREE.BufferAttribute(freqs, 1));
     }
 
     const diamondVerts = [
@@ -675,72 +675,51 @@
       g.add(wallRoot);
 
       const rnd = stripWallRng(582901 + wi * 7919);
-      let u = -L * 0.46;
-      const uEnd = L * 0.46;
-      let si = 0;
-      while (u < uEnd) {
-        const gap = (stripRnd(rnd, 0.72, 2.35) + stripRnd(rnd, 0.18, 0.95)) * TENT_SCALE;
-        u += gap;
-        const stripW = stripRnd(rnd, 2.15, 4.65) * TENT_SCALE;
-        if (u + stripW > uEnd) break;
-        const hFull = wallTop - wallBottom;
-        const roofKiss = 0.025 * TENT_SCALE;
-        const hStrip = hFull + roofKiss;
-        const yCenter = wallBottom + hStrip * 0.5;
-        const uCenter = u + stripW * 0.5;
-        const segsW = Math.max(6, Math.min(22, Math.floor(10 + stripW * 0.085)));
-        const segsH = Math.max(14, Math.min(32, Math.floor(14 + hFull * 0.42)));
+      const hFull = wallTop - wallBottom;
+      const roofKiss = 0.025 * TENT_SCALE;
+      const hStrip = hFull + roofKiss;
+      const yCenter = wallBottom + hStrip * 0.5;
 
-        const geo = new THREE.PlaneGeometry(stripW, hStrip, segsW, segsH);
-        const nc = geo.attributes.position.count;
-        const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 2.33 + si * 0.81;
-        const wf = stripRnd(rnd, 0.72, 1.48);
-        const phases = new Float32Array(nc);
-        const halfHs = new Float32Array(nc);
-        const halfWs = new Float32Array(nc);
-        const freqs = new Float32Array(nc);
-        phases.fill(phase);
-        halfHs.fill(hStrip * 0.5);
-        halfWs.fill(stripW * 0.5);
-        freqs.fill(wf);
-        geo.setAttribute('windPhase', new THREE.BufferAttribute(phases, 1));
-        geo.setAttribute('stripHalfH', new THREE.BufferAttribute(halfHs, 1));
-        geo.setAttribute('stripHalfW', new THREE.BufferAttribute(halfWs, 1));
-        geo.setAttribute('windFreq', new THREE.BufferAttribute(freqs, 1));
-
-        const strip = new THREE.Mesh(geo, wallMat);
-        strip.position.set(uCenter, yCenter, 0);
-        wallRoot.add(strip);
-        u += stripW;
-        si += 1;
+      if (wi !== FRONT_WALL_INDEX) {
+        const planeW = L * 0.93;
+        const geo = new THREE.PlaneGeometry(planeW, hStrip, 36, 30);
+        const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 1.85;
+        const wf = stripRnd(rnd, 0.65, 1.15);
+        addWindStripGeo(geo, planeW * 0.5, hStrip, phase, wf);
+        const curtain = new THREE.Mesh(geo, wallMat);
+        curtain.position.set(0, yCenter, 0);
+        wallRoot.add(curtain);
+      } else {
+        const useW = L * 0.9;
+        const gap = Math.max(1.15 * TENT_SCALE, useW * 0.068);
+        const stripW = (useW - 2 * gap) / 3;
+        const x0 = -useW * 0.5;
+        for (let si = 0; si < 3; si++) {
+          const uCenter = x0 + stripW * 0.5 + si * (stripW + gap);
+          const segsW = Math.max(8, Math.min(20, Math.floor(8 + stripW * 0.09)));
+          const geo = new THREE.PlaneGeometry(stripW * 0.97, hStrip, segsW, 26);
+          const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 2.1 + si * 0.95;
+          const wf = stripRnd(rnd, 0.72, 1.35);
+          addWindStripGeo(geo, stripW * 0.5, hStrip, phase, wf);
+          const strip = new THREE.Mesh(geo, wallMat);
+          strip.position.set(uCenter, yCenter, 0);
+          wallRoot.add(strip);
+        }
       }
     }
 
-    const yDiag = SQ_ROOF_Y + 0.035 * TENT_SCALE;
-    const de = DIAMOND_R * 0.996;
-    const diagGeo = new THREE.BufferGeometry();
-    diagGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
-      0, yDiag, -de, 0, yDiag, de,
-      -de, yDiag, 0, de, yDiag, 0,
-    ]), 3));
-    const diagMat = new THREE.LineBasicMaterial({
-      color: 0xc9cfd8,
-      transparent: true,
-      opacity: 0.55,
-    });
-    g.add(new THREE.LineSegments(diagGeo, diagMat));
-
-    return { group: g, fabricMaterials, diagMat, wallWindUniforms: wallMat.userData.windUniforms };
+    return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: wallMat.userData.windUniforms };
   }
 
   /* Camera path — independent of TENT_SCALE; enlarge shell only via TENT_SCALE above */
+  /** Pulled back / raised so the full diamond + organic canopy read in frame (TENT_SCALE 24 shell) */
   const KF = [
-    { pos: [384, 256, 336], look: [0, 80, 0], canopyY: 264, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [352, 208, 368], look: [0, 68, 0], canopyY: 280, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [432, 176, 64], look: [0, 72, 0], canopyY: 308, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [368, 112, 320], look: [0, 40, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [320, 160, 320], look: [0, 44, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [132, 26.8, 168], look: [0, 36.8, -52], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [620, 340, 560], look: [0, 125, 0], canopyY: 280, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [580, 285, 600], look: [0, 108, 0], canopyY: 295, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [700, 245, 140], look: [0, 115, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [600, 165, 520], look: [0, 72, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [520, 220, 520], look: [0, 78, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [240, 72, 300], look: [0, 58, -140], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -903,7 +882,7 @@
         const wallSheer = 0.58;
         const nCeil = N_CEILING_LAYERS;
         squareFabricMats.forEach((m, mi) => {
-          const sheer = mi < nCeil ? roofSheer * (mi === 0 ? 0.74 : mi === 1 ? 0.88 : 1) : wallSheer;
+          const sheer = mi < nCeil ? roofSheer : wallSheer;
           m.opacity = Math.min(1, baseOp * flyFade * sheer);
           m.transparent = true;
         });
@@ -911,16 +890,6 @@
           squareTentDiagMat.opacity = 0.34 * baseOp * flyFade;
         }
       }
-    }
-
-    if (nylonFloorMesh && nylonFloorMat) {
-      const uN = clamp((p - NYLON_FLOOR_START) / (NYLON_FLOOR_FULL - NYLON_FLOOR_START), 0, 1);
-      const efN = ss(uN);
-      nylonFloorMesh.visible = p >= NYLON_FLOOR_START - 0.02;
-      nylonFloorMesh.position.y = lerp(NYLON_FLOOR_Y - NYLON_FLOOR_BURY, NYLON_FLOOR_Y, efN);
-      nylonFloorMat.opacity = 0.06 + 0.88 * efN;
-      nylonFloorMat.transparent = nylonFloorMat.opacity < 0.995;
-      nylonFloorMat.depthWrite = nylonFloorMat.opacity > 0.42;
     }
 
     const mastS = lerp(A.mast, B.mast, t);
@@ -941,13 +910,13 @@
     poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
 
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
-    bGrp.position.set(0, oculusWorldY + 1.4 * TENT_SCALE, 0);
+    bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
     rayGrp.position.set(0, 0, 0);
     const oW = oculusWorldY;
     if (rayGrp.children[0]) {
-      rayGrp.children[0].position.set(0, oW, 0);
+      rayGrp.children[0].position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
       rayGrp.children[0].rotation.x = 0.062;
     }
     if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse;
@@ -1025,7 +994,7 @@
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 8000);
+    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 14000);
 
     setupMinimalSandWorld(renderer, scene);
 
@@ -1058,7 +1027,7 @@
       depthWrite: true,
     });
     oculus = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_MAJOR, OCULUS_TUBE, 10, 40), oclMat);
-    oculus.position.set(0, SQ_ROOF_OCULUS_Y, 0);
+    oculus.position.set(OCULUS_CENTER_X, SQ_ROOF_OCULUS_Y, OCULUS_CENTER_Z);
     oculus.rotation.x = Math.PI / 2;
     oculus.visible = false;
     scene.add(oculus);
@@ -1165,39 +1134,8 @@
     });
     pool = new THREE.Mesh(new THREE.CircleGeometry(OCULUS_APERTURE_R * 2.8, 40), poolMat);
     pool.rotation.x = -Math.PI / 2;
-    pool.position.y = 0.035;
+    pool.position.set(OCULUS_CENTER_X, 0.035, OCULUS_CENTER_Z);
     scene.add(pool);
-
-    const nylonMap = makeNylonWeaveTexture();
-    nylonMap.repeat.set(28, 28);
-    nylonMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    nylonFloorMat = new THREE.MeshPhysicalMaterial({
-      color: 0xe4e6ea,
-      map: nylonMap,
-      roughness: 0.36,
-      metalness: 0.06,
-      clearcoat: 0.28,
-      clearcoatRoughness: 0.42,
-      envMap: scene.environment,
-      envMapIntensity: 0.52,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      depthWrite: true,
-    });
-    const nfR = DIAMOND_R * 0.72;
-    const nfShape = new THREE.Shape();
-    nfShape.moveTo(0, -nfR);
-    nfShape.lineTo(nfR, 0);
-    nfShape.lineTo(0, nfR);
-    nfShape.lineTo(-nfR, 0);
-    nfShape.closePath();
-    const nfGeo = new THREE.ShapeGeometry(nfShape);
-    nfGeo.rotateX(-Math.PI / 2);
-    nylonFloorMesh = new THREE.Mesh(nfGeo, nylonFloorMat);
-    nylonFloorMesh.position.set(0, NYLON_FLOOR_Y - NYLON_FLOOR_BURY, 0);
-    nylonFloorMesh.visible = false;
-    scene.add(nylonFloorMesh);
 
     interiorGroup = new THREE.Group();
     const invS = 1 / INTERIOR_SCALE;
