@@ -205,7 +205,6 @@
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
   let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
-  let squareWallWindUniforms;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 24;
@@ -230,7 +229,6 @@
   /** Rhombus vertices at (±SQ_HALF, 0) & (0, ±SQ_HALF) in XZ — plan diamond like the section drawing */
   const DIAMOND_R = SQ_HALF;
   const SQ_POST_H = MAST_MAIN_H;
-  const SQ_WALL_LIFT = 0.52 * TENT_SCALE;
   const SQ_ROOF_Y = SQ_POST_H * 0.98;
   const SQ_ROOF_OCULUS_Y = SQ_ROOF_Y - 0.14 * TENT_SCALE;
 
@@ -413,64 +411,6 @@
 
     return { map, bumpMap };
   }
-
-  /**
-   * Wind on curtain strips: top is clamped to frame (no motion); only free-hanging mid→hem moves.
-   * Local plane: y = +stripHalfH is top attachment, y = -stripHalfH is hem. Corners at top (|x| large) extra rigid.
-   */
-  function attachWallWindShader(material, wallFullH) {
-    const windAmp = Math.max(1.05, wallFullH * 0.019 + 0.52);
-    const uniforms = {
-      uTime: { value: 0 },
-      uWindAmp: { value: windAmp },
-      uSideAmp: { value: 0.62 },
-    };
-    material.userData.windUniforms = uniforms;
-    material.customProgramCacheKey = () => '_bedtent_wind_v5_top_anchor';
-    material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, uniforms);
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        `#include <common>
-        uniform float uTime;
-        uniform float uWindAmp;
-        uniform float uSideAmp;
-        attribute float windPhase;
-        attribute float stripHalfH;
-        attribute float stripHalfW;
-        attribute float windFreq;`
-      );
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <project_vertex>',
-        `{
-          float t = uTime * windFreq + windPhase;
-          float hh = stripHalfH;
-          float hw = stripHalfW;
-          float spanY = max(2.0 * hh, 1e-4);
-          float v = clamp((hh - transformed.y) / spanY, 0.0, 1.0);
-          float hang = smoothstep(0.36, 0.86, v);
-          float xn = abs(transformed.x) / max(hw, 1e-4);
-          float topZone = 1.0 - smoothstep(0.22, 0.52, v);
-          float cornerClamp = topZone * smoothstep(0.48, 0.98, xn);
-          float hMask = hang * (1.0 - 0.92 * cornerClamp);
-          float ax = transformed.x * 0.095;
-          float ay = transformed.y * 0.062;
-          float w1 = sin(t * 1.2 + ax * 1.1 + ay * 0.85) * uWindAmp;
-          float w2 = sin(t * 2.25 - ax * 1.55 + ay * 1.05) * uWindAmp * 0.72;
-          float w3 = sin(t * 3.1 + sin(ay * 0.18 + t * 0.48) * 3.0 + ax * 0.4) * uWindAmp * 0.58;
-          float w4 = sin(t * 4.35 + ax * 0.55) * uWindAmp * 0.32;
-          float wN = (w1 + w2 + w3 + w4) * hMask;
-          float side = sin(t * 1.48 + windPhase * 1.85 + ay * 0.14) * uWindAmp * uSideAmp * hMask;
-          float flutter = cos(t * 3.9 + ax * 2.4 + windPhase) * uWindAmp * uSideAmp * 0.42 * hMask;
-          vec3 alongStrip = vec3(1.0, 0.0, 0.0);
-          transformed += normalize(objectNormal) * wN + alongStrip * (side + flutter);
-        }
-        #include <project_vertex>`
-      );
-    };
-  }
-
-  const N_CEILING_LAYERS = 1;
 
   /**
    * Perimeter anchor points (XZ diamond), fixed height — membrane edge attachment.
@@ -747,10 +687,6 @@
 
   function createMicroCityFabricEnclosure(bedding, envMap) {
     const g = new THREE.Group();
-    const wallH = SQ_ROOF_Y - SQ_WALL_LIFT;
-    const wallBottom = SQ_WALL_LIFT;
-    const wallTop = SQ_ROOF_Y;
-    const edgeLen = DIAMOND_R * Math.SQRT2;
 
     const anchorPoints = createAnchors();
     const mastData = createMasts();
@@ -784,102 +720,9 @@
     const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
     g.add(roofMesh);
 
-    const wallRepW = Math.max(3.6, edgeLen * 0.42);
-    const wallRepH = Math.max(3.2, wallH * 0.11);
-    const wBump = bedding.bumpMap.clone();
-    wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
-    wBump.repeat.set(wallRepW * 2.1, wallRepH * 2.1);
-    const wallMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      bumpMap: wBump,
-      bumpScale: 0.032 * (TENT_SCALE / 4),
-      roughness: 0.62,
-      metalness: 0,
-      sheen: 1.0,
-      sheenRoughness: 0.85,
-      sheenColor: new THREE.Color(0xffffff),
-      envMap,
-      envMapIntensity: 0.48,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.5,
-      depthWrite: false,
-    });
-    attachWallWindShader(wallMat, wallH);
+    const fabricMaterials = [roofMat];
 
-    const fabricMaterials = [roofMat, wallMat];
-
-    function stripWallRng(seed) {
-      let s = seed >>> 0;
-      return () => {
-        s = (s * 1664525 + 1013904223) >>> 0;
-        return (s & 0xffffff) / 0xffffff;
-      };
-    }
-    function stripRnd(r, a, b) {
-      return a + r() * (b - a);
-    }
-
-    function addWindStripGeo(geo, stripW, hStrip, phase, wf) {
-      const nc = geo.attributes.position.count;
-      const phases = new Float32Array(nc);
-      const halfHs = new Float32Array(nc);
-      const halfWs = new Float32Array(nc);
-      const freqs = new Float32Array(nc);
-      phases.fill(phase);
-      halfHs.fill(hStrip * 0.5);
-      halfWs.fill(stripW * 0.5);
-      freqs.fill(wf);
-      geo.setAttribute('windPhase', new THREE.BufferAttribute(phases, 1));
-      geo.setAttribute('stripHalfH', new THREE.BufferAttribute(halfHs, 1));
-      geo.setAttribute('stripHalfW', new THREE.BufferAttribute(halfWs, 1));
-      geo.setAttribute('windFreq', new THREE.BufferAttribute(freqs, 1));
-    }
-
-    const diamondVerts = [
-      new THREE.Vector3(0, 0, -DIAMOND_R),
-      new THREE.Vector3(DIAMOND_R, 0, 0),
-      new THREE.Vector3(0, 0, DIAMOND_R),
-      new THREE.Vector3(-DIAMOND_R, 0, 0),
-    ];
-
-    for (let wi = 0; wi < 4; wi++) {
-      const A = diamondVerts[wi];
-      const B = diamondVerts[(wi + 1) % 4];
-      const edge = new THREE.Vector3().subVectors(B, A);
-      const L = edge.length();
-      const tangent = edge.clone().normalize();
-      const mid = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
-      const outward = mid.clone().normalize();
-      const eps = 0.055 * TENT_SCALE;
-
-      const wallRoot = new THREE.Group();
-      wallRoot.position.set(
-        mid.x + outward.x * eps,
-        0,
-        mid.z + outward.z * eps
-      );
-      wallRoot.rotation.y = Math.atan2(tangent.x, tangent.z);
-      g.add(wallRoot);
-
-      const rnd = stripWallRng(582901 + wi * 7919);
-      const hFull = wallTop - wallBottom;
-      const roofKiss = 0.025 * TENT_SCALE;
-      const hStrip = hFull + roofKiss;
-      const yCenter = wallBottom + hStrip * 0.5;
-
-      /* All four rhombus edges: single solid curtain each (fully enclosed perimeter) */
-      const planeW = L * 0.985;
-      const geo = new THREE.PlaneGeometry(planeW, hStrip, 38, 32);
-      const phase = stripRnd(rnd, 0, Math.PI * 2) + wi * 1.85;
-      const wf = stripRnd(rnd, 0.65, 1.15);
-      addWindStripGeo(geo, planeW * 0.5, hStrip, phase, wf);
-      const curtain = new THREE.Mesh(geo, wallMat);
-      curtain.position.set(0, yCenter, 0);
-      wallRoot.add(curtain);
-    }
-
-    return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: wallMat.userData.windUniforms };
+    return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: null };
   }
 
   /* Camera path — independent of TENT_SCALE; enlarge shell only via TENT_SCALE above */
@@ -1029,10 +872,6 @@
     const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
 
-    if (squareWallWindUniforms) {
-      squareWallWindUniforms.uTime.value = clk * 2.65;
-    }
-
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
       if (p < FABRIC_SCROLL_START) {
         squareBedTentGroup.visible = false;
@@ -1048,13 +887,10 @@
         }
         squareBedTentGroup.position.y = dropY;
         const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
-        /** Sheer white fabric: roof + walls stay readable so interior reads through */
+        /** Sheer fabric canopy */
         const roofSheer = 0.66;
-        const wallSheer = 0.58;
-        const nCeil = N_CEILING_LAYERS;
-        squareFabricMats.forEach((m, mi) => {
-          const sheer = mi < nCeil ? roofSheer : wallSheer;
-          m.opacity = Math.min(1, baseOp * flyFade * sheer);
+        squareFabricMats.forEach((m) => {
+          m.opacity = Math.min(1, baseOp * flyFade * roofSheer);
           m.transparent = true;
         });
         if (squareTentDiagMat) {
@@ -1188,7 +1024,6 @@
     squareBedTentGroup = sqTent.group;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
-    squareWallWindUniforms = sqTent.wallWindUniforms;
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
