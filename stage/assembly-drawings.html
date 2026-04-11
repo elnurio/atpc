@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Open-Air Fabric Enclosure — Combined Assembly Drawing</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #f4efe5; color: #201911;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none;
+    background:
+      radial-gradient(circle at 16% 12%, rgba(199,173,124,0.10), transparent 34%),
+      radial-gradient(circle at 78% 18%, rgba(160,145,106,0.08), transparent 28%),
+      radial-gradient(circle at 54% 78%, rgba(207,185,145,0.06), transparent 36%);
+    mix-blend-mode:multiply;
+  }
+  .page{
+    position:relative; z-index:1;
+    max-width:1100px; margin:0 auto;
+    padding:34px 26px 96px;
+  }
+  .hero{ position:relative; padding:6px 0 20px; }
+  .title{
+    font-size:clamp(54px, 10vw, 108px);
+    line-height:.9; letter-spacing:-.045em; font-style:italic; color:#21180f;
+  }
+  .subtitle{
+    margin-top:14px; font-size:14px; letter-spacing:.28em; text-transform:uppercase; color:#8a7448;
+  }
+  .lead{
+    margin-top:14px; max-width:780px; font-size:18px; line-height:1.58; color:#4f4432;
+  }
+  .seal{
+    position:absolute; right:4px; top:28px; width:112px; height:112px;
+    border:3px solid #bb3827; border-radius:50%; color:#bb3827;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:14px; line-height:1.08; transform:rotate(-8deg); opacity:.74;
+  }
+  .divider{
+    height:2px; background:linear-gradient(90deg, #2b2116, #8a7448 46%, transparent);
+    margin:12px 0 24px; opacity:.58;
+  }
+  .subdivider{
+    height:1px; background:linear-gradient(90deg, transparent, #8a7448 20%, #2b2116 50%, transparent);
+    margin:30px 0 16px; opacity:.34;
+  }
+  h2.section{
+    margin:0 0 10px; font-size:16px; letter-spacing:.22em; text-transform:uppercase; color:#8a7448; font-weight:normal;
+  }
+  svg{ width:100%; height:auto; display:block; }
+  .cards{ position:relative; min-height:520px; }
+  .card{
+    position:absolute; background:rgba(255,248,235,.94);
+    border:1px solid rgba(164,132,70,.65);
+    box-shadow:0 8px 22px rgba(62,42,18,.11);
+    border-radius:3px; padding:14px 16px;
+    color:#342b1f; line-height:1.56; font-size:15px;
+  }
+  .num{ font-size:28px; line-height:1; color:#bb8a2f; margin-bottom:6px; font-style:italic; }
+  .footer{
+    margin-top:30px; padding-top:18px; border-top:1px solid rgba(138,116,72,.35);
+    display:flex; align-items:flex-end; justify-content:space-between; gap:18px;
+  }
+  .footer .left{ font-size:40px; font-style:italic; line-height:.94; color:#221b12; }
+  .footer .right{
+    text-align:right; font-size:13px; line-height:1.9; color:#7b6840; letter-spacing:.12em; text-transform:uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hero">
+    <div class="title">Combined<br/>Assembly Drawing</div>
+    <div class="subtitle">one separate drawing · all systems together · closed walls · floating ceiling · closed floor</div>
+    <div class="lead">
+      Single combined drawing showing how the full open-air enclosure reads when assembled as one space:
+      very tall enclosing textile walls, a separate floating open-air ceiling above, a closed textile floor below,
+      and filtered daylight entering through roof openings. Sized as an intimate lounge installation for approximately 100 people.
+    </div>
+    <div class="seal">all<br/>together<br/>100 ppl</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 class="section">Overall Assembly — all systems together</h2>
+  <svg viewBox="0 0 1040 1080" xmlns="http://www.w3.org/2000/svg" aria-label="Combined overall assembly">
+    <defs>
+      <filter id="ink">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="2" seed="7" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="1.1"/>
+      </filter>
+      <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#fbf7ef" stop-opacity="0.84"/>
+        <stop offset="100%" stop-color="#d8cab2" stop-opacity="0.32"/>
+      </linearGradient>
+      <linearGradient id="roofGradA" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#efe6d2" stop-opacity="0.82"/>
+        <stop offset="100%" stop-color="#d1bea0" stop-opacity="0.24"/>
+      </linearGradient>
+      <linearGradient id="roofGradB" x1="1" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#fbf7ef" stop-opacity="0.76"/>
+        <stop offset="100%" stop-color="#d1c2a5" stop-opacity="0.24"/>
+      </linearGradient>
+      <linearGradient id="floorGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ddd0b4" stop-opacity="0.82"/>
+        <stop offset="100%" stop-color="#bca47f" stop-opacity="0.34"/>
+      </linearGradient>
+      <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#f8e3a4" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="#f8e3a4" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+
+    <text x="34" y="36" font-size="18" letter-spacing="3" fill="#8a7448">ONE COMPLETE DRAWING OF THE ENCLOSURE ASSEMBLED</text>
+
+    <!-- support trees -->
+    <g opacity="0.72">
+      <line x1="110" y1="118" x2="110" y2="770" stroke="#5b4a2f" stroke-width="10"/>
+      <circle cx="110" cy="84" r="38" fill="none" stroke="#7d6a42" stroke-width="1.4"/>
+      <circle cx="78" cy="100" r="22" fill="none" stroke="#7d6a42" stroke-width="1"/>
+      <circle cx="140" cy="100" r="22" fill="none" stroke="#7d6a42" stroke-width="1"/>
+
+      <line x1="930" y1="122" x2="930" y2="770" stroke="#5b4a2f" stroke-width="10"/>
+      <circle cx="930" cy="88" r="38" fill="none" stroke="#7d6a42" stroke-width="1.4"/>
+      <circle cx="898" cy="102" r="22" fill="none" stroke="#7d6a42" stroke-width="1"/>
+      <circle cx="962" cy="102" r="22" fill="none" stroke="#7d6a42" stroke-width="1"/>
+    </g>
+
+    <!-- floor -->
+    <polygon points="126,772 520,704 914,772 520,876"
+             fill="url(#floorGrad)" stroke="#241c13" stroke-width="1.7" opacity="0.78" filter="url(#ink)"/>
+    <polygon points="156,766 520,716 882,772 520,850"
+             fill="none" stroke="#5f4e39" stroke-width="1" opacity="0.44"/>
+    <g fill="#2b2116" opacity="0.86">
+      <circle cx="158" cy="766" r="3.5"/><circle cx="226" cy="756" r="3.5"/><circle cx="296" cy="746" r="3.5"/>
+      <circle cx="370" cy="736" r="3.5"/><circle cx="442" cy="726" r="3.5"/><circle cx="612" cy="728" r="3.5"/>
+      <circle cx="692" cy="738" r="3.5"/><circle cx="770" cy="748" r="3.5"/><circle cx="848" cy="758" r="3.5"/>
+    </g>
+
+    <!-- walls -->
+    <path d="M196,326 Q172,550 194,772 L332,772 Q308,536 322,300 Z"
+          fill="url(#wallGrad)" stroke="#2c2218" stroke-width="1.2" opacity="0.82" filter="url(#ink)"/>
+    <path d="M720,304 Q744,540 730,772 L868,772 Q892,548 862,326 Z"
+          fill="url(#wallGrad)" stroke="#2c2218" stroke-width="1.2" opacity="0.82" filter="url(#ink)"/>
+
+    <!-- hint of back wall -->
+    <path d="M324,304 Q302,532 318,760 L726,852 Q744,586 718,306 Z"
+          fill="url(#wallGrad)" stroke="#2c2218" stroke-width="1.1" opacity="0.28" filter="url(#ink)"/>
+
+    <!-- ceiling -->
+    <path d="M194,214 Q308,88 482,118 Q646,148 778,98 Q866,64 900,216
+             Q842,238 786,308 Q690,430 532,474 Q340,528 244,450 Q214,386 180,292 Z"
+          fill="url(#roofGradA)" stroke="#20180f" stroke-width="1.9" opacity="0.78" filter="url(#ink)"/>
+    <path d="M252,240 Q356,154 486,166 Q618,178 728,144 Q798,122 850,228
+             Q798,250 744,310 Q660,402 538,424 Q392,450 294,410 Q258,352 220,292 Z"
+          fill="url(#roofGradB)" stroke="#20180f" stroke-width="1.1" opacity="0.58" filter="url(#ink)"/>
+
+    <!-- roof openings -->
+    <ellipse cx="384" cy="202" rx="42" ry="22" fill="#f4efe5" stroke="#2a2117" stroke-width="1.1"/>
+    <ellipse cx="566" cy="176" rx="64" ry="28" fill="#f4efe5" stroke="#2a2117" stroke-width="1.1"/>
+    <ellipse cx="732" cy="182" rx="36" ry="18" fill="#f4efe5" stroke="#2a2117" stroke-width="1.1"/>
+
+    <!-- sunlight -->
+    <polygon points="548,204 584,204 640,772 470,772" fill="url(#sunGlow)"/>
+    <polygon points="368,224 390,224 424,760 324,760" fill="url(#sunGlow)"/>
+
+    <!-- suspension lines -->
+    <g stroke="#46392a" stroke-width="1" opacity="0.42" fill="none">
+      <line x1="194" y1="214" x2="110" y2="136"/>
+      <line x1="900" y1="216" x2="930" y2="140"/>
+      <line x1="532" y1="474" x2="532" y2="704"/>
+      <line x1="244" y1="450" x2="210" y2="772"/>
+      <line x1="786" y1="308" x2="832" y2="772"/>
+    </g>
+
+    <!-- cushions / occupancy -->
+    <g fill="#ece2d0" stroke="#544532" stroke-width="1" opacity="0.98">
+      <ellipse cx="236" cy="772" rx="28" ry="13"/>
+      <ellipse cx="288" cy="758" rx="32" ry="14"/>
+      <ellipse cx="350" cy="748" rx="46" ry="17"/>
+      <ellipse cx="414" cy="776" rx="36" ry="15"/>
+      <ellipse cx="490" cy="760" rx="42" ry="18"/>
+      <ellipse cx="556" cy="754" rx="44" ry="18"/>
+      <ellipse cx="624" cy="778" rx="38" ry="16"/>
+      <ellipse cx="690" cy="760" rx="34" ry="14"/>
+      <ellipse cx="752" cy="780" rx="28" ry="13"/>
+      <ellipse cx="808" cy="764" rx="30" ry="14"/>
+    </g>
+
+    <!-- labels -->
+    <line x1="744" y1="126" x2="858" y2="66" stroke="#6f5d3f" stroke-width="1"/>
+    <text x="868" y="64" font-size="15" fill="#4c402d">floating ceiling canopy</text>
+    <text x="868" y="84" font-size="12" fill="#7b6840">independent suspended roof layer</text>
+
+    <line x1="838" y1="412" x2="948" y2="394" stroke="#6f5d3f" stroke-width="1"/>
+    <text x="958" y="392" font-size="15" fill="#4c402d">closed textile walls</text>
+    <text x="958" y="412" font-size="12" fill="#7b6840">full-height intimate enclosure</text>
+
+    <line x1="702" y1="844" x2="850" y2="874" stroke="#6f5d3f" stroke-width="1"/>
+    <text x="860" y="878" font-size="15" fill="#4c402d">closed textile floor</text>
+    <text x="860" y="898" font-size="12" fill="#7b6840">continuous underlay fixed at perimeter</text>
+
+    <line x1="602" y1="294" x2="726" y2="268" stroke="#6f5d3f" stroke-width="1"/>
+    <text x="736" y="266" font-size="15" fill="#4c402d">daylight through roof openings</text>
+    <text x="736" y="286" font-size="12" fill="#7b6840">filtered sun entering from above</text>
+
+    <line x1="24" y1="120" x2="24" y2="772" stroke="#8a7448" stroke-width="1"/>
+    <line x1="18" y1="120" x2="30" y2="120" stroke="#8a7448" stroke-width="1"/>
+    <line x1="18" y1="772" x2="30" y2="772" stroke="#8a7448" stroke-width="1"/>
+    <text x="16" y="448" font-size="13" fill="#8a7448" transform="rotate(-90 16 448)">overall canopy height approx. 8–11 m</text>
+
+    <line x1="126" y1="956" x2="914" y2="956" stroke="#8a7448" stroke-width="1"/>
+    <line x1="126" y1="950" x2="126" y2="962" stroke="#8a7448" stroke-width="1"/>
+    <line x1="914" y1="950" x2="914" y2="962" stroke="#8a7448" stroke-width="1"/>
+    <text x="520" y="974" font-size="13" fill="#8a7448" text-anchor="middle">recommended footprint approx. 18–24 m for 100-person intimate installation</text>
+  </svg>
+
+  <div class="subdivider"></div>
+
+  <h2 class="section">Reading of the whole space</h2>
+  <div class="cards">
+    <div class="card" style="left:0; top:0; width:330px; transform: rotate(1deg);">
+      <div class="num">01</div>
+      <div><strong>Everything together</strong><br/>
+      This drawing shows the enclosure as one complete atmospheric system rather than separated layers.</div>
+    </div>
+
+    <div class="card" style="right:0; top:10px; width:320px; transform: rotate(-1.2deg);">
+      <div class="num">02</div>
+      <div><strong>Spatial reading</strong><br/>
+      It should feel like a closed intimate textile room under a separate floating roof, not like a standard tent.</div>
+    </div>
+
+    <div class="card" style="left:28px; top:184px; width:348px; transform: rotate(-0.5deg);">
+      <div class="num">03</div>
+      <div><strong>Light condition</strong><br/>
+      Sunlight is meant to enter through roof openings only, so the interior stays soft, glowing, and filtered.</div>
+    </div>
+
+    <div class="card" style="right:8px; top:214px; width:306px; transform: rotate(1deg);">
+      <div class="num">04</div>
+      <div><strong>Occupancy</strong><br/>
+      Cushion clusters and a continuous textile floor support approximately 100 people sitting, reclining, and gathering.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="left">One Full Drawing<br/>All Systems Together</div>
+    <div class="right">
+      separate overall sheet<br/>
+      closed walls + roof + floor<br/>
+      100 person lounge
+    </div>
+  </div>
+</div>
+</body>
+</html>

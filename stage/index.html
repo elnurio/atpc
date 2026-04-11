@@ -9,8 +9,8 @@
 
     html { background: #1a1f1c; }
     body {
-      height: 672vh;
-      min-height: 672vh;
+      height: 768vh;
+      min-height: 768vh;
       background: #1a1f1c;
     }
 
@@ -22,6 +22,41 @@
       height: 100%;
       display: block;
       touch-action: pan-y;
+      z-index: 2;
+    }
+
+    #whiteBloom {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      background: #fafbfc;
+      opacity: 0;
+    }
+
+    #assemblyShell {
+      position: fixed;
+      inset: 0;
+      z-index: 14;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: max(12px, env(safe-area-inset-top, 0px)) 16px 20px;
+      background: rgba(248, 249, 251, 0);
+      opacity: 0;
+      pointer-events: none;
+      transition: background 0.15s ease;
+    }
+    #assemblyShell.on { pointer-events: auto; }
+    #assemblyIFrame {
+      width: min(1120px, 96vw);
+      height: min(88vh, 920px);
+      max-height: calc(100vh - 48px);
+      border: none;
+      border-radius: 6px;
+      box-shadow: 0 28px 100px rgba(18, 22, 28, 0.07);
+      background: #f4efe5;
+      opacity: 0;
     }
 
     #loader {
@@ -104,7 +139,7 @@
     .dot.on { background: rgba(240, 235, 220, 0.65); transform: scale(1.8); }
 
     @media (max-width: 900px), (pointer: coarse) {
-      body { height: 784vh; min-height: 784vh; }
+      body { height: 896vh; min-height: 896vh; }
 
       #back {
         top: calc(env(safe-area-inset-top, 0px) + 18px);
@@ -192,8 +227,17 @@
     <h2>Sky</h2>
     <p>Reposition — drift back into the volume; distance and enclosure read</p>
   </div>
+  <div class="slabel" id="sl7">
+    <h2>Assembly</h2>
+    <p>Blueprint — cross into the white drawing space; combined technical sheet</p>
+  </div>
 
   <div id="hint"><span>Scroll</span><div id="hint-line"></div></div>
+
+  <div id="whiteBloom" aria-hidden="true"></div>
+  <div id="assemblyShell">
+    <iframe id="assemblyIFrame" title="Combined assembly drawing" src="assembly-drawings.html"></iframe>
+  </div>
 
   <div id="dots">
     <div class="dot on" id="d0"></div>
@@ -203,6 +247,7 @@
     <div class="dot" id="d4"></div>
     <div class="dot" id="d5"></div>
     <div class="dot" id="d6"></div>
+    <div class="dot" id="d7"></div>
   </div>
 
   <script type="module">
@@ -220,6 +265,14 @@
   let hangingInteriorFabricGroup;
   let mainSun, hemiMain, fillSun;
   let sceneAmbient;
+  let sceneBgOrig;
+  let fogColorOrig;
+  let sceneFogNearOrig;
+  let sceneFogFarOrig;
+  let blueprintGlow;
+  let whiteBloomEl;
+  let assemblyShellEl;
+  let assemblyIFrameEl;
   /** Narrow key light through roof oculus (Sky phase) */
   let oculusSpot;
 
@@ -1534,9 +1587,14 @@
     { pos: [79, 76, -82], look: [-46, 37, 29], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.42, rays: 0.34, shadow: 0.055, cable: 0.86, mast: 1, oculusOp: 0.82 },
     /** SPACE (сегмент 6): та же точка стояния, что после SKY — только наклон взгляда к окуляру */
     { pos: [79, 76, -82], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /**
+     * Assembly (сегмент 7): полёт вперёд в белый объём — концептуальное пространство чертежа.
+     * Камера уходит из физического шатра к «экрану» света и сборочному листу (HTML overlay).
+     */
+    { pos: [48, 205, 108], look: [22, 168, 412], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
   ];
 
-  const NSEG = 7;
+  const NSEG = 8;
   const ROOF_SCROLL_START = ROOF_PROFILE_SEG / NSEG;
   const ROOF_SCROLL_END = (ROOF_PROFILE_SEG + 1) / NSEG;
   const LWIN = [];
@@ -1547,8 +1605,8 @@
     LWIN.push([seg0 + span * 0.55, seg1 - 0.012]);
   }
 
-  const labels = [0, 1, 2, 3, 4, 5, 6].map(i => document.getElementById('sl' + i));
-  const dots = [0, 1, 2, 3, 4, 5, 6].map(i => document.getElementById('d' + i));
+  const labels = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('sl' + i));
+  const dots = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('d' + i));
   const hint = document.getElementById('hint');
   const loader = document.getElementById('loader');
 
@@ -1562,6 +1620,7 @@
   }
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
+  const BLUEPRINT_WHITE = new THREE.Color(0xf2f4f8);
 
   let isMobile = false;
   let targetFPS = 60;
@@ -1701,16 +1760,25 @@
     let upliftBoost;
     /** Линейная доля сегмента по скроллу — равномерная скорость (без ss/cos/двойного smootherstep). */
     const uLin = clamp(step - s, 0, 1);
+    /** Фаза Assembly: плавный вход в белый объём + HTML чертёж (сегмент 7). */
+    const blueprintT = s === 7 ? smootherstep(uLin) : 0;
+
     if (s === 5) {
       /** Предпоследний сегмент: перенос + look — тот же приём, что на финале (uLin), без «рваного» нарастания */
       camera.position.lerpVectors(posA, posB, uLin);
       lkT.lerpVectors(lkA, lkB, uLin);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** Последний сегмент: как раньше «хорошо» — только наклон взгляда и FOV линейно по uLin; позиция KF6=KF7 */
+      /** SPACE: наклон к окуляру; позиция KF6=KF7 */
       camera.position.lerpVectors(posA, posB, uLin);
       lkT.lerpVectors(lkA, lkB, uLin);
       upliftBoost = uLin;
+    } else if (s === 7) {
+      /** Assembly: кинематографичный полёт вперёд в белый объём к «чертежному» горизонту */
+      const q = smootherstep(uLin);
+      camera.position.lerpVectors(posA, posB, q);
+      lkT.lerpVectors(lkA, lkB, q);
+      upliftBoost = (1 - q) * 0.22;
     } else {
       camera.position.lerpVectors(posA, posB, t);
       lkT.lerpVectors(lkA, lkB, t);
@@ -1720,20 +1788,48 @@
     const oculusOpKF = lerp(A.oculusOp ?? 0, B.oculusOp ?? 0, t);
     const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
     let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
+    if (s === 7) wobbleAmt = 0;
     camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
     camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
 
     camera.lookAt(lkT);
 
-    camera.fov = cameraBaseFov + upliftBoost * 2.5;
+    let fovK = cameraBaseFov + upliftBoost * 2.5;
+    if (s === 7) {
+      fovK = lerp(fovK, 42, blueprintT * 0.88);
+    }
+    camera.fov = fovK;
     camera.updateProjectionMatrix();
+
+    if (sceneBgOrig && scene.background && scene.background.isColor) {
+      scene.background.copy(sceneBgOrig).lerp(BLUEPRINT_WHITE, blueprintT);
+    }
+    if (scene.fog && fogColorOrig) {
+      scene.fog.color.copy(fogColorOrig).lerp(BLUEPRINT_WHITE, blueprintT * 0.94);
+      scene.fog.near = lerp(sceneFogNearOrig, 85, blueprintT);
+      scene.fog.far = lerp(sceneFogFarOrig, 5200, blueprintT);
+    }
+    if (blueprintGlow) {
+      blueprintGlow.intensity = 1.85 * blueprintT;
+      blueprintGlow.position.set(22, 168, 412);
+    }
+    const bloomA = Math.min(1, blueprintT * 1.05) * 0.9;
+    if (whiteBloomEl) whiteBloomEl.style.opacity = String(bloomA);
+    if (assemblyShellEl && assemblyIFrameEl) {
+      assemblyShellEl.style.opacity = String(blueprintT);
+      assemblyShellEl.style.background =
+        blueprintT > 0.02 ? `rgba(250, 251, 253, ${0.12 + 0.88 * blueprintT})` : 'transparent';
+      assemblyShellEl.classList.toggle('on', blueprintT > 0.18);
+      const iframeReveal = clamp((blueprintT - 0.28) / 0.58, 0, 1);
+      assemblyIFrameEl.style.opacity = String(ss(iframeReveal));
+    }
 
     const cy = lerp(A.canopyY, B.canopyY, t);
     const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
 
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
-      squareBedTentGroup.visible = true;
+      squareBedTentGroup.visible = s < 7 || uLin < 0.04;
       const settleFade = 1 - ss(clamp(p / 0.38, 0, 1));
       const parentBob = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
       squareBedTentGroup.position.y = parentBob;
@@ -1820,27 +1916,28 @@
       }
     }
 
+    const bpDim = 1 - blueprintT * 0.9;
     if (mainSun && hemiMain) {
       const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
       const skyDim = upliftBoost * oculusOpKF;
       let sunI = lerp(0.68, 0.48, uDim) + 0.38 * upliftBoost;
       sunI *= 1 - 0.1 * skyDim;
-      mainSun.intensity = Math.max(0.22, sunI);
+      mainSun.intensity = Math.max(0.22, sunI) * bpDim;
       let hemiI = (lerp(0.48, 0.38, uDim) + 0.08 * upliftBoost) * (1 - 0.18 * skyDim);
-      hemiMain.intensity = Math.max(0.12, hemiI);
+      hemiMain.intensity = Math.max(0.12, hemiI) * bpDim;
       if (fillSun) {
         /** Луч/заливка остаются в кадре до конца SPACE — не гасим при взгляде вверх */
-        fillSun.intensity = 0.152;
+        fillSun.intensity = 0.152 * bpDim;
       }
       mainSun.position.set(58, 132 + 48 * upliftBoost, 52);
     }
     if (sceneAmbient) {
-      sceneAmbient.intensity = 0.09 * (1 - 0.22 * upliftBoost * oculusOpKF);
+      sceneAmbient.intensity = 0.09 * (1 - 0.22 * upliftBoost * oculusOpKF) * (0.55 + 0.45 * bpDim);
     }
     if (oculusSpot) {
       const sb = upliftBoost * oculusOpKF;
       oculusSpot.visible = sb > 0.02;
-      oculusSpot.intensity = Math.max(2.95, 3.65 * sb);
+      oculusSpot.intensity = Math.max(2.95, 3.65 * sb) * bpDim;
     }
 
     const mastS = lerp(A.mast, B.mast, t);
@@ -1849,7 +1946,7 @@
     mastGroup.scale.y = Math.max(0.001, mastS);
 
     const sh = lerp(A.shadow, B.shadow, t);
-    shadowDisc.material.opacity = sh;
+    shadowDisc.material.opacity = sh * bpDim;
 
     const bA = lerp(A.beam, B.beam, t);
     const rA = lerp(A.rays, B.rays, t);
@@ -1857,9 +1954,9 @@
 
     const rayBoost = 1 + 0.55 * upliftBoost;
     const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
-    bCoreMat.opacity = 0.14 * bA * pulse * rayBoost;
-    bHaloMat.opacity = 0.055 * bA * pulse * rayBoost;
-    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost);
+    bCoreMat.opacity = 0.14 * bA * pulse * rayBoost * bpDim;
+    bHaloMat.opacity = 0.055 * bA * pulse * rayBoost * bpDim;
+    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost) * bpDim;
 
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
     bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
@@ -1871,10 +1968,12 @@
       rayGrp.children[0].position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
       rayGrp.children[0].rotation.x = 0.062;
     }
-    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost * (0.88 + 0.35 * oculusOpKF);
+    if (rayMats[0]) {
+      rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost * (0.88 + 0.35 * oculusOpKF) * bpDim;
+    }
 
     updateTreeGuyCables(
-      cab * 0.62,
+      cab * 0.62 * bpDim,
       squareBedTentGroup ? squareBedTentGroup.position.y : 0
     );
 
@@ -1892,7 +1991,7 @@
     const activeDot = clamp(Math.floor(p * NSEG + 0.08), 0, NSEG - 1);
     dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
 
-    hint.classList.toggle('hide', p > 0.06);
+    hint.classList.toggle('hide', p > 0.06 || blueprintT > 0.12);
 
     if (interiorGroup) {
       const tableSegStart = INTERIOR_TABLE_LIGHT_SEG / NSEG;
@@ -1908,7 +2007,8 @@
         1
       );
       const uGroup = Math.max(uTable, uProps);
-      interiorGroup.visible = p >= tableSegStart - 1e-5 || uProps > 0.006;
+      interiorGroup.visible =
+        (p >= tableSegStart - 1e-5 || uProps > 0.006) && (s < 7 || uLin < 0.035);
       const scG = (0.9 + 0.1 * ss(uGroup)) * INTERIOR_SCALE;
       interiorGroup.scale.setScalar(scG);
 
@@ -1990,6 +2090,19 @@
     camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 14000);
 
     setupForestClearingWorld(renderer, scene);
+    sceneBgOrig = scene.background.clone();
+    if (scene.fog) {
+      fogColorOrig = scene.fog.color.clone();
+      sceneFogNearOrig = scene.fog.near;
+      sceneFogFarOrig = scene.fog.far;
+    }
+    blueprintGlow = new THREE.PointLight(0xffffff, 0, 3200, 1.9);
+    blueprintGlow.position.set(22, 168, 412);
+    scene.add(blueprintGlow);
+
+    whiteBloomEl = document.getElementById('whiteBloom');
+    assemblyShellEl = document.getElementById('assemblyShell');
+    assemblyIFrameEl = document.getElementById('assemblyIFrame');
 
     sceneAmbient = new THREE.AmbientLight(0xeef2ea, 0.09);
     scene.add(sceneAmbient);
