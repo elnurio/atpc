@@ -284,8 +284,8 @@
   /** Короткий ход «установки» купола (не большое падение — финал = штатная геометрия натяжения) */
   const ROOF_DESCEND_Y = 0.26 * TENT_SCALE;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
-  /* Стол DJ — с фазы Light (индекс сегмента 3 при NSEG=7); остальной интерьер позже */
-  const INTERIOR_TABLE_START_SEG = 3;
+  /* Стол DJ — фаза Light (sl3): появляется от начала сегмента 3 и к концу Light уже полностью */
+  const INTERIOR_TABLE_LIGHT_SEG = 3;
   /* Остальные пропсы интерьера (лежаки и т.д.) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
@@ -1807,9 +1807,10 @@
     hint.classList.toggle('hide', p > 0.06);
 
     if (interiorGroup) {
-      const tableScroll0 = INTERIOR_TABLE_START_SEG / NSEG;
+      const tableSegStart = INTERIOR_TABLE_LIGHT_SEG / NSEG;
+      const tableSegEnd = (INTERIOR_TABLE_LIGHT_SEG + 1) / NSEG;
       const uTable = clamp(
-        (p - tableScroll0) / (INTERIOR_PROPS_FULL - tableScroll0),
+        (p - tableSegStart) / Math.max(1e-6, tableSegEnd - tableSegStart),
         0,
         1
       );
@@ -1819,7 +1820,7 @@
         1
       );
       const uGroup = Math.max(uTable, uProps);
-      interiorGroup.visible = uGroup > 0.006;
+      interiorGroup.visible = p >= tableSegStart - 1e-5 || uProps > 0.006;
       const scG = (0.9 + 0.1 * ss(uGroup)) * INTERIOR_SCALE;
       interiorGroup.scale.setScalar(scG);
 
