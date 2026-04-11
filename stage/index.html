@@ -166,15 +166,15 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Open coastal ground — asymmetric tent stage, eight anchors, no walls</p>
+    <p>Open coastal ground — square bed-tent, four corner piles, sheer walls</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Main mast 12 m, sub-masts, guy lines — steel posts lock to sand</p>
+    <p>Four corner posts, guy lines to rim — caps tie off the linen</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>Silk / ripstop membrane seats — ø80 cm amber oculus off-centre</p>
+    <p>Sheer bed-linen canopy — flat roof, diagonal ties, hem lifted above the sand</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Beams</h2>
@@ -204,21 +204,19 @@
   const HDR_URL = 'https://threejs.org/examples/textures/equirectangular/blouberg_sunrise_2_1k.hdr';
 
   let scene, camera, renderer;
-  let canopyGroup, fabricGeo, fabricMesh, fabricMat, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
-  let hubRing, hubRingMat, oculus, oclMat;
+  let canopyGroup, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
+  let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
-  let radialCables;
   let interiorGroup;
+  let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 4;
   const GP_HEIGHT = 16;
   const GP_RADIUS = 120 * TENT_SCALE;
 
-  const T_OUTER = 10.08 * TENT_SCALE;
-  const T_H = 8.12 * TENT_SCALE;
-  const N_FOLD = 8;
-  const N_MASTS = 8;
+  const SQ_N = 4;
+  const N_MASTS = SQ_N;
   const MAST_MAIN_H = 12 * TENT_SCALE;
   const MAST_SUB2_H = 9.1 * TENT_SCALE;
   const MAST_SUB_H = 7.5 * TENT_SCALE;
@@ -231,9 +229,6 @@
   const OCULUS_MAJOR = 0.34 * TENT_SCALE;
   const OCULUS_TUBE = 0.038 * TENT_SCALE;
   const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
-  const OCULUS_Y_LOCAL = T_H - 0.1 * TENT_SCALE;
-  const HUB_OFS_X = 1.95 * TENT_SCALE;
-  const HUB_OFS_Z = 0.52 * TENT_SCALE;
 
   const RAY_LEN_SKY = 72 * TENT_SCALE;
   const RAY_LEN_BELOW = 22 * TENT_SCALE;
@@ -241,32 +236,20 @@
   const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.99;
   const RAY_R_IN_FLOOR = 0.44 * TENT_SCALE;
 
-  function tentH(v, u) {
-    const vn = Math.max(0, Math.min(1, v));
-    const hub = T_H * Math.pow(1.0 - vn, 0.72);
-    const w = Math.max(0, 0.5 * (1.0 + Math.cos(N_FOLD * u)));
-    const sagBetweenCables = -1.28 * TENT_SCALE * vn * vn * Math.pow(w, 1.42);
-    const radialPleat = 0.36 * TENT_SCALE * vn * (1.0 - vn) * Math.sin(N_FOLD * 2 * u + vn * 2.9);
-    const fineRipple = 0.16 * TENT_SCALE * vn * Math.sin(N_FOLD * 3 * u + vn * 10.0);
-    return hub + sagBetweenCables + radialPleat + fineRipple;
-  }
-
-  function tentR(v, u) {
-    const vn = Math.max(0, Math.min(1, v));
-    const atCable = Math.pow(Math.max(0, Math.cos(N_FOLD * u)), 0.32);
-    const ridge = 0.9 + 0.1 * atCable;
-    return vn * T_OUTER * ridge * (1 + 0.06 * Math.sin(N_FOLD * 2 * u + vn * Math.PI));
-  }
-
   const MAST_R = 11.12 * TENT_SCALE;
   const RIM_R = 9.88 * TENT_SCALE;
   const RIM_Y_LOCAL = 0.08 * TENT_SCALE;
 
+  /* Square bed-tent: corner piles + sheer roof/walls (reference: cubic canopy, hem off ground) */
+  const SQ_HALF = MAST_R * 0.9;
+  const SQ_POST_H = MAST_MAIN_H;
+  const SQ_WALL_LIFT = 0.52 * TENT_SCALE;
+  const SQ_ROOF_Y = SQ_POST_H * 0.98;
+  const SQ_ROOF_OCULUS_Y = SQ_ROOF_Y - 0.14 * TENT_SCALE;
+
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
-  const FABRIC_N = 8;
-  const FABRIC_INNER_R = OCULUS_APERTURE_R * 0.96;
-  /* Membrane only from Profile onward: flies down from above during 0.4 → 0.6 scroll */
+  /* Sheer fabric flies down during 0.4 → 0.6 scroll */
   const FABRIC_SCROLL_START = 0.4;
   const FABRIC_SCROLL_END = 0.6;
   const FABRIC_FLY_OFFSET = 36 * TENT_SCALE;
@@ -355,68 +338,74 @@
     return { map, bumpMap };
   }
 
-  function createCableFabricGeometry() {
-    const N = FABRIC_N;
-    const ang0 = Math.PI / 16;
-    const yRim = 30 * TENT_SCALE + RIM_Y_LOCAL;
-    const yIn = 30 * TENT_SCALE + OCULUS_Y_LOCAL;
-    const pos = [];
-    const uvs = [];
-    for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2 + ang0;
-      pos.push(Math.cos(a) * MAST_R, mastTopY(i), Math.sin(a) * MAST_R);
-      uvs.push(i / N, 0);
-    }
-    for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2 + ang0;
-      pos.push(Math.cos(a) * RIM_R, yRim, Math.sin(a) * RIM_R);
-      uvs.push(i / N, 0.48);
-    }
-    for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2 + ang0;
-      pos.push(Math.cos(a) * FABRIC_INNER_R + HUB_OFS_X, yIn, Math.sin(a) * FABRIC_INNER_R + HUB_OFS_Z);
-      uvs.push(i / N, 1);
-    }
-    const idx = [];
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N;
-      idx.push(i, j, N + j, i, N + j, N + i);
-    }
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N;
-      idx.push(N + i, N + j, 2 * N + j, N + i, 2 * N + j, 2 * N + i);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(idx);
-    geo.computeVertexNormals();
-    return geo;
-  }
+  function createSquareBedTent(bedding, envMap) {
+    const mkMat = (mapRepX, mapRepY) => {
+      const map = bedding.map.clone();
+      const bumpMap = bedding.bumpMap.clone();
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(mapRepX, mapRepY);
+      bumpMap.repeat.set(mapRepX * 2.1, mapRepY * 2.1);
+      return new THREE.MeshStandardMaterial({
+        color: 0xfaf8f5,
+        map,
+        bumpMap,
+        bumpScale: 0.018 * (TENT_SCALE / 4),
+        roughness: 0.58,
+        metalness: 0,
+        envMap,
+        envMapIntensity: 0.72,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+      });
+    };
 
-  function updateCableFabricHeights(cy) {
-    if (!fabricGeo) return;
-    const yRim = cy + RIM_Y_LOCAL;
-    const yIn = cy + OCULUS_Y_LOCAL;
-    const arr = fabricGeo.attributes.position.array;
-    const N = FABRIC_N;
-    const ang0 = Math.PI / 16;
-    for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2 + ang0;
-      const ib = N + i;
-      const ic = 2 * N + i;
-      arr[i * 3 + 0] = Math.cos(a) * MAST_R;
-      arr[i * 3 + 1] = mastTopY(i);
-      arr[i * 3 + 2] = Math.sin(a) * MAST_R;
-      arr[ib * 3 + 0] = Math.cos(a) * RIM_R;
-      arr[ib * 3 + 1] = yRim;
-      arr[ib * 3 + 2] = Math.sin(a) * RIM_R;
-      arr[ic * 3 + 0] = Math.cos(a) * FABRIC_INNER_R + HUB_OFS_X;
-      arr[ic * 3 + 1] = yIn;
-      arr[ic * 3 + 2] = Math.sin(a) * FABRIC_INNER_R + HUB_OFS_Z;
+    const g = new THREE.Group();
+    const wallH = SQ_ROOF_Y - SQ_WALL_LIFT;
+    const yMid = (SQ_WALL_LIFT + SQ_ROOF_Y) / 2;
+    const span = 2 * SQ_HALF;
+
+    const roofMat = mkMat(3.6, 3.6);
+    const wallRepW = Math.max(2.8, span * 0.22);
+    const wallRepH = Math.max(2.2, wallH * 0.18);
+    const wallMat = mkMat(wallRepW, wallRepH);
+    const fabricMaterials = [roofMat, wallMat];
+
+    const roof = new THREE.Mesh(new THREE.PlaneGeometry(span, span, 14, 14), roofMat);
+    roof.rotation.x = -Math.PI / 2;
+    roof.position.y = SQ_ROOF_Y;
+    g.add(roof);
+
+    const wallDefs = [
+      { x: 0, z: -SQ_HALF, ry: 0 },
+      { x: SQ_HALF, z: 0, ry: Math.PI / 2 },
+      { x: 0, z: SQ_HALF, ry: Math.PI },
+      { x: -SQ_HALF, z: 0, ry: -Math.PI / 2 },
+    ];
+    for (const wd of wallDefs) {
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(span, wallH, 18, 10), wallMat);
+      wall.position.set(wd.x, yMid, wd.z);
+      wall.rotation.y = wd.ry;
+      g.add(wall);
     }
-    fabricGeo.attributes.position.needsUpdate = true;
-    fabricGeo.computeVertexNormals();
+
+    const yDiag = SQ_ROOF_Y + 0.035 * TENT_SCALE;
+    const e = SQ_HALF * 0.996;
+    const diagGeo = new THREE.BufferGeometry();
+    diagGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
+      -e, yDiag, -e, e, yDiag, e,
+      -e, yDiag, e, e, yDiag, -e,
+    ]), 3));
+    const diagMat = new THREE.LineBasicMaterial({
+      color: 0xc9cfd8,
+      transparent: true,
+      opacity: 0.55,
+    });
+    g.add(new THREE.LineSegments(diagGeo, diagMat));
+
+    return { group: g, fabricMaterials, diagMat };
   }
 
   /* Camera scaled with TENT_SCALE — same framing vs larger ring */
@@ -526,18 +515,22 @@
     lastScrollY = y;
   }
 
+  const SQ_CORNERS = [
+    [SQ_HALF, SQ_HALF],
+    [SQ_HALF, -SQ_HALF],
+    [-SQ_HALF, -SQ_HALF],
+    [-SQ_HALF, SQ_HALF],
+  ];
+
   function updateCables(canopyWorldY, cableOpacity) {
     cableMat.opacity = cableOpacity;
     const yRim = canopyWorldY + RIM_Y_LOCAL;
+    const yTop = SQ_POST_H;
     let ix = 0;
-    for (let i = 0; i < N_MASTS; i++) {
-      const ang = (i / N_MASTS) * Math.PI * 2 + Math.PI / 16;
-      const x0 = Math.cos(ang) * MAST_R;
-      const z0 = Math.sin(ang) * MAST_R;
-      const x1 = Math.cos(ang) * RIM_R;
-      const z1 = Math.sin(ang) * RIM_R;
-      cablePositions[ix++] = x0; cablePositions[ix++] = mastTopY(i); cablePositions[ix++] = z0;
-      cablePositions[ix++] = x1; cablePositions[ix++] = yRim; cablePositions[ix++] = z1;
+    for (let i = 0; i < SQ_N; i++) {
+      const [cx, cz] = SQ_CORNERS[i];
+      cablePositions[ix++] = cx; cablePositions[ix++] = yTop; cablePositions[ix++] = cz;
+      cablePositions[ix++] = cx; cablePositions[ix++] = yRim; cablePositions[ix++] = cz;
     }
     cableGeo.attributes.position.needsUpdate = true;
   }
@@ -561,23 +554,28 @@
     const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
 
-    if (fabricMat && fabricMesh) {
+    if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
       if (p < FABRIC_SCROLL_START) {
-        fabricMesh.visible = false;
-        updateCableFabricHeights(cy);
+        squareBedTentGroup.visible = false;
       } else {
-        fabricMesh.visible = true;
-        let fabricCy = cy;
+        squareBedTentGroup.visible = true;
+        let dropY = 0;
         let flyFade = 1;
         if (p < FABRIC_SCROLL_END) {
           const uBlend = clamp((p - FABRIC_SCROLL_START) / (FABRIC_SCROLL_END - FABRIC_SCROLL_START), 0, 1);
           const ue = ss(uBlend);
-          fabricCy = lerp(cy + FABRIC_FLY_OFFSET, cy, ue);
+          dropY = lerp(FABRIC_FLY_OFFSET, 0, ue);
           flyFade = clamp(uBlend / 0.22, 0, 1);
         }
-        updateCableFabricHeights(fabricCy);
-        const baseOp = clamp(0.4 + 0.6 * clamp(tf, 0.5, 1), 0.42, 1);
-        fabricMat.opacity = baseOp * flyFade;
+        squareBedTentGroup.position.y = dropY;
+        const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
+        squareFabricMats.forEach((m) => {
+          m.opacity = baseOp * flyFade;
+          m.transparent = m.opacity < 0.99;
+        });
+        if (squareTentDiagMat) {
+          squareTentDiagMat.opacity = 0.48 * baseOp * flyFade;
+        }
       }
     }
 
@@ -598,21 +596,19 @@
     bHaloMat.opacity = 0.055 * bA * pulse;
     poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
 
-    const oculusWorldY = canopyGroup.position.y + OCULUS_Y_LOCAL;
-    bGrp.position.set(HUB_OFS_X, oculusWorldY + 1.4 * TENT_SCALE, HUB_OFS_Z);
+    const oculusWorldY = SQ_ROOF_OCULUS_Y;
+    bGrp.position.set(0, oculusWorldY + 1.4 * TENT_SCALE, 0);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
     rayGrp.position.set(0, 0, 0);
     const oW = oculusWorldY;
     if (rayGrp.children[0]) {
-      rayGrp.children[0].position.set(HUB_OFS_X, oW, HUB_OFS_Z);
+      rayGrp.children[0].position.set(0, oW, 0);
       rayGrp.children[0].rotation.x = 0.062;
     }
     if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse;
 
     updateCables(canopyGroup.position.y, cab * 0.55);
-
-    hubRingMat.opacity = clamp(tf * 0.75 + cab * 0.35, 0, 1);
 
     const oOp = lerp(A.oculusOp, B.oculusOp, t);
     oculus.material.opacity = oOp;
@@ -708,24 +704,16 @@
     scene.add(fillSun);
 
     canopyGroup = new THREE.Group();
+    scene.add(canopyGroup);
 
-    fabricGeo = createCableFabricGeometry();
     const bedding = makeBeddingFabricTextures();
     const maxAni = Math.min(16, renderer.capabilities.getMaxAnisotropy());
     bedding.map.anisotropy = maxAni;
-    fabricMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      map: bedding.map,
-      bumpMap: bedding.bumpMap,
-      bumpScale: 0.028,
-      roughness: 0.64,
-      metalness: 0,
-      envMapIntensity: 0.88,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 1,
-    });
-    fabricMesh = new THREE.Mesh(fabricGeo, fabricMat);
+    const sqTent = createSquareBedTent(bedding, envMap);
+    squareBedTentGroup = sqTent.group;
+    squareFabricMats = sqTent.fabricMaterials;
+    squareTentDiagMat = sqTent.diagMat;
+    scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
       color: 0xc9a06a,
@@ -734,12 +722,10 @@
       depthWrite: true,
     });
     oculus = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_MAJOR, OCULUS_TUBE, 10, 40), oclMat);
-    oculus.position.set(HUB_OFS_X, OCULUS_Y_LOCAL, HUB_OFS_Z);
+    oculus.position.set(0, SQ_ROOF_OCULUS_Y, 0);
     oculus.rotation.x = Math.PI / 2;
     oculus.visible = false;
-    canopyGroup.add(oculus);
-
-    scene.add(canopyGroup);
+    scene.add(oculus);
 
     const mastStd = {
       color: 0x9a9590,
@@ -748,68 +734,42 @@
       envMapIntensity: 1.0,
     };
     mastGroup = new THREE.Group();
-    for (let i = 0; i < N_MASTS; i++) {
-      const ang = (i / N_MASTS) * Math.PI * 2 + Math.PI / 16;
-      const h = mastHeights[i];
+    const postRadT = mastRadTop[0];
+    const postRadB = mastRadBot[0];
+    for (let i = 0; i < SQ_N; i++) {
+      const [cx, cz] = SQ_CORNERS[i];
+      const h = SQ_POST_H;
       const m = new THREE.Mesh(
-        new THREE.CylinderGeometry(mastRadTop[i], mastRadBot[i], h, 10),
+        new THREE.CylinderGeometry(postRadT, postRadB, h, 12),
         new THREE.MeshStandardMaterial(mastStd)
       );
-      m.position.set(Math.cos(ang) * MAST_R, h / 2, Math.sin(ang) * MAST_R);
+      m.position.set(cx, h / 2, cz);
       mastGroup.add(m);
 
-      const topY = mastTopY(i);
+      const topY = h - 0.05 * TENT_SCALE;
       const cap = new THREE.Mesh(
         new THREE.BoxGeometry(0.34 * TENT_SCALE, 0.1 * TENT_SCALE, 0.46 * TENT_SCALE),
         new THREE.MeshStandardMaterial({ ...mastStd, metalness: 0.5 })
       );
-      cap.position.set(Math.cos(ang) * (MAST_R - 0.02 * TENT_SCALE), topY, Math.sin(ang) * (MAST_R - 0.02 * TENT_SCALE));
+      cap.position.set(cx, topY, cz);
       cap.lookAt(0, topY, 0);
       mastGroup.add(cap);
     }
     scene.add(mastGroup);
-    scene.add(fabricMesh);
-    updateCableFabricHeights(33 * TENT_SCALE);
 
     cableMat = new THREE.LineBasicMaterial({
       color: 0x3a3835,
       transparent: true,
       opacity: 0,
     });
-    cablePositions = new Float32Array(N_MASTS * 6);
+    cablePositions = new Float32Array(SQ_N * 6);
     cableGeo = new THREE.BufferGeometry();
     cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
     scene.add(cableLines);
 
-    const hubCY = T_H - 0.28 * TENT_SCALE;
-    const radialVerts = [];
-    for (let i = 0; i < N_FOLD; i++) {
-      const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 16;
-      const rr = tentR(1, u);
-      const hy = tentH(1, u);
-      radialVerts.push(HUB_OFS_X, hubCY, HUB_OFS_Z, Math.cos(u) * rr, hy, Math.sin(u) * rr);
-    }
-    const radialCableGeo = new THREE.BufferGeometry();
-    radialCableGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(radialVerts), 3));
-    radialCables = new THREE.LineSegments(radialCableGeo, cableMat);
-    canopyGroup.add(radialCables);
-
-    hubRingMat = new THREE.MeshStandardMaterial({
-      color: 0x9a9690,
-      metalness: 0.45,
-      roughness: 0.42,
-      transparent: true,
-      opacity: 0,
-      envMapIntensity: 0.9,
-    });
-    hubRing = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_APERTURE_R * 0.9, 0.016 * TENT_SCALE, 10, 40), hubRingMat);
-    hubRing.position.set(HUB_OFS_X, T_H - 0.08 * TENT_SCALE, HUB_OFS_Z);
-    hubRing.rotation.x = Math.PI / 2;
-    canopyGroup.add(hubRing);
-
     shadowDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(14.6 * TENT_SCALE, 52),
+      new THREE.CircleGeometry(SQ_HALF * Math.sqrt(2) * 1.18 + 1.2 * TENT_SCALE, 52),
       new THREE.MeshBasicMaterial({
         color: 0x1a1510,
         transparent: true,
