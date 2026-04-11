@@ -1804,6 +1804,9 @@
       interiorGroup.scale.setScalar(scG);
 
       const riseSpan = 0.52;
+      /** uNode ≤ 1; большие interiorDelay давали t0=0. Масштабируем задержки в [0 … riseDelayCap], порядок сохраняем */
+      const riseDelayCap = 0.34;
+      const interiorDelayRef = 2.4;
       function applyInteriorOpacity(root, ti, futonFade) {
         const op = clamp(ti * 1.08 * futonFade, 0, 1);
         root.traverse((obj) => {
@@ -1820,7 +1823,11 @@
           node.name === 'lowDjBooth' || node.userData.interiorReveal === 'table'
             ? uTable
             : uProps;
-        const t0 = clamp((uNode - ud.interiorDelay) / riseSpan, 0, 1);
+        const dEff = Math.min(
+          riseDelayCap * (ud.interiorDelay / interiorDelayRef),
+          riseDelayCap
+        );
+        const t0 = clamp((uNode - dEff) / riseSpan, 0, 1);
         const ti = interiorRiseEase(t0);
         const { bx, by, bz } = ud.interiorBase;
         node.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
