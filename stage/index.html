@@ -166,15 +166,15 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Minimal sand field — square bed-tent, four corner piles, sheer walls</p>
+    <p>Minimal sand — fabric micro-city: diamond soft floor, tensile walls, floating ceiling fields</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Four corner posts, guy lines to rim — caps tie off the linen</p>
+    <p>Diamond footprint anchors — guy lines to rim, corner posts at rhombus vertices</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>Sheer bed-linen canopy — flat roof, diagonal ties, hem lifted above the sand</p>
+    <p>Layered floating tensile ceiling — sagging membrane fields, diagonal ties, hem above sand</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Light</h2>
@@ -226,8 +226,10 @@
   const RIM_R = 9.88 * TENT_SCALE;
   const RIM_Y_LOCAL = 0.08 * TENT_SCALE;
 
-  /* Square bed-tent: corner piles + sheer roof/walls (reference: cubic canopy, hem off ground) */
+  /* Open-air fabric micro-city: diamond footprint, floating ceiling fields, tensile wall strips (technical sheet) */
   const SQ_HALF = MAST_R * 0.9;
+  /** Rhombus vertices at (±SQ_HALF, 0) & (0, ±SQ_HALF) in XZ — plan diamond like the section drawing */
+  const DIAMOND_R = SQ_HALF;
   const SQ_POST_H = MAST_MAIN_H;
   const SQ_WALL_LIFT = 0.52 * TENT_SCALE;
   const SQ_ROOF_Y = SQ_POST_H * 0.98;
@@ -509,22 +511,74 @@
     };
   }
 
-  function createSquareBedTent(bedding, envMap) {
+  /** Subdivided diamond canopy in XZ with sag + optional circular oculus cut (floating ceiling fields). */
+  function buildDiamondCeilingLayer(R, segs, holeR, sagAmp, phase) {
+    const verts = [];
+    const uvs = [];
+    const indices = [];
+    for (let j = 0; j <= segs; j++) {
+      for (let i = 0; i <= segs; i++) {
+        const u = i / segs;
+        const v = j / segs;
+        let x = (u - 0.5) * 2 * R;
+        let z = (v - 0.5) * 2 * R;
+        const d1 = Math.abs(x) + Math.abs(z);
+        if (d1 > R) {
+          const s = R / Math.max(d1, 1e-6);
+          x *= s;
+          z *= s;
+        }
+        if (holeR > 0) {
+          const rr = Math.sqrt(x * x + z * z);
+          if (rr < holeR && rr > 1e-5) {
+            x *= holeR / rr;
+            z *= holeR / rr;
+          }
+        }
+        const sag = sagAmp * (
+          Math.sin(x * 0.061 + phase) * 0.42 +
+          Math.sin(z * 0.047 + phase * 1.63) * 0.36 +
+          Math.sin((x * 1.2 + z * 0.85) * 0.051 + phase * 0.5) * 0.3
+        );
+        verts.push(x, sag, z);
+        uvs.push(u, v);
+      }
+    }
+    for (let j = 0; j < segs; j++) {
+      for (let i = 0; i < segs; i++) {
+        const a = j * (segs + 1) + i;
+        const b = a + 1;
+        const c = a + segs + 1;
+        const d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  const N_CEILING_LAYERS = 3;
+
+  function createMicroCityFabricEnclosure(bedding, envMap) {
     const g = new THREE.Group();
     const wallH = SQ_ROOF_Y - SQ_WALL_LIFT;
-    const span = 2 * SQ_HALF;
     const wallBottom = SQ_WALL_LIFT;
     const wallTop = SQ_ROOF_Y;
+    const edgeLen = DIAMOND_R * Math.SQRT2;
 
     const roofBumpRep = 3.6;
     const rBump = bedding.bumpMap.clone();
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
     rBump.repeat.set(roofBumpRep * 2.1, roofBumpRep * 2.1);
-    const roofMat = new THREE.MeshPhysicalMaterial({
+    const roofBase = {
       color: 0xffffff,
       bumpMap: rBump,
       bumpScale: 0.024 * (TENT_SCALE / 4),
-      roughness: 0.58,
+      roughness: 0.56,
       metalness: 0,
       sheen: 1.0,
       sheenRoughness: 0.88,
@@ -535,8 +589,9 @@
       transparent: true,
       opacity: 0.55,
       depthWrite: false,
-    });
-    const wallRepW = Math.max(3.6, span * 0.38);
+    };
+
+    const wallRepW = Math.max(3.6, edgeLen * 0.42);
     const wallRepH = Math.max(3.2, wallH * 0.11);
     const wBump = bedding.bumpMap.clone();
     wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
@@ -558,25 +613,29 @@
       depthWrite: false,
     });
     attachWallWindShader(wallMat, wallH);
-    const fabricMaterials = [roofMat, wallMat];
 
-    const roofHoleR = OCULUS_APERTURE_R * 1.02;
-    const roofShape = new THREE.Shape();
-    const roofHalf = span * 0.5;
-    roofShape.moveTo(-roofHalf, -roofHalf);
-    roofShape.lineTo(roofHalf, -roofHalf);
-    roofShape.lineTo(roofHalf, roofHalf);
-    roofShape.lineTo(-roofHalf, roofHalf);
-    roofShape.lineTo(-roofHalf, -roofHalf);
-    const roofHolePath = new THREE.Path();
-    roofHolePath.absarc(0, 0, roofHoleR, 0, Math.PI * 2, true);
-    roofShape.holes.push(roofHolePath);
-    const roofGeo = new THREE.ShapeGeometry(roofShape, 56);
-    roofGeo.computeVertexNormals();
-    const roof = new THREE.Mesh(roofGeo, roofMat);
-    roof.rotation.x = -Math.PI / 2;
-    roof.position.y = SQ_ROOF_Y;
-    g.add(roof);
+    const fabricMaterials = [];
+    const holeCut = OCULUS_APERTURE_R * 1.02;
+    const sag0 = 0.2 * TENT_SCALE;
+    const sag1 = 0.36 * TENT_SCALE;
+    const sag2 = 0.52 * TENT_SCALE;
+    const layers = [
+      { rMul: 1.16, hole: 0, sag: sag0, phase: 0.2, yOff: 2.75 * TENT_SCALE, segs: 28 },
+      { rMul: 1.06, hole: 0, sag: sag1, phase: 2.35, yOff: 1.05 * TENT_SCALE, segs: 32 },
+      { rMul: 1.0, hole: holeCut, sag: sag2, phase: 4.5, yOff: 0.04 * TENT_SCALE, segs: 36 },
+    ];
+    layers.forEach((ly) => {
+      const mat = new THREE.MeshPhysicalMaterial({ ...roofBase, bumpMap: bedding.bumpMap.clone() });
+      mat.bumpMap.wrapS = mat.bumpMap.wrapT = THREE.RepeatWrapping;
+      mat.bumpMap.repeat.set(roofBumpRep * 2.1, roofBumpRep * 2.1);
+      const geo = buildDiamondCeilingLayer(DIAMOND_R * ly.rMul, ly.segs, ly.hole, ly.sag, ly.phase);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = SQ_ROOF_Y + ly.yOff;
+      g.add(mesh);
+      fabricMaterials.push(mat);
+    });
+
+    fabricMaterials.push(wallMat);
 
     function stripWallRng(seed) {
       let s = seed >>> 0;
@@ -589,25 +648,37 @@
       return a + r() * (b - a);
     }
 
-    const wallDefs = [
-      { x: 0, z: -SQ_HALF, ry: 0 },
-      { x: SQ_HALF, z: 0, ry: Math.PI / 2 },
-      { x: 0, z: SQ_HALF, ry: Math.PI },
-      { x: -SQ_HALF, z: 0, ry: -Math.PI / 2 },
+    const diamondVerts = [
+      new THREE.Vector3(0, 0, -DIAMOND_R),
+      new THREE.Vector3(DIAMOND_R, 0, 0),
+      new THREE.Vector3(0, 0, DIAMOND_R),
+      new THREE.Vector3(-DIAMOND_R, 0, 0),
     ];
 
-    wallDefs.forEach((wd, wi) => {
-      const rnd = stripWallRng(582901 + wi * 7919);
+    for (let wi = 0; wi < 4; wi++) {
+      const A = diamondVerts[wi];
+      const B = diamondVerts[(wi + 1) % 4];
+      const edge = new THREE.Vector3().subVectors(B, A);
+      const L = edge.length();
+      const tangent = edge.clone().normalize();
+      const mid = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+      const outward = mid.clone().normalize();
+      const eps = 0.04 * TENT_SCALE;
+
       const wallRoot = new THREE.Group();
-      wallRoot.position.set(wd.x, 0, wd.z);
-      wallRoot.rotation.y = wd.ry;
+      wallRoot.position.set(
+        mid.x + outward.x * eps,
+        0,
+        mid.z + outward.z * eps
+      );
+      wallRoot.rotation.y = Math.atan2(tangent.x, tangent.z);
       g.add(wallRoot);
 
-      let u = -span * 0.485;
-      const uEnd = span * 0.485;
+      const rnd = stripWallRng(582901 + wi * 7919);
+      let u = -L * 0.46;
+      const uEnd = L * 0.46;
       let si = 0;
       while (u < uEnd) {
-        /* Very wide hanging panels; gaps sized so a few massive strips fit per wall */
         const gap = (stripRnd(rnd, 0.72, 2.35) + stripRnd(rnd, 0.18, 0.95)) * TENT_SCALE;
         u += gap;
         const stripW = stripRnd(rnd, 2.15, 4.65) * TENT_SCALE;
@@ -643,14 +714,14 @@
         u += stripW;
         si += 1;
       }
-    });
+    }
 
     const yDiag = SQ_ROOF_Y + 0.035 * TENT_SCALE;
-    const e = SQ_HALF * 0.996;
+    const de = DIAMOND_R * 0.996;
     const diagGeo = new THREE.BufferGeometry();
     diagGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
-      -e, yDiag, -e, e, yDiag, e,
-      -e, yDiag, e, e, yDiag, -e,
+      0, yDiag, -de, 0, yDiag, de,
+      -de, yDiag, 0, de, yDiag, 0,
     ]), 3));
     const diagMat = new THREE.LineBasicMaterial({
       color: 0xc9cfd8,
@@ -770,10 +841,10 @@
   }
 
   const SQ_CORNERS = [
-    [SQ_HALF, SQ_HALF],
-    [SQ_HALF, -SQ_HALF],
-    [-SQ_HALF, -SQ_HALF],
-    [-SQ_HALF, SQ_HALF],
+    [0, -DIAMOND_R],
+    [DIAMOND_R, 0],
+    [0, DIAMOND_R],
+    [-DIAMOND_R, 0],
   ];
 
   function updateCables(canopyWorldY, cableOpacity) {
@@ -830,8 +901,9 @@
         /** Sheer white fabric: roof + walls stay readable so interior reads through */
         const roofSheer = 0.66;
         const wallSheer = 0.58;
+        const nCeil = N_CEILING_LAYERS;
         squareFabricMats.forEach((m, mi) => {
-          const sheer = mi === 0 ? roofSheer : wallSheer;
+          const sheer = mi < nCeil ? roofSheer * (mi === 0 ? 0.74 : mi === 1 ? 0.88 : 1) : wallSheer;
           m.opacity = Math.min(1, baseOp * flyFade * sheer);
           m.transparent = true;
         });
@@ -972,7 +1044,7 @@
     const bedding = makeBeddingFabricTextures();
     const maxAni = Math.min(16, renderer.capabilities.getMaxAnisotropy());
     bedding.map.anisotropy = maxAni;
-    const sqTent = createSquareBedTent(bedding, scene.environment);
+    const sqTent = createMicroCityFabricEnclosure(bedding, scene.environment);
     squareBedTentGroup = sqTent.group;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
@@ -1032,18 +1104,26 @@
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
     scene.add(cableLines);
 
-    /* Ground contact shadow: square footprint matching tent posts (±SQ_HALF), not circumscribed circle */
-    const shadowSide = 2 * SQ_HALF * 1.06;
+    /* Ground shadow: rhombus footprint (technical sheet plan diamond) */
+    const shadowR = DIAMOND_R * 1.06;
+    const shShape = new THREE.Shape();
+    shShape.moveTo(0, -shadowR);
+    shShape.lineTo(shadowR, 0);
+    shShape.lineTo(0, shadowR);
+    shShape.lineTo(-shadowR, 0);
+    shShape.closePath();
+    const shadowGeo = new THREE.ShapeGeometry(shShape);
+    shadowGeo.rotateX(-Math.PI / 2);
     shadowDisc = new THREE.Mesh(
-      new THREE.PlaneGeometry(shadowSide, shadowSide, 1, 1),
+      shadowGeo,
       new THREE.MeshBasicMaterial({
         color: 0x1a1510,
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        side: THREE.DoubleSide,
       })
     );
-    shadowDisc.rotation.x = -Math.PI / 2;
     shadowDisc.position.y = 0.025;
     scene.add(shadowDisc);
 
@@ -1105,9 +1185,16 @@
       side: THREE.DoubleSide,
       depthWrite: true,
     });
-    const nfSpan = 2 * SQ_HALF * 0.72;
-    nylonFloorMesh = new THREE.Mesh(new THREE.PlaneGeometry(nfSpan, nfSpan, 1, 1), nylonFloorMat);
-    nylonFloorMesh.rotation.x = -Math.PI / 2;
+    const nfR = DIAMOND_R * 0.72;
+    const nfShape = new THREE.Shape();
+    nfShape.moveTo(0, -nfR);
+    nfShape.lineTo(nfR, 0);
+    nfShape.lineTo(0, nfR);
+    nfShape.lineTo(-nfR, 0);
+    nfShape.closePath();
+    const nfGeo = new THREE.ShapeGeometry(nfShape);
+    nfGeo.rotateX(-Math.PI / 2);
+    nylonFloorMesh = new THREE.Mesh(nfGeo, nylonFloorMat);
     nylonFloorMesh.position.set(0, NYLON_FLOOR_Y - NYLON_FLOOR_BURY, 0);
     nylonFloorMesh.visible = false;
     scene.add(nylonFloorMesh);
