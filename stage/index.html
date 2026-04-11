@@ -234,22 +234,17 @@
   const SQ_ROOF_Y = SQ_POST_H * 0.98;
   const SQ_ROOF_OCULUS_Y = SQ_ROOF_Y - 0.14 * TENT_SCALE;
 
-  /** Three perforated ceiling openings (ref: floating canopy); beam uses middle hole */
-  const CEILING_HOLE_RADII = [
-    DIAMOND_R * 0.108,
-    DIAMOND_R * 0.142,
-    DIAMOND_R * 0.098,
+  /** Tensile canopy mast layout (asymmetric); oculus / beam align with main peak projection */
+  const TENSILE_PEAK_SPEC = [
+    { nx: -0.31, nz: 0.19, yLift: 1.22, pinR: 0.24, pull: 1.35 },
+    { nx: 0.37, nz: -0.29, yLift: 0.38, pinR: 0.19, pull: 1.05 },
+    { nx: -0.11, nz: -0.46, yLift: 0.15, pinR: 0.15, pull: 0.72 },
   ];
-  const CEILING_HOLE_POS = [
-    { x: -0.26 * DIAMOND_R, z: 0.055 * DIAMOND_R },
-    { x: 0.055 * DIAMOND_R, z: -0.045 * DIAMOND_R },
-    { x: 0.34 * DIAMOND_R, z: 0.075 * DIAMOND_R },
-  ];
-  const OCULUS_APERTURE_R = CEILING_HOLE_RADII[1] * 0.98;
+  const OCULUS_APERTURE_R = DIAMOND_R * 0.124;
   const OCULUS_TUBE = Math.max(0.05 * TENT_SCALE, OCULUS_APERTURE_R * 0.068);
   const OCULUS_MAJOR = OCULUS_APERTURE_R + OCULUS_TUBE;
-  const OCULUS_CENTER_X = CEILING_HOLE_POS[1].x;
-  const OCULUS_CENTER_Z = CEILING_HOLE_POS[1].z;
+  const OCULUS_CENTER_X = TENSILE_PEAK_SPEC[0].nx * DIAMOND_R;
+  const OCULUS_CENTER_Z = TENSILE_PEAK_SPEC[0].nz * DIAMOND_R;
 
   const RAY_LEN_SKY = 72 * TENT_SCALE;
   const RAY_LEN_BELOW = 22 * TENT_SCALE;
@@ -475,86 +470,280 @@
     };
   }
 
-  /** Organic tensile canopy (ref) + three circular perforations + sag */
-  function organicBoundaryR(theta, R0) {
-    return R0 * (
-      1 +
-      0.13 * Math.sin(2 * theta + 0.38) +
-      0.09 * Math.sin(3 * theta - 0.85) +
-      0.055 * Math.cos(5 * theta + 0.25)
-    );
+  const N_CEILING_LAYERS = 1;
+
+  /**
+   * Perimeter anchor points (XZ diamond), fixed height — membrane edge attachment.
+   */
+  function createAnchors() {
+    const R = DIAMOND_R;
+    const y = SQ_ROOF_Y - 0.065 * TENT_SCALE;
+    const nPerEdge = 18;
+    const corners = [
+      new THREE.Vector3(0, y, -R),
+      new THREE.Vector3(R, y, 0),
+      new THREE.Vector3(0, y, R),
+      new THREE.Vector3(-R, y, 0),
+    ];
+    const pts = [];
+    for (let e = 0; e < 4; e++) {
+      const A = corners[e];
+      const B = corners[(e + 1) % 4];
+      for (let k = 0; k < nPerEdge; k++) {
+        const t = k / nPerEdge;
+        pts.push(new THREE.Vector3().lerpVectors(A, B, t));
+      }
+    }
+    return pts;
   }
 
-  function buildOrganicPerforatedCanopy(R0, segs, sagAmp, phase, holes) {
-    const Rb = R0 * 1.26;
-    const verts = [];
-    const uvs = [];
-    const indices = [];
-    function clampOrganic(x, z) {
-      const th = Math.atan2(z, x);
-      const rm = organicBoundaryR(th, R0);
-      const r = Math.sqrt(x * x + z * z);
-      if (r <= rm) return { x, z };
-      const s = rm / Math.max(r, 1e-8);
-      return { x: x * s, z: z * s };
+  /**
+   * Mast / peak attachment points in world space (main = index 0, highest).
+   */
+  function createMasts() {
+    const R = DIAMOND_R;
+    const baseY = SQ_ROOF_Y;
+    const peaks = TENSILE_PEAK_SPEC.map((s) => new THREE.Vector3(
+      s.nx * R,
+      baseY + s.yLift * TENT_SCALE,
+      s.nz * R
+    ));
+    const pinRadii = TENSILE_PEAK_SPEC.map((s) => s.pinR * R);
+    const pulls = TENSILE_PEAK_SPEC.map((s) => s.pull);
+    return { peaks, pinRadii, pulls };
+  }
+
+  function diamondUvToXz(u, v, R) {
+    const x = R * (u - v);
+    const z = R * (-1 + u + v);
+    return { x, z };
+  }
+
+  /**
+   * Procedural tensile membrane: UV grid on rhombus footprint, Verlet + structural/shear springs,
+   * pinned perimeter + mast peaks. Runs once at load (~ (nu·nv) · iters · edges).
+   */
+  function generateTensileSurface(anchorPoints, mastData, options = {}) {
+    const R = DIAMOND_R;
+    const nu = options.nu ?? 78;
+    const nv = options.nv ?? 78;
+    const kStruct = options.kStructural ?? 0.94;
+    const kShear = options.kShear ?? 0.36;
+    const iters = options.iterations ?? 175;
+    const dt = options.dt ?? 0.26;
+    const damping = options.damping ?? 0.997;
+    const gY = options.gravityY ?? -0.016 * TENT_SCALE;
+    const uEps = 2.1 / Math.max(nu, nv);
+    const anchorY = anchorPoints[0].y;
+
+    const count = (nu + 1) * (nv + 1);
+    const pos = new Float32Array(count * 3);
+    const prev = new Float32Array(count * 3);
+    const pinned = new Uint8Array(count);
+    const pinTarget = new Float32Array(count * 3);
+
+    const idx = (i, j) => j * (nu + 1) + i;
+
+    function idwY(x, z) {
+      let num = 0;
+      let den = 0;
+      const pPow = 2.05;
+      const eps = 2.8;
+      for (const a of anchorPoints) {
+        const dx = x - a.x;
+        const dz = z - a.z;
+        const w = 1 / Math.pow(dx * dx + dz * dz + eps * eps, pPow * 0.5);
+        num += w * a.y;
+        den += w;
+      }
+      const { peaks, pinRadii, pulls } = mastData;
+      for (let mi = 0; mi < peaks.length; mi++) {
+        const p = peaks[mi];
+        const dx = x - p.x;
+        const dz = z - p.z;
+        const w = 1 / Math.pow(dx * dx + dz * dz + (pinRadii[mi] * 0.5) ** 2 + eps * eps, pPow * 0.5);
+        const pl = pulls[mi];
+        num += w * p.y * pl;
+        den += w * pl;
+      }
+      return den > 1e-10 ? num / den : anchorY;
     }
-    function applyHoleCut(x, z) {
-      let px = x;
-      let pz = z;
-      for (let hi = 0; hi < holes.length; hi++) {
-        const { cx, cz, rad } = holes[hi];
-        const dx = px - cx;
-        const dz = pz - cz;
-        const d = Math.sqrt(dx * dx + dz * dz);
-        if (d < rad && d > 1e-6) {
-          px = cx + (dx / d) * rad;
-          pz = cz + (dz / d) * rad;
+
+    function closestAnchorY(x, z) {
+      let bestY = anchorY;
+      let bestD = 1e18;
+      for (const a of anchorPoints) {
+        const d = (a.x - x) ** 2 + (a.z - z) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          bestY = a.y;
         }
       }
-      return { x: px, z: pz };
+      return bestY;
     }
-    for (let j = 0; j <= segs; j++) {
-      for (let i = 0; i <= segs; i++) {
-        const u = i / segs;
-        const v = j / segs;
-        let x = (u - 0.5) * 2 * Rb;
-        let z = (v - 0.5) * 2 * Rb;
-        const c0 = clampOrganic(x, z);
-        x = c0.x;
-        z = c0.z;
-        const h0 = applyHoleCut(x, z);
-        x = h0.x;
-        z = h0.z;
-        const c1 = clampOrganic(x, z);
-        x = c1.x;
-        z = c1.z;
-        const sag = sagAmp * (
-          Math.sin(x * 0.044 + phase) * 0.36 +
-          Math.sin(z * 0.037 + phase * 1.45) * 0.3 +
-          Math.sin((x * 1.1 + z * 0.85) * 0.041 + phase * 0.35) * 0.24
-        );
-        verts.push(x, sag, z);
-        uvs.push(u, v);
+
+    for (let j = 0; j <= nv; j++) {
+      for (let i = 0; i <= nu; i++) {
+        const u = i / nu;
+        const v = j / nv;
+        const ii = idx(i, j);
+        const { x, z } = diamondUvToXz(u, v, R);
+        const y0 = idwY(x, z);
+        const b = ii * 3;
+        pos[b] = x;
+        pos[b + 1] = y0
+          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.014 * TENT_SCALE
+          + Math.cos(v * 5.8 - u * 1.7) * 0.011 * TENT_SCALE;
+        pos[b + 2] = z;
+
+        let kind = 0;
+        if (u <= uEps || u >= 1 - uEps || v <= uEps || v >= 1 - uEps) {
+          kind = 1;
+          pinTarget[b] = x;
+          pinTarget[b + 1] = closestAnchorY(x, z);
+          pinTarget[b + 2] = z;
+        }
+        const { peaks, pinRadii } = mastData;
+        for (let mi = peaks.length - 1; mi >= 0; mi--) {
+          const p = peaks[mi];
+          const dx = x - p.x;
+          const dz = z - p.z;
+          if (dx * dx + dz * dz < pinRadii[mi] * pinRadii[mi]) {
+            kind = 2;
+            pinTarget[b] = p.x;
+            pinTarget[b + 1] = p.y;
+            pinTarget[b + 2] = p.z;
+          }
+        }
+        pinned[ii] = kind > 0 ? 1 : 0;
       }
     }
-    for (let jj = 0; jj < segs; jj++) {
-      for (let ii = 0; ii < segs; ii++) {
-        const a = jj * (segs + 1) + ii;
-        const b = a + 1;
-        const c = a + segs + 1;
-        const d = c + 1;
+
+    prev.set(pos);
+
+    const edges = [];
+    function pushEdge(a, b, k) {
+      const ax = pos[a * 3];
+      const ay = pos[a * 3 + 1];
+      const az = pos[a * 3 + 2];
+      const bx = pos[b * 3];
+      const by = pos[b * 3 + 1];
+      const bz = pos[b * 3 + 2];
+      const rest = Math.hypot(bx - ax, by - ay, bz - az);
+      edges.push({ a, b, rest, k });
+    }
+
+    for (let j = 0; j < nv; j++) {
+      for (let i = 0; i < nu; i++) {
+        const a = idx(i, j);
+        const b = idx(i + 1, j);
+        const c = idx(i, j + 1);
+        const d = idx(i + 1, j + 1);
+        pushEdge(a, b, kStruct);
+        pushEdge(a, c, kStruct);
+        pushEdge(b, d, kStruct);
+        pushEdge(c, d, kStruct);
+        pushEdge(a, d, kShear);
+        pushEdge(b, c, kShear);
+      }
+    }
+
+    const acc = new Float32Array(count * 3);
+
+    for (let it = 0; it < iters; it++) {
+      acc.fill(0);
+      for (let e = 0, nE = edges.length; e < nE; e++) {
+        const ed = edges[e];
+        const ia = ed.a;
+        const ib = ed.b;
+        const ba = ia * 3;
+        const bb = ib * 3;
+        let dx = pos[bb] - pos[ba];
+        let dy = pos[bb + 1] - pos[ba + 1];
+        let dz = pos[bb + 2] - pos[ba + 2];
+        const len = Math.hypot(dx, dy, dz);
+        if (len < 1e-9) continue;
+        const s = ((len - ed.rest) / len) * ed.k;
+        dx *= s;
+        dy *= s;
+        dz *= s;
+        if (!pinned[ia]) {
+          acc[ba] += dx;
+          acc[ba + 1] += dy;
+          acc[ba + 2] += dz;
+        }
+        if (!pinned[ib]) {
+          acc[bb] -= dx;
+          acc[bb + 1] -= dy;
+          acc[bb + 2] -= dz;
+        }
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        acc[vi * 3 + 1] += gY;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const b = vi * 3;
+        const px = pos[b];
+        const py = pos[b + 1];
+        const pz = pos[b + 2];
+        const qx = prev[b];
+        const qy = prev[b + 1];
+        const qz = prev[b + 2];
+        const nx = px + (px - qx) * damping + acc[b] * dt * dt;
+        const ny = py + (py - qy) * damping + acc[b + 1] * dt * dt;
+        const nz = pz + (pz - qz) * damping + acc[b + 2] * dt * dt;
+        prev[b] = px;
+        prev[b + 1] = py;
+        prev[b + 2] = pz;
+        pos[b] = nx;
+        pos[b + 1] = ny;
+        pos[b + 2] = nz;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (!pinned[vi]) continue;
+        const b = vi * 3;
+        pos[b] = pinTarget[b];
+        pos[b + 1] = pinTarget[b + 1];
+        pos[b + 2] = pinTarget[b + 2];
+        prev[b] = pinTarget[b];
+        prev[b + 1] = pinTarget[b + 1];
+        prev[b + 2] = pinTarget[b + 2];
+      }
+    }
+
+    const verts = new Float32Array(count * 3);
+    verts.set(pos);
+    const uvs = new Float32Array(count * 2);
+    const indices = [];
+    for (let j = 0; j <= nv; j++) {
+      for (let i = 0; i <= nu; i++) {
+        const ii = idx(i, j);
+        uvs[ii * 2] = i / nu;
+        uvs[ii * 2 + 1] = j / nv;
+      }
+    }
+    for (let j = 0; j < nv; j++) {
+      for (let i = 0; i < nu; i++) {
+        const a = idx(i, j);
+        const b = idx(i + 1, j);
+        const c = idx(i, j + 1);
+        const d = idx(i + 1, j + 1);
         indices.push(a, c, b, b, c, d);
       }
     }
+
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
-    return geo;
+    return { geometry: geo, vertexCount: count };
   }
-
-  const N_CEILING_LAYERS = 1;
 
   function createMicroCityFabricEnclosure(bedding, envMap) {
     const g = new THREE.Group();
@@ -563,36 +752,63 @@
     const wallTop = SQ_ROOF_Y;
     const edgeLen = DIAMOND_R * Math.SQRT2;
 
-    const roofBumpRep = 3.6;
+    const anchorPoints = createAnchors();
+    const mastData = createMasts();
+    const tensile = generateTensileSurface(anchorPoints, mastData, {
+      nu: 78,
+      nv: 78,
+      iterations: 175,
+    });
+
+    const roofBumpRep = 3.2;
     const rBump = bedding.bumpMap.clone();
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
-    rBump.repeat.set(roofBumpRep * 2.1, roofBumpRep * 2.1);
-    const roofMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
+    rBump.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: 0xf5f0e6,
+      map: bedding.map,
       bumpMap: rBump,
-      bumpScale: 0.022 * (TENT_SCALE / 4),
-      roughness: 0.54,
+      bumpScale: 0.018 * (TENT_SCALE / 4),
+      roughness: 0.88,
       metalness: 0,
-      sheen: 1.0,
-      sheenRoughness: 0.88,
-      sheenColor: new THREE.Color(0xffffff),
       envMap,
-      envMapIntensity: 0.5,
+      envMapIntensity: 0.42,
+      emissive: new THREE.Color(0x2a2418),
+      emissiveIntensity: 0.028,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.62,
       depthWrite: false,
     });
 
-    const holeSpecs = CEILING_HOLE_POS.map((p, i) => ({
-      cx: p.x,
-      cz: p.z,
-      rad: CEILING_HOLE_RADII[i],
-    }));
-    const roofGeo = buildOrganicPerforatedCanopy(DIAMOND_R * 1.08, 52, 0.38 * TENT_SCALE, 0.85, holeSpecs);
-    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-    roofMesh.position.y = SQ_ROOF_Y + 0.06 * TENT_SCALE;
+    const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
     g.add(roofMesh);
+
+    const floorShape = new THREE.Shape();
+    floorShape.moveTo(0, -DIAMOND_R * 0.998);
+    floorShape.lineTo(DIAMOND_R * 0.998, 0);
+    floorShape.lineTo(0, DIAMOND_R * 0.998);
+    floorShape.lineTo(-DIAMOND_R * 0.998, 0);
+    floorShape.closePath();
+    const floorGeo = new THREE.ShapeGeometry(floorShape, 10);
+    floorGeo.rotateX(-Math.PI / 2);
+    const floorTex = bedding.map.clone();
+    floorTex.repeat.set(5.5, 5.5);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xede6dc,
+      map: floorTex,
+      roughness: 0.94,
+      metalness: 0,
+      envMap,
+      envMapIntensity: 0.22,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.position.y = 0.09 * TENT_SCALE;
+    g.add(floorMesh);
 
     const wallRepW = Math.max(3.6, edgeLen * 0.42);
     const wallRepH = Math.max(3.2, wallH * 0.11);
@@ -617,7 +833,7 @@
     });
     attachWallWindShader(wallMat, wallH);
 
-    const fabricMaterials = [roofMat, wallMat];
+    const fabricMaterials = [roofMat, wallMat, floorMat];
 
     function stripWallRng(seed) {
       let s = seed >>> 0;
