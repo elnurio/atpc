@@ -1618,11 +1618,13 @@
       lkT.lerpVectors(lkA, lkB, lkEase);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** SPACE: та же позиция; наклон к окуляру — линейно по доле сегмента (без паузы pitchDelay и без двойного smootherstep, чтобы скорость не «взрывалась» в середине) */
-      camera.position.copy(posA);
-      const tiltEase = clamp(step - s, 0, 1);
-      lkT.lerpVectors(lkA, lkB, tiltEase);
-      upliftBoost = tiltEase;
+      /** SPACE: те же кривые, что SKY — smootherstep(t), cos по позиции (здесь KF6.pos = KF7.pos, фактически без переноса), двойной smootherstep на look + FOV */
+      const q = smootherstep(t);
+      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
+      camera.position.lerpVectors(posA, posB, posEase);
+      const lkEase = smootherstep(smootherstep(q));
+      lkT.lerpVectors(lkA, lkB, lkEase);
+      upliftBoost = lkEase;
     } else {
       camera.position.lerpVectors(posA, posB, t);
       lkT.lerpVectors(lkA, lkB, t);
