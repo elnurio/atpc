@@ -404,16 +404,20 @@
     return { map, bumpMap };
   }
 
-  /** Vertex wind ripple for vertical fabric (local plane XY, normal Z). */
+  /**
+   * Wind on wall fabric: inject before project_vertex so morph/skinning do not overwrite displaced positions.
+   * Amplitude scales with wall height (large tent = visible motion from far camera).
+   */
   function attachWallWindShader(material, wallH) {
     const halfH = wallH * 0.5;
+    const windAmp = Math.max(0.85, wallH * 0.016 + 0.42);
     const uniforms = {
       uTime: { value: 0 },
-      uWindAmp: { value: 0.19 + 0.034 * TENT_SCALE },
+      uWindAmp: { value: windAmp },
       uWallHalfH: { value: halfH },
     };
     material.userData.windUniforms = uniforms;
-    material.customProgramCacheKey = () => '_bedtent_wind_v1';
+    material.customProgramCacheKey = () => '_bedtent_wind_v2';
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms);
       shader.vertexShader = shader.vertexShader.replace(
@@ -425,18 +429,22 @@
         attribute float windPhase;`
       );
       shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        {
+        '#include <project_vertex>',
+        `{
           float t = uTime + windPhase;
-          float hMask = smoothstep(-uWallHalfH - 0.02, uWallHalfH * 0.3, transformed.y);
-          hMask = 0.1 + 0.9 * hMask;
-          float w1 = sin(t * 1.28 + transformed.x * 0.095 + transformed.y * 0.072) * uWindAmp;
-          float w2 = sin(t * 2.15 - transformed.x * 0.16 + transformed.y * 0.11) * uWindAmp * 0.58;
-          float w3 = sin(t * 3.05 + transformed.x * 0.055 + sin(transformed.y * 0.12 + t * 0.7) * 1.8) * uWindAmp * 0.35;
-          float w = (w1 + w2 + w3) * hMask;
-          transformed += normalize(normal) * w;
-        }`
+          float hh = uWallHalfH;
+          float hMask = smoothstep(-hh - 0.02, hh * 0.38, transformed.y);
+          hMask = 0.05 + 0.95 * hMask;
+          float ax = transformed.x * 0.062;
+          float ay = transformed.y * 0.045;
+          float w1 = sin(t * 1.18 + ax + ay) * uWindAmp;
+          float w2 = sin(t * 2.02 - ax * 1.25 + ay * 0.95) * uWindAmp * 0.62;
+          float w3 = sin(t * 2.88 + ax * 0.55 + sin(ay * 0.14 + t * 0.52) * 2.4) * uWindAmp * 0.45;
+          float w4 = sin(t * 4.1 + transformed.x * 0.31) * uWindAmp * 0.22;
+          float w = (w1 + w2 + w3 + w4) * hMask;
+          transformed += normalize(objectNormal) * w;
+        }
+        #include <project_vertex>`
       );
     };
   }
@@ -473,9 +481,29 @@
     const roofMat = mkMat(3.6, 3.6);
     const wallRepW = Math.max(2.8, span * 0.22);
     const wallRepH = Math.max(2.2, wallH * 0.18);
-    const wallMat = mkMat(wallRepW, wallRepH);
-    wallMat.roughness = 0.62;
-    wallMat.bumpScale = 0.024 * (TENT_SCALE / 4);
+    const wMap = bedding.map.clone();
+    const wBump = bedding.bumpMap.clone();
+    wMap.wrapS = wMap.wrapT = THREE.RepeatWrapping;
+    wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
+    wMap.repeat.set(wallRepW, wallRepH);
+    wBump.repeat.set(wallRepW * 2.1, wallRepH * 2.1);
+    const wallMat = new THREE.MeshPhysicalMaterial({
+      color: 0xf7f4ef,
+      map: wMap,
+      bumpMap: wBump,
+      bumpScale: 0.032 * (TENT_SCALE / 4),
+      roughness: 0.71,
+      metalness: 0,
+      sheen: 1.0,
+      sheenRoughness: 0.92,
+      sheenColor: new THREE.Color(0xffffff),
+      envMap,
+      envMapIntensity: 0.58,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+    });
     attachWallWindShader(wallMat, wallH);
     const fabricMaterials = [roofMat, wallMat];
 
@@ -665,7 +693,7 @@
     canopyGroup.position.y = cy;
 
     if (squareWallWindUniforms) {
-      squareWallWindUniforms.uTime.value = clk * 2.05;
+      squareWallWindUniforms.uTime.value = clk * 2.65;
     }
 
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
