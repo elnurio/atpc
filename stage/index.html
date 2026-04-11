@@ -204,7 +204,7 @@
   let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
-  let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
+  let squareBedTentGroup, squareFabricMats, squareTentDiagMat, squareWallMesh;
   let mainSun, hemiMain;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
@@ -253,6 +253,9 @@
 
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
+  /** Купол/пол с первого кадра; боковые стены — только с фазы Structure (скролл) */
+  const WALLS_SCROLL_START = 1 / 5 + 0.02;
+  const WALLS_SCROLL_END = 1 / 5 + 0.16;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
@@ -1096,6 +1099,7 @@
       depthWrite: false,
     });
     const wallMesh = new THREE.Mesh(wallMem.geometry, wallMat);
+    wallMesh.visible = false;
     g.add(wallMesh);
 
     const fR = DIAMOND_R * 0.996;
@@ -1144,7 +1148,7 @@
 
     const fabricMaterials = [roofMat, roofVeilMat, wallMat, floorMat];
 
-    return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: null };
+    return { group: g, fabricMaterials, wallMesh, diagMat: null, wallWindUniforms: null };
   }
 
   /* Camera path — independent of TENT_SCALE; enlarge shell only via TENT_SCALE above */
@@ -1445,6 +1449,7 @@
     squareBedTentGroup = sqTent.group;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
+    squareWallMesh = sqTent.wallMesh;
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
