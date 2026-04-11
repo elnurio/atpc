@@ -1588,10 +1588,9 @@
     /** SPACE (сегмент 6): та же точка стояния, что после SKY — только наклон взгляда к окуляру */
     { pos: [79, 76, -82], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
     /**
-     * Assembly (сегмент 7): полёт вперёд в белый объём — концептуальное пространство чертежа.
-     * Камера уходит из физического шатра к «экрану» света и сборочному листу (HTML overlay).
+     * Assembly (сегмент 7): полёт в белый объём — лучи/кольцо у окуляра нарастают (см. volVis, KF7→8).
      */
-    { pos: [48, 205, 108], look: [22, 168, 412], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0, rays: 0, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
+    { pos: [48, 205, 108], look: [22, 168, 412], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 1.24, rays: 1.45, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
   ];
 
   const NSEG = 8;
@@ -1621,6 +1620,9 @@
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
   const BLUEPRINT_WHITE = new THREE.Color(0xf2f4f8);
+  const VOL_RAY_WHITE = new THREE.Color(0xffffff);
+  const volRayColorTmp = new THREE.Color();
+  const BCOL = 0xffe8b8;
 
   let isMobile = false;
   let targetFPS = 60;
@@ -1917,6 +1919,11 @@
     }
 
     const bpDim = 1 - blueprintT * 0.9;
+    /** Assembly: объёмные лучи и «кратер» не гаснут с bpDim — контролируемый рост к финалу */
+    const volEase = s === 7 ? smootherstep(uLin) : 0;
+    const volVis = s === 7 ? lerp(0.44, 1.42, volEase) : bpDim;
+    const rayBoostEff = s === 7 ? lerp(1.05, 1.78, volEase) : (1 + 0.55 * upliftBoost);
+    const rayAperture = s === 7 ? lerp(0.82, 1.45, volEase) : (0.88 + 0.35 * oculusOpKF);
     if (mainSun && hemiMain) {
       const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
       const skyDim = upliftBoost * oculusOpKF;
@@ -1952,11 +1959,10 @@
     const rA = lerp(A.rays, B.rays, t);
     const cab = lerp(A.cable, B.cable, t);
 
-    const rayBoost = 1 + 0.55 * upliftBoost;
     const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
-    bCoreMat.opacity = 0.14 * bA * pulse * rayBoost * bpDim;
-    bHaloMat.opacity = 0.055 * bA * pulse * rayBoost * bpDim;
-    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost) * bpDim;
+    bCoreMat.opacity = 0.14 * bA * pulse * rayBoostEff * volVis;
+    bHaloMat.opacity = 0.055 * bA * pulse * rayBoostEff * volVis;
+    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost) * volVis;
 
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
     bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
@@ -1969,7 +1975,23 @@
       rayGrp.children[0].rotation.x = 0.062;
     }
     if (rayMats[0]) {
-      rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost * (0.88 + 0.35 * oculusOpKF) * bpDim;
+      const rayOpBase = 0.092 * (s === 7 ? lerp(1, 1.22, volEase) : 1);
+      rayMats[0].opacity = Math.min(
+        1,
+        rayOpBase * rA * rayPulse * rayBoostEff * rayAperture * volVis
+      );
+    }
+    if (s === 7) {
+      volRayColorTmp.setHex(BCOL).lerp(VOL_RAY_WHITE, volEase * 0.52);
+      bCoreMat.color.copy(volRayColorTmp);
+      bHaloMat.color.copy(volRayColorTmp);
+      poolMat.color.copy(volRayColorTmp);
+      if (rayMats[0]) rayMats[0].color.copy(volRayColorTmp);
+    } else {
+      bCoreMat.color.setHex(BCOL);
+      bHaloMat.color.setHex(BCOL);
+      poolMat.color.setHex(BCOL);
+      if (rayMats[0]) rayMats[0].color.setHex(BCOL);
     }
 
     updateTreeGuyCables(
@@ -2226,7 +2248,6 @@
     shadowDisc.position.y = 0.025;
     scene.add(shadowDisc);
 
-    const BCOL = 0xffe8b8;
     bGrp = new THREE.Group();
     bHaloMat = new THREE.MeshBasicMaterial({
       color: BCOL,
