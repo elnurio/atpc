@@ -1429,7 +1429,7 @@
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     /** Interior (финал): внутри ромба, кадр на low DJ booth (OCULUS_CENTER), взгляд на стол/пульты */
     { pos: [-43, 73, 27], look: [-74, 15, 46], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
-    /** Sky: тот же объём — чуть выше, взгляд к окуляру; XZ остаются внутри шатра */
+    /** Sky: финал после двухфазного хода (угол → наклон к окуляру); pos/look — конечная привязка кадра */
     { pos: [-41, 84, 25], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
@@ -1460,7 +1460,9 @@
 
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
-  const skyDollyDir = new THREE.Vector3();
+  /** SKY segment: corner reposition + interior aim (phase 1), then pitch to oculus (phase 2) */
+  const skyInteriorCorner = new THREE.Vector3();
+  const skyLkInterior = new THREE.Vector3();
 
   let isMobile = false;
   let targetFPS = 60;
@@ -1600,29 +1602,40 @@
     let upliftBoost;
     if (s === 5) {
       const uScroll = t;
-      /** One smooth parameter for the whole beat — no staggered uDolly/uLift/uLook snaps. */
       const U = smootherstep(uScroll);
+      /** Phase 1 share: travel across plan to another enclosure read; phase 2: pitch to roof (no ceiling at start). */
+      const SKY_TRAVEL_SPLIT = 0.55;
 
-      /** Horizontal dolly only: step back through the space (no vertical shove from the rig vector). */
-      skyDollyDir.subVectors(posA, lkA);
-      skyDollyDir.y = 0;
-      if (skyDollyDir.lengthSq() < 1e-6) skyDollyDir.set(0.4, 0, -0.2);
-      skyDollyDir.normalize();
+      skyInteriorCorner.set(
+        DIAMOND_R * 0.33,
+        posA.y + 2.8,
+        -DIAMOND_R * 0.34
+      );
+      skyLkInterior.set(
+        -DIAMOND_R * 0.19,
+        36,
+        DIAMOND_R * 0.12
+      );
 
-      /** Cosine ease along KF5→KF6: slow start/end, no punchy acceleration. */
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * U);
-      camera.position.lerpVectors(posA, posB, posEase);
-
-      /** Extra pullback that peaks mid-scroll and returns to 0 at ends → still lands on KF positions. */
-      const pullMag = 22;
-      camera.position.addScaledVector(skyDollyDir, pullMag * Math.sin(Math.PI * U));
-
-      /** Tilt up: small early hold (read interior), then long eased blend — not a late snap to the sky. */
-      const tiltPhase = clamp((U - 0.12) / 0.88, 0, 1);
-      const wLook = smootherstep(smootherstep(tiltPhase));
-
-      lkT.lerpVectors(lkA, lkB, wLook);
-      upliftBoost = wLook;
+      if (U < SKY_TRAVEL_SPLIT) {
+        const q = smootherstep(U / SKY_TRAVEL_SPLIT);
+        const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
+        camera.position.lerpVectors(posA, skyInteriorCorner, posEase);
+        const lkEase = smootherstep(q);
+        lkT.lerpVectors(lkA, skyLkInterior, lkEase);
+        upliftBoost = 0;
+      } else {
+        const q = smootherstep((U - SKY_TRAVEL_SPLIT) / (1 - SKY_TRAVEL_SPLIT));
+        /** Body stays near corner while tilt begins (reposition-then-reveal); then ease to KF6. */
+        const pos2Blend = q * q * q;
+        camera.position.lerpVectors(skyInteriorCorner, posB, pos2Blend);
+        const pitchDelay = 0.1;
+        const tiltEase = smootherstep(
+          smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1))
+        );
+        lkT.lerpVectors(skyLkInterior, lkB, tiltEase);
+        upliftBoost = tiltEase;
+      }
     } else {
       camera.position.lerpVectors(posA, posB, t);
       lkT.lerpVectors(lkA, lkB, t);
@@ -2065,6 +2078,44 @@
       return a + rnd() * (b - a);
     }
 
+    /**
+     * Карта смещения из растрового SVG: тёмные панели вертаков/микшера → выше (светлее в disp-текстуре).
+     * Лёгкое размытие исходника сглаживает рельеф, чтобы не было «иглы» по линиям.
+     */
+    function buildDjSetupDisplacementTexture(sourceTex, dispW = 920) {
+      const img = sourceTex.image;
+      if (!img || !img.naturalWidth) return null;
+      const asp = img.naturalWidth / img.naturalHeight;
+      const dw = dispW;
+      const dh = Math.max(40, Math.round(dispW / asp));
+      const canvas = document.createElement('canvas');
+      canvas.width = dw;
+      canvas.height = dh;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#a0a0a0';
+      ctx.fillRect(0, 0, dw, dh);
+      ctx.filter = 'blur(1.1px)';
+      ctx.drawImage(img, 0, 0, dw, dh);
+      ctx.filter = 'none';
+      const id = ctx.getImageData(0, 0, dw, dh);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const a = d[i + 3] / 255;
+        const lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+        const lift = (1 - lum) * (0.15 + 0.85 * a);
+        const v = 0.38 + 0.62 * lift;
+        const b = Math.round(Math.min(255, Math.max(0, v * 255)));
+        d[i] = d[i + 1] = d[i + 2] = b;
+        d[i + 3] = 255;
+      }
+      ctx.putImageData(id, 0, 0);
+      const t = new THREE.CanvasTexture(canvas);
+      t.colorSpace = THREE.NoColorSpace;
+      t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+      t.needsUpdate = true;
+      return t;
+    }
+
     /* Low DJ bench — proportions from low_dj_planning_design_sheet (wide monolithic top, three legs, decks) */
     const DJ_BOOTH_SCALE = 1.38;
     const benchTopMat = new THREE.MeshStandardMaterial({
@@ -2098,8 +2149,8 @@
     addLeg(-lx);
     addLeg(0);
     addLeg(lx);
-    /** Вид сверху: Technics SL-1200 ×2 + микшер (technics_dj_setup_top_view.svg) на столешнице */
-    const djSvgAsp = 680 / 520;
+    /** Вид сверху: Technics SL-1200 ×2 + микшер (technics_dj_setup_clean.svg, viewBox 680×330) на столешнице */
+    const djSvgAsp = 680 / 330;
     const availTopX = topW * 0.93;
     const availTopZ = topD * 0.88;
     let layW, layZ;
@@ -2113,9 +2164,9 @@
     const slabTopY = legH + topTy + 0.0028 * L * DJ_BOOTH_SCALE;
     const djTopTexMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.72,
-      metalness: 0.035,
-      envMapIntensity: 0.56,
+      roughness: 0.58,
+      metalness: 0.06,
+      envMapIntensity: 0.62,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -2123,22 +2174,34 @@
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
     });
-    const djTopPlane = new THREE.Mesh(new THREE.PlaneGeometry(layW, layZ), djTopTexMat);
+    const djSegX = 96;
+    const djSegZ = Math.max(36, Math.round(djSegX * (330 / 680)));
+    const djTopPlane = new THREE.Mesh(new THREE.PlaneGeometry(layW, layZ, djSegX, djSegZ), djTopTexMat);
     djTopPlane.rotation.x = -Math.PI / 2;
     djTopPlane.position.set(0, slabTopY, 0);
     djTopPlane.name = 'djTechnicsTopLayout';
     lowDjBooth.add(djTopPlane);
-    const djSvgUrl = new URL('technics_dj_setup_top_view.svg', import.meta.url).href;
+    const djSvgUrl = new URL('technics_dj_setup_clean.svg', import.meta.url).href;
     new THREE.TextureLoader().load(
       djSvgUrl,
       (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
         tex.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
         tex.needsUpdate = true;
         const pl = lowDjBooth.getObjectByName('djTechnicsTopLayout');
         if (pl && pl.material) {
-          pl.material.map = tex;
-          pl.material.needsUpdate = true;
+          const m = pl.material;
+          m.map = tex;
+          const disp = buildDjSetupDisplacementTexture(tex);
+          if (disp) {
+            m.displacementMap = disp;
+            m.displacementScale = 0.1;
+            m.displacementBias = -0.041;
+            m.bumpMap = tex;
+            m.bumpScale = 0.034;
+          }
+          m.needsUpdate = true;
         }
       },
       undefined,
