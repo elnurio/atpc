@@ -1327,9 +1327,9 @@
     roofVeilMat.depthWrite = false;
     roofVeilMat.side = THREE.DoubleSide;
     const roofVeilMesh = new THREE.Mesh(roofVeilGeo, roofVeilMat);
-    /** Верхняя мембрана близко к основному куполу — один сборный «двухслойный» кровельный узел */
-    roofVeilMesh.position.y = 2.52 * TENT_SCALE;
-    roofVeilMesh.scale.set(1.022, 1, 1.022);
+    /** Вторая мембрана заметно ниже основного купола — читается как реальный второй слой, не отдельный «летающий» лист */
+    roofVeilMesh.position.y = 1.52 * TENT_SCALE;
+    roofVeilMesh.scale.set(1.01, 1, 1.01);
     roofVeilMesh.rotation.y = 0.011;
 
     const fabricRoofGroup = new THREE.Group();
