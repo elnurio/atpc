@@ -2243,14 +2243,16 @@
     interiorGroup.add(lowDjBooth);
 
     const futonPlaced = [];
-    const mPerWorldUnit = 24 / (2 * DIAMOND_R);
-    const futonMinGapLocal = FUTON_MIN_SPACING_M / mPerWorldUnit / INTERIOR_SCALE;
-    /** Доп. «воздух» между лежаками (край–край), локальные единицы интерьера */
-    const futonBreathLocal = futonMinGapLocal + 0.1 * L * invS;
-    const futonHubExcl = 0.62 * L * invS;
-    const futonMaxReach = 4.85 * L * invS;
     const djLocalX = OCULUS_CENTER_X / INTERIOR_SCALE;
     const djLocalZ = OCULUS_CENTER_Z / INTERIOR_SCALE;
+    /** Manhattan-граница ромба в локали интерьера (мир / INTERIOR_SCALE) — было 4.85*L*invS≈3.9, матрасы никогда не помещались */
+    const floorL1Limit = DIAMOND_R * invS * 0.93;
+    const mPerWorldUnit = 24 / (2 * DIAMOND_R);
+    const futonMinGapLocal = FUTON_MIN_SPACING_M / mPerWorldUnit / INTERIOR_SCALE;
+    const futonBreathLocal = futonMinGapLocal + 0.12 * L * invS;
+    const djDist0 = Math.hypot(djLocalX, djLocalZ);
+    const futonHubExcl = Math.max(2.2 * L * invS, djDist0 * 0.38);
+    const futonMaxReach = floorL1Limit;
     const djExclR = 0.5 * Math.hypot(topW, topD) + 0.24 * L * invS;
 
     function futonHalfDiag(fw, fd) {
@@ -2335,7 +2337,8 @@
       if (!placed) continue;
       futonPlaced.push({ x, z, halfDiag });
       const futon = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, fd), futonMatBase);
-      futon.position.set(x, 0.5 * fh * invS, z);
+      const futonFloorY = 0.036 * L * invS + 0.5 * fh;
+      futon.position.set(x, futonFloorY, z);
       futon.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.38, 0.38);
       const twist = rndRange(-0.16, 0.16);
       registerInteriorRise(futon, 1 + Math.floor(fi * 1.2 + rnd() * 4), twist, futonMatBase, 'table');
@@ -2381,7 +2384,8 @@
       pillowPlaced.push({ x, z, r: pr });
       const pGeo = new THREE.CylinderGeometry(rt, rb, ph, 14);
       const pillow = new THREE.Mesh(pGeo, pillowMatBase);
-      pillow.position.set(x, 0.5 * ph * invS, z);
+      const pillowFloorY = 0.036 * L * invS + 0.5 * ph;
+      pillow.position.set(x, pillowFloorY, z);
       pillow.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.55, 0.55);
       pillow.rotation.x = rndRange(-0.04, 0.04);
       pillow.rotation.z = rndRange(-0.04, 0.04);
