@@ -783,6 +783,48 @@
   }
 
   /**
+   * Вдавленный «кратер» на нижнем слое купола: вогнутость + мягкий валик по контуру,
+   * слегка неровный край (угловая модуляция радиуса). Только геометрия Y + пересчёт нормалей.
+   */
+  function applyRoofCraterDisplacement(geometry) {
+    const pos = geometry.attributes.position;
+    if (!pos) return;
+    const cx = OCULUS_CENTER_X;
+    const cz = OCULUS_CENTER_Z;
+    const craterR = OCULUS_APERTURE_R * 2.12;
+    const depth = 0.048 * TENT_SCALE;
+    const rimH = 0.016 * TENT_SCALE;
+    const uCap = 1.05;
+    const bowlEdge = 0.74;
+
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const dx = x - cx;
+      const dz = z - cz;
+      const r = Math.hypot(dx, dz);
+      const ang = Math.atan2(dz, dx);
+      const edgeIrreg =
+        1 +
+        0.072 * Math.sin(3 * ang + 0.58) +
+        0.046 * Math.sin(5 * ang - 1.05) +
+        0.034 * Math.sin(8 * ang + 1.55) +
+        0.022 * Math.sin(11 * ang - 0.4);
+      const u = r / (craterR * edgeIrreg);
+      if (u > uCap + 0.2) continue;
+
+      const boundaryFade = ss(clamp((uCap + 0.12 - u) / 0.22, 0, 1));
+      const bowl = -depth * Math.pow(clamp(1 - u / bowlEdge, 0, 1), 1.62);
+      const rim = rimH * Math.exp(-Math.pow((u - 0.87) / 0.1, 2));
+      const disp = (bowl + rim) * boundaryFade;
+      pos.setY(i, y + disp);
+    }
+    pos.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }
+
+  /**
    * Ground pull points: same winding as ceilingRing, slightly outside + down (cable tension).
    */
   function createWallGroundAnchors(ceilingRing) {
@@ -1074,7 +1116,9 @@
       depthWrite: false,
     });
 
-    const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
+    const roofGeo = tensile.geometry.clone();
+    applyRoofCraterDisplacement(roofGeo);
+    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
 
     const roofVeilGeo = tensile.geometry.clone();
     const roofVeilMat = roofMat.clone();
