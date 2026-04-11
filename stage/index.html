@@ -206,6 +206,7 @@
   let interiorGroup;
   let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
   let squareWallWindUniforms;
+  let nylonFloorMesh, nylonFloorMat;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 4;
@@ -256,6 +257,11 @@
   const INTERIOR_LAYOUT = 4;
   const INTERIOR_BURY_Y = 2.55 * INTERIOR_LAYOUT;
   const INTERIOR_STAGGER = 0.052;
+  /** Nylon deck inside tent — fades in during Structure (scroll segment 1). */
+  const NYLON_FLOOR_START = 0.2;
+  const NYLON_FLOOR_FULL = 0.34;
+  const NYLON_FLOOR_Y = 0.095 * TENT_SCALE;
+  const NYLON_FLOOR_BURY = 1.85 * TENT_SCALE;
 
   function interiorRiseEase(t) {
     t = clamp(t, 0, 1);
@@ -290,6 +296,48 @@
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    return tex;
+  }
+
+  /** Fine grid + sheen-friendly nylon / packcloth for interior deck */
+  function makeNylonWeaveTexture() {
+    const w = 512;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = w;
+    const ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, w, w);
+    g.addColorStop(0, '#dedfe3');
+    g.addColorStop(0.5, '#e6e8ec');
+    g.addColorStop(1, '#d8dadf');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, w);
+    ctx.strokeStyle = 'rgba(88, 96, 110, 0.09)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < w; i += 4) {
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(w, i);
+      ctx.stroke();
+    }
+    for (let i = 0; i < w; i += 4) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, w);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    for (let i = 0; i < w; i += 11) {
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(w, i + 40);
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
     return tex;
@@ -557,12 +605,13 @@
         u += gap;
         const stripW = stripRnd(rnd, 0.42, 1.48) * TENT_SCALE;
         if (u + stripW > uEnd) break;
-        const hRel = stripRnd(rnd, 0.58, 1.0);
-        const hStrip = (wallTop - wallBottom) * hRel;
+        const hFull = wallTop - wallBottom;
+        const roofKiss = 0.025 * TENT_SCALE;
+        const hStrip = hFull + roofKiss;
         const yCenter = wallBottom + hStrip * 0.5;
         const uCenter = u + stripW * 0.5;
         const segsW = Math.max(3, Math.min(10, Math.floor(5 + stripW * 0.22)));
-        const segsH = Math.max(10, Math.min(24, Math.floor(9 + hStrip * 0.38)));
+        const segsH = Math.max(14, Math.min(32, Math.floor(14 + hFull * 0.42)));
 
         const geo = new THREE.PlaneGeometry(stripW, hStrip, segsW, segsH);
         const nc = geo.attributes.position.count;
@@ -782,6 +831,16 @@
       }
     }
 
+    if (nylonFloorMesh && nylonFloorMat) {
+      const uN = clamp((p - NYLON_FLOOR_START) / (NYLON_FLOOR_FULL - NYLON_FLOOR_START), 0, 1);
+      const efN = ss(uN);
+      nylonFloorMesh.visible = p >= NYLON_FLOOR_START - 0.02;
+      nylonFloorMesh.position.y = lerp(NYLON_FLOOR_Y - NYLON_FLOOR_BURY, NYLON_FLOOR_Y, efN);
+      nylonFloorMat.opacity = 0.06 + 0.88 * efN;
+      nylonFloorMat.transparent = nylonFloorMat.opacity < 0.995;
+      nylonFloorMat.depthWrite = nylonFloorMat.opacity > 0.42;
+    }
+
     const mastS = lerp(A.mast, B.mast, t);
     mastGroup.visible = mastS > 0.02;
     mastGroup.scale.setScalar(1);
@@ -963,8 +1022,10 @@
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
     scene.add(cableLines);
 
+    /* Ground contact shadow: square footprint matching tent posts (±SQ_HALF), not circumscribed circle */
+    const shadowSide = 2 * SQ_HALF * 1.06;
     shadowDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(SQ_HALF * Math.sqrt(2) * 1.18 + 1.2 * TENT_SCALE, 52),
+      new THREE.PlaneGeometry(shadowSide, shadowSide, 1, 1),
       new THREE.MeshBasicMaterial({
         color: 0x1a1510,
         transparent: true,
@@ -1017,6 +1078,30 @@
     pool.position.y = 0.035;
     scene.add(pool);
 
+    const nylonMap = makeNylonWeaveTexture();
+    nylonMap.repeat.set(28, 28);
+    nylonMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    nylonFloorMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe4e6ea,
+      map: nylonMap,
+      roughness: 0.36,
+      metalness: 0.06,
+      clearcoat: 0.28,
+      clearcoatRoughness: 0.42,
+      envMap: scene.environment,
+      envMapIntensity: 0.52,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: true,
+    });
+    const nfSpan = 2 * SQ_HALF * 0.72;
+    nylonFloorMesh = new THREE.Mesh(new THREE.PlaneGeometry(nfSpan, nfSpan, 1, 1), nylonFloorMat);
+    nylonFloorMesh.rotation.x = -Math.PI / 2;
+    nylonFloorMesh.position.set(0, NYLON_FLOOR_Y - NYLON_FLOOR_BURY, 0);
+    nylonFloorMesh.visible = false;
+    scene.add(nylonFloorMesh);
+
     interiorGroup = new THREE.Group();
     const invS = 1 / INTERIOR_SCALE;
     const L = INTERIOR_LAYOUT;
@@ -1053,9 +1138,9 @@
     const futonGeo = new THREE.BoxGeometry(2.05 * L, 0.1 * L, 1.05 * L);
     const futonL = new THREE.Mesh(futonGeo, intMatBase);
     futonL.position.set(
-      (-2.95 + rndRange(-0.22, 0.22)) * L * invS,
+      (-4.35 + rndRange(-0.2, 0.2)) * L * invS,
       0.05 * L * invS,
-      (1.35 + rndRange(-0.2, 0.2)) * L * invS
+      (2.95 + rndRange(-0.28, 0.28)) * L * invS
     );
     futonL.rotation.y = 0.35 + rndRange(-0.12, 0.12);
     registerInteriorRise(futonL, 1, 0.08);
@@ -1063,23 +1148,39 @@
 
     const futonR = new THREE.Mesh(futonGeo, intMatBase);
     futonR.position.set(
-      (2.95 + rndRange(-0.22, 0.22)) * L * invS,
+      (4.35 + rndRange(-0.2, 0.2)) * L * invS,
       0.05 * L * invS,
-      (-1.35 + rndRange(-0.2, 0.2)) * L * invS
+      (-2.95 + rndRange(-0.28, 0.28)) * L * invS
     );
     futonR.rotation.y = Math.PI - 0.35 + rndRange(-0.12, 0.12);
     registerInteriorRise(futonR, 2, -0.08);
     interiorGroup.add(futonR);
 
-    const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.36 * L, 0.42 * L, 0.2 * L, 14), intMatBase);
-    cushion.position.set(
-      (0.15 + rndRange(-0.25, 0.25)) * L * invS,
-      0.1 * L * invS,
-      (2.65 + rndRange(-0.2, 0.2)) * L * invS
+    const cMul = 0.34;
+    const cRadT = 0.36 * L * cMul;
+    const cRadB = 0.42 * L * cMul;
+    const cHt = 0.2 * L * cMul;
+    const cY = 0.5 * cHt * invS;
+    const cushionGeo = new THREE.CylinderGeometry(cRadT, cRadB, cHt, 12);
+    const cushionA = new THREE.Mesh(cushionGeo, intMatBase);
+    cushionA.position.set(
+      (-4.55 + rndRange(-0.18, 0.18)) * L * invS,
+      cY,
+      (3.95 + rndRange(-0.22, 0.22)) * L * invS
     );
-    cushion.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushion, 3, 0.09);
-    interiorGroup.add(cushion);
+    cushionA.rotation.y = rndRange(0, Math.PI * 2);
+    registerInteriorRise(cushionA, 3, 0.1);
+    interiorGroup.add(cushionA);
+
+    const cushionB = new THREE.Mesh(cushionGeo, intMatBase);
+    cushionB.position.set(
+      (4.5 + rndRange(-0.18, 0.18)) * L * invS,
+      cY,
+      (-4.05 + rndRange(-0.22, 0.22)) * L * invS
+    );
+    cushionB.rotation.y = rndRange(0, Math.PI * 2);
+    registerInteriorRise(cushionB, 4, -0.1);
+    interiorGroup.add(cushionB);
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
