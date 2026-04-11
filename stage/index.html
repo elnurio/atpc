@@ -1618,13 +1618,9 @@
       lkT.lerpVectors(lkA, lkB, lkEase);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** SPACE: без переноса — остаёмся в точке KF6, только поднимаем взгляд к куполу */
+      /** SPACE: та же позиция; наклон к окуляру — линейно по доле сегмента (без паузы pitchDelay и без двойного smootherstep, чтобы скорость не «взрывалась» в середине) */
       camera.position.copy(posA);
-      const q = smootherstep(t);
-      const pitchDelay = 0.12;
-      const tiltEase = smootherstep(
-        smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1))
-      );
+      const tiltEase = clamp(step - s, 0, 1);
       lkT.lerpVectors(lkA, lkB, tiltEase);
       upliftBoost = tiltEase;
     } else {
@@ -1641,7 +1637,7 @@
 
     camera.lookAt(lkT);
 
-    camera.fov = cameraBaseFov + upliftBoost * 3.4;
+    camera.fov = cameraBaseFov + upliftBoost * 2.5;
     camera.updateProjectionMatrix();
 
     const cy = lerp(A.canopyY, B.canopyY, t);
