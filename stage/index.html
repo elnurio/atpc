@@ -1327,9 +1327,9 @@
     roofVeilMat.depthWrite = false;
     roofVeilMat.side = THREE.DoubleSide;
     const roofVeilMesh = new THREE.Mesh(roofVeilGeo, roofVeilMat);
-    /** Второй слой ближе к нижнему куполу — читается как наслоение, а не отдельный «летающий» объём */
-    roofVeilMesh.position.y = 3.38 * TENT_SCALE;
-    roofVeilMesh.scale.set(1.042, 1, 1.042);
+    /** Верхняя мембрана близко к основному куполу — один сборный «двухслойный» кровельный узел */
+    roofVeilMesh.position.y = 2.52 * TENT_SCALE;
+    roofVeilMesh.scale.set(1.022, 1, 1.022);
     roofVeilMesh.rotation.y = 0.011;
 
     const fabricRoofGroup = new THREE.Group();
@@ -1684,8 +1684,9 @@
       const roofGlow = 1 + 0.14 * upliftBoost;
       squareFabricMats.forEach((m, mi) => {
         if (mi === 3) {
-          m.opacity = Math.min(1, 0.12 + 0.88 * wallReveal);
-          m.transparent = m.opacity < 0.999;
+          /** Пол: фиксированный цвет/альфа — не привязываем к wallReveal / фазам (не затемнять) */
+          m.opacity = 1;
+          m.transparent = false;
           return;
         }
         const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
