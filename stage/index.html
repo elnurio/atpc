@@ -509,36 +509,32 @@
   }
 
   function createSquareBedTent(bedding, envMap) {
-    const mkMat = (mapRepX, mapRepY) => {
-      const map = bedding.map.clone();
-      const bumpMap = bedding.bumpMap.clone();
-      map.wrapS = map.wrapT = THREE.RepeatWrapping;
-      bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
-      map.repeat.set(mapRepX, mapRepY);
-      bumpMap.repeat.set(mapRepX * 2.1, mapRepY * 2.1);
-      return new THREE.MeshStandardMaterial({
-        color: 0xfaf8f5,
-        map,
-        bumpMap,
-        bumpScale: 0.018 * (TENT_SCALE / 4),
-        roughness: 0.58,
-        metalness: 0,
-        envMap,
-        envMapIntensity: 0.72,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 1,
-        depthWrite: false,
-      });
-    };
-
     const g = new THREE.Group();
     const wallH = SQ_ROOF_Y - SQ_WALL_LIFT;
     const span = 2 * SQ_HALF;
     const wallBottom = SQ_WALL_LIFT;
     const wallTop = SQ_ROOF_Y;
 
-    const roofMat = mkMat(3.6, 3.6);
+    const roofBumpRep = 3.6;
+    const rBump = bedding.bumpMap.clone();
+    rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
+    rBump.repeat.set(roofBumpRep * 2.1, roofBumpRep * 2.1);
+    const roofMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      bumpMap: rBump,
+      bumpScale: 0.024 * (TENT_SCALE / 4),
+      roughness: 0.58,
+      metalness: 0,
+      sheen: 1.0,
+      sheenRoughness: 0.88,
+      sheenColor: new THREE.Color(0xffffff),
+      envMap,
+      envMapIntensity: 0.5,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
     const wallRepW = Math.max(3.6, span * 0.38);
     const wallRepH = Math.max(3.2, wallH * 0.11);
     const wBump = bedding.bumpMap.clone();
@@ -557,7 +553,7 @@
       envMapIntensity: 0.48,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.5,
       depthWrite: false,
     });
     attachWallWindShader(wallMat, wallH);
@@ -816,13 +812,16 @@
         }
         squareBedTentGroup.position.y = dropY;
         const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
+        /** Sheer white fabric: roof + walls stay readable so interior reads through */
+        const roofSheer = 0.66;
+        const wallSheer = 0.58;
         squareFabricMats.forEach((m, mi) => {
-          const cap = mi === 0 ? 1 : 0.84;
-          m.opacity = Math.min(1, baseOp * flyFade * cap);
-          m.transparent = m.opacity < 0.995;
+          const sheer = mi === 0 ? roofSheer : wallSheer;
+          m.opacity = Math.min(1, baseOp * flyFade * sheer);
+          m.transparent = true;
         });
         if (squareTentDiagMat) {
-          squareTentDiagMat.opacity = 0.48 * baseOp * flyFade;
+          squareTentDiagMat.opacity = 0.34 * baseOp * flyFade;
         }
       }
     }
