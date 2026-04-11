@@ -266,7 +266,7 @@
     { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [46, 14, 40], look: [0, 5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [9.5, 2.05, 14], look: [0, 15.6, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [16.5, 3.35, 21], look: [0, 4.6, -6.5], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -592,7 +592,7 @@
     canopyGroup.add(hubRing);
 
     shadowDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(9.2, 40),
+      new THREE.CircleGeometry(13.2, 48),
       new THREE.MeshBasicMaterial({
         color: 0x1a1510,
         transparent: true,
