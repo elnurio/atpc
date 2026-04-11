@@ -217,6 +217,7 @@
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
   let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh, squareTentStakeMesh;
+  let hangingInteriorFabricGroup;
   let mainSun, hemiMain, fillSun;
   let sceneAmbient;
   /** Narrow key light through roof oculus (Sky phase) */
@@ -1410,6 +1411,93 @@
     stakeMesh.name = 'tentGroundStakes';
     g.add(stakeMesh);
 
+    /**
+     * Внутренние подвесные полосы (вуаль): вертикальные полупрозрачные панели под куполом,
+     * не стены — глубина, проход сквозь слои, лёгкий крен в updateScene.
+     */
+    const hangingInteriorFabricGroup = new THREE.Group();
+    hangingInteriorFabricGroup.name = 'hangingInteriorFabric';
+    let hfSeed = 514229;
+    function hfRnd() {
+      hfSeed = (hfSeed * 16807 + 1013904223) >>> 0;
+      return hfSeed / 4294967296;
+    }
+    const hfPlaced = [];
+    const nHangPanels = 24;
+    const floorTopY = 0.2 * TENT_SCALE;
+    const minClearAboveFloor = 0.34 * TENT_SCALE;
+    const voileMat = new THREE.MeshStandardMaterial({
+      color: 0xf7f4ef,
+      roughness: 0.995,
+      metalness: 0,
+      envMap,
+      envMapIntensity: 0.18,
+      emissive: new THREE.Color(0xf2eee8),
+      emissiveIntensity: 0.028,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+    });
+    function hfDiamondOk(px, pz) {
+      return Math.abs(px) + Math.abs(pz) < DIAMOND_R * 0.84;
+    }
+    function hfOculusOk(px, pz) {
+      return Math.hypot(px - OCULUS_CENTER_X, pz - OCULUS_CENTER_Z) > ROOF_OCULUS_CUT_R * 1.25 + 0.045 * TENT_SCALE;
+    }
+    for (let hi = 0; hi < nHangPanels; hi++) {
+      let px = 0;
+      let pz = 0;
+      let ok = false;
+      for (let att = 0; att < 90 && !ok; att++) {
+        const t = hfRnd() * Math.PI * 2 + hi * 0.73;
+        const rBias = 0.18 + hfRnd() * 0.82;
+        const rad = DIAMOND_R * (0.12 + rBias * 0.72) * (0.88 + 0.24 * Math.sin(t * 2.1 + hi));
+        px = Math.cos(t) * rad * (0.82 + hfRnd() * 0.36);
+        pz = Math.sin(t) * rad * (0.8 + hfRnd() * 0.38);
+        px += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
+        pz += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
+        const minD = (0.086 + hfRnd() * 0.062) * DIAMOND_R;
+        let spaced = true;
+        for (let i = 0; i < hfPlaced.length; i++) {
+          if (Math.hypot(hfPlaced[i].x - px, hfPlaced[i].z - pz) < minD) {
+            spaced = false;
+            break;
+          }
+        }
+        if (hfDiamondOk(px, pz) && hfOculusOk(px, pz) && spaced) ok = true;
+      }
+      if (!ok) continue;
+      hfPlaced.push({ x: px, z: pz });
+      const topY = SQ_ROOF_Y * (0.56 + hfRnd() * 0.36);
+      const maxLen = Math.max(0.18 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
+      const wantLen = SQ_ROOF_Y * (0.28 + hfRnd() * 0.5);
+      const len = Math.max(0.2 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.72 + hfRnd() * 0.28)));
+      const w = (0.018 + hfRnd() * 0.034) * DIAMOND_R;
+      const stripGeo = new THREE.PlaneGeometry(w, len, 1, 6);
+      const mat = voileMat.clone();
+      mat.opacity = 0.19 + hfRnd() * 0.1;
+      mat.transparent = true;
+      mat.depthWrite = false;
+      const strip = new THREE.Mesh(stripGeo, mat);
+      strip.position.set(0, -0.5 * len, 0);
+      strip.renderOrder = 2;
+      const pivot = new THREE.Group();
+      pivot.position.set(px, topY, pz);
+      pivot.add(strip);
+      pivot.userData.panelSway = true;
+      pivot.userData.baseRy = hfRnd() * Math.PI * 2 + (hfRnd() - 0.5) * 0.85;
+      pivot.userData.swayPhase = hfRnd() * Math.PI * 2;
+      pivot.userData.swayRate = 0.095 + hfRnd() * 0.085;
+      pivot.userData.ampX = (0.006 + hfRnd() * 0.012) * (0.85 + hi * 0.008);
+      pivot.userData.ampZ = (0.009 + hfRnd() * 0.016) * (0.9 + hi * 0.006);
+      pivot.userData.ampY = (0.0035 + hfRnd() * 0.008) * (0.8 + hi * 0.005);
+      pivot.rotation.y = pivot.userData.baseRy;
+      hangingInteriorFabricGroup.add(pivot);
+    }
+    hangingInteriorFabricGroup.visible = false;
+    g.add(hangingInteriorFabricGroup);
+
     const fabricMaterials = [skinRoofMat, roofVeilMat, skinWallMat, floorMat];
 
     stakeMesh.visible = false;
@@ -1421,6 +1509,7 @@
       unifiedSkinMesh,
       stakeMesh,
       fabricRoofGroup,
+      hangingInteriorFabricGroup,
       ceilingRing: tensile.ceilingRing,
       diagMat: null,
       wallWindUniforms: null,
@@ -1709,6 +1798,25 @@
       if (squareTentDiagMat) {
         squareTentDiagMat.opacity = 0.34 * baseOp;
       }
+      if (hangingInteriorFabricGroup) {
+        const hangVis =
+          wallReveal > 0.055
+          && p >= ROOF_SCROLL_START - 0.02
+          && roofInstallEase > 0.08;
+        hangingInteriorFabricGroup.visible = hangVis;
+        if (hangVis) {
+          hangingInteriorFabricGroup.traverse((obj) => {
+            if (!obj.userData.panelSway) return;
+            const u = obj.userData;
+            const ph = u.swayPhase;
+            const r = u.swayRate;
+            const s = clk;
+            obj.rotation.x = Math.sin(s * r + ph) * u.ampX;
+            obj.rotation.y = u.baseRy + Math.sin(s * r * 0.36 + ph * 1.15) * u.ampY;
+            obj.rotation.z = Math.sin(s * r * 0.89 + ph * 1.52) * u.ampZ;
+          });
+        }
+      }
     }
 
     if (mainSun && hemiMain) {
@@ -1911,6 +2019,7 @@
     const sqTent = createMicroCityFabricEnclosure(bedding, scene.environment);
     squareBedTentGroup = sqTent.group;
     squareFabricRoofGroup = sqTent.fabricRoofGroup;
+    hangingInteriorFabricGroup = sqTent.hangingInteriorFabricGroup;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
     squareWallMesh = sqTent.wallMesh;
