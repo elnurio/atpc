@@ -880,7 +880,7 @@
     let rngState = 20260410;
     function rnd() {
       rngState = (rngState * 1664525 + 1013904223) >>> 0;
-      return (rngState & 0xffffff) / 0xffffff;
+      return rngState / 4294967296;
     }
     function rndRange(a, b) {
       return a + rnd() * (b - a);
@@ -894,33 +894,33 @@
     const futonGeo = new THREE.BoxGeometry(2.05, 0.1, 1.05);
     const futonL = new THREE.Mesh(futonGeo, intMatBase);
     futonL.position.set(
-      -rndRange(1.85, 2.75) * invS,
+      (-2.95 + rndRange(-0.22, 0.22)) * invS,
       0.05 * invS,
-      rndRange(-0.85, 0.85) * invS
+      (1.35 + rndRange(-0.2, 0.2)) * invS
     );
-    futonL.rotation.y = rndRange(-0.2, 0.2);
+    futonL.rotation.y = 0.35 + rndRange(-0.12, 0.12);
     registerInteriorRise(futonL, 1, 0.08);
     interiorGroup.add(futonL);
 
     const futonR = new THREE.Mesh(futonGeo, intMatBase);
     futonR.position.set(
-      rndRange(1.85, 2.75) * invS,
+      (2.95 + rndRange(-0.22, 0.22)) * invS,
       0.05 * invS,
-      rndRange(-0.85, 0.85) * invS
+      (-1.35 + rndRange(-0.2, 0.2)) * invS
     );
-    futonR.rotation.y = Math.PI + rndRange(-0.2, 0.2);
+    futonR.rotation.y = Math.PI - 0.35 + rndRange(-0.12, 0.12);
     registerInteriorRise(futonR, 2, -0.08);
     interiorGroup.add(futonR);
 
-    for (let k = 0; k < 2; k++) {
-      const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.5, 0.26, 14), intMatBase);
-      const ang = rndRange(0, Math.PI * 2);
-      const rad = rndRange(1.35, 2.95) * invS;
-      cushion.position.set(Math.cos(ang) * rad, 0.13 * invS, Math.sin(ang) * rad);
-      cushion.rotation.y = rndRange(0, Math.PI * 2);
-      registerInteriorRise(cushion, 3 + k, 0.1 * (k === 0 ? 1 : -1));
-      interiorGroup.add(cushion);
-    }
+    const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.2, 14), intMatBase);
+    cushion.position.set(
+      (0.15 + rndRange(-0.25, 0.25)) * invS,
+      0.1 * invS,
+      (2.65 + rndRange(-0.2, 0.2)) * invS
+    );
+    cushion.rotation.y = rndRange(0, Math.PI * 2);
+    registerInteriorRise(cushion, 3, 0.09);
+    interiorGroup.add(cushion);
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
