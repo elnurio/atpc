@@ -210,6 +210,9 @@
   let canopyGroup, fabricGeo, fabricMesh, fabricMat, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
   let hubRing, hubRingMat, oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
+  let interiorGroup, interiorMats = [];
+  let centerPole, centerPoleMat;
+  let dustGeo, dustPoints, dustMat, dustBasePositions, dustPhases;
   let radialCables;
 
   const T_OUTER = 9.55, T_H = 7.95;
@@ -220,9 +223,10 @@
   const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
   const RAY_LEN_SKY = 72;
   const RAY_LEN_BELOW = 22;
-  const RAY_R_SKY = 3.15;
+  const RAY_R_SKY = 2.45;
   const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.992;
-  const RAY_R_IN_FLOOR = 1.78;
+  const RAY_R_IN_FLOOR = 1.32;
+  const DUST_COLUMN_RADIUS = 1.88;
 
   function tentH(v, u) {
     const vn = Math.max(0, Math.min(1, v));
@@ -318,14 +322,260 @@
     fabricGeo.computeVertexNormals();
   }
 
+  function makeInteriorMaterial(params, baseOpacity = 1) {
+    const mat = new THREE.MeshStandardMaterial({
+      ...params,
+      transparent: true,
+      opacity: 0,
+    });
+    mat.userData.baseOpacity = baseOpacity;
+    interiorMats.push(mat);
+    return mat;
+  }
+
+  function createInteriorLounge() {
+    interiorMats = [];
+    interiorGroup = new THREE.Group();
+    interiorGroup.visible = false;
+
+    const tatamiMat = makeInteriorMaterial({
+      color: 0xe6dfd0,
+      roughness: 0.93,
+      metalness: 0.02,
+      envMapIntensity: 0.55,
+    }, 0.94);
+    const tatami = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 5.0, 0.045, 56), tatamiMat);
+    tatami.position.y = 0.03;
+    interiorGroup.add(tatami);
+
+    const futonMat = makeInteriorMaterial({
+      color: 0xf4eee4,
+      roughness: 0.97,
+      metalness: 0.0,
+      envMapIntensity: 0.45,
+    }, 0.95);
+    const cushionMat = makeInteriorMaterial({
+      color: 0xf9f4eb,
+      roughness: 0.95,
+      metalness: 0.0,
+      envMapIntensity: 0.5,
+    }, 0.98);
+
+    const futonLayout = [
+      { x: 2.35, z: 0.85, r: 0.34, sx: 1.06 },
+      { x: 1.45, z: -2.25, r: -0.18, sx: 0.98 },
+      { x: -0.62, z: -2.58, r: 0.1, sx: 1.08 },
+      { x: -2.3, z: -1.0, r: 0.48, sx: 0.96 },
+      { x: -2.0, z: 1.62, r: -0.22, sx: 1.04 },
+      { x: 0.55, z: 2.4, r: 0.16, sx: 0.94 },
+    ];
+
+    for (const f of futonLayout) {
+      const futon = new THREE.Mesh(new THREE.BoxGeometry(1.72 * f.sx, 0.1, 0.96), futonMat);
+      futon.position.set(f.x, 0.065, f.z);
+      futon.rotation.y = f.r;
+      interiorGroup.add(futon);
+    }
+
+    const cushionLayout = [
+      { x: 2.0, z: -0.3, s: 1.0 },
+      { x: 1.2, z: 1.85, s: 0.92 },
+      { x: -0.9, z: 2.1, s: 1.05 },
+      { x: -2.15, z: 0.72, s: 0.94 },
+      { x: -1.82, z: -1.55, s: 1.04 },
+      { x: 0.22, z: -2.18, s: 0.9 },
+      { x: 2.28, z: -1.42, s: 0.95 },
+      { x: -0.18, z: 0.42, s: 0.85 },
+    ];
+
+    for (const c of cushionLayout) {
+      const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.44 * c.s, 0.5 * c.s, 0.14, 24), cushionMat);
+      cushion.position.set(c.x, 0.12, c.z);
+      interiorGroup.add(cushion);
+    }
+
+    const woodLightMat = makeInteriorMaterial({
+      color: 0xdab88c,
+      roughness: 0.64,
+      metalness: 0.08,
+      envMapIntensity: 0.85,
+    }, 0.98);
+    const woodLegMat = makeInteriorMaterial({
+      color: 0xbf976d,
+      roughness: 0.66,
+      metalness: 0.08,
+      envMapIntensity: 0.74,
+    }, 0.96);
+
+    const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.07, 0.09, 44), woodLightMat);
+    tableTop.position.y = 0.53;
+    interiorGroup.add(tableTop);
+
+    const legOffsets = [
+      [0.72, 0.3], [0.72, -0.3], [-0.72, 0.3], [-0.72, -0.3]
+    ];
+    for (const [lx, lz] of legOffsets) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.46, 14), woodLegMat);
+      leg.position.set(lx, 0.27, lz);
+      interiorGroup.add(leg);
+    }
+
+    const deckBaseMat = makeInteriorMaterial({
+      color: 0xe6e0d6,
+      roughness: 0.56,
+      metalness: 0.16,
+      envMapIntensity: 0.68,
+    }, 0.95);
+    const deckControlMat = makeInteriorMaterial({
+      color: 0x3f3a35,
+      roughness: 0.38,
+      metalness: 0.42,
+      envMapIntensity: 0.45,
+    }, 0.9);
+
+    const mixer = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.09, 0.36), deckBaseMat);
+    mixer.position.set(0, 0.625, 0);
+    interiorGroup.add(mixer);
+
+    const deckLeft = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.08, 0.44), deckBaseMat);
+    deckLeft.position.set(-0.47, 0.615, 0);
+    interiorGroup.add(deckLeft);
+
+    const deckRight = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.08, 0.44), deckBaseMat);
+    deckRight.position.set(0.47, 0.615, 0);
+    interiorGroup.add(deckRight);
+
+    const ctlLayout = [
+      [-0.47, 0.662, -0.12], [-0.47, 0.662, 0.12],
+      [0.47, 0.662, -0.12], [0.47, 0.662, 0.12],
+      [-0.08, 0.67, 0], [0.08, 0.67, 0]
+    ];
+    for (const [cx, cy, cz] of ctlLayout) {
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.025, 14), deckControlMat);
+      knob.position.set(cx, cy, cz);
+      interiorGroup.add(knob);
+    }
+
+    const standMat = makeInteriorMaterial({
+      color: 0xe4ddd0,
+      roughness: 0.62,
+      metalness: 0.12,
+      envMapIntensity: 0.6,
+    }, 0.92);
+    const speakerMat = makeInteriorMaterial({
+      color: 0xd5ccbb,
+      roughness: 0.54,
+      metalness: 0.18,
+      envMapIntensity: 0.62,
+    }, 0.9);
+    const driverMat = makeInteriorMaterial({
+      color: 0x625b52,
+      roughness: 0.35,
+      metalness: 0.22,
+      envMapIntensity: 0.35,
+    }, 0.86);
+
+    for (const side of [-1, 1]) {
+      const speakerGrp = new THREE.Group();
+      speakerGrp.position.set(side * 2.35, 0, 0.56);
+
+      const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.03, 20), standMat);
+      standBase.position.y = 0.02;
+      speakerGrp.add(standBase);
+
+      const standPole = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 1.24, 12), standMat);
+      standPole.position.y = 0.64;
+      speakerGrp.add(standPole);
+
+      const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.52, 0.29), speakerMat);
+      speaker.position.y = 1.31;
+      speakerGrp.add(speaker);
+
+      const driver = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 20), driverMat);
+      driver.position.set(0, 1.32, 0.16);
+      driver.rotation.x = Math.PI / 2;
+      speakerGrp.add(driver);
+
+      speakerGrp.lookAt(0, 1.1, 0);
+      interiorGroup.add(speakerGrp);
+    }
+
+    scene.add(interiorGroup);
+  }
+
+  function createDustColumn() {
+    const count = isMobile ? 900 : 1500;
+    const positions = new Float32Array(count * 3);
+    dustBasePositions = new Float32Array(count * 3);
+    dustPhases = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const theta = Math.random() * Math.PI * 2;
+      const radial = Math.sqrt(Math.random()) * DUST_COLUMN_RADIUS;
+      const y = 0.45 + Math.random() * 21.8;
+      const x = Math.cos(theta) * radial;
+      const z = Math.sin(theta) * radial;
+
+      positions[i3 + 0] = x;
+      positions[i3 + 1] = y;
+      positions[i3 + 2] = z;
+
+      dustBasePositions[i3 + 0] = x;
+      dustBasePositions[i3 + 1] = y;
+      dustBasePositions[i3 + 2] = z;
+      dustPhases[i] = Math.random() * Math.PI * 2;
+    }
+
+    dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    dustMat = new THREE.PointsMaterial({
+      color: 0xffe2b6,
+      size: isMobile ? 0.043 : 0.058,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+
+    dustPoints = new THREE.Points(dustGeo, dustMat);
+    scene.add(dustPoints);
+  }
+
+  function setInteriorReveal(reveal) {
+    const v = clamp(reveal, 0, 1);
+    if (interiorGroup) interiorGroup.visible = v > 0.01;
+    for (const mat of interiorMats) {
+      const baseOpacity = mat.userData.baseOpacity ?? 1;
+      mat.opacity = baseOpacity * v;
+    }
+  }
+
+  function updateDustColumn(intensity) {
+    if (!dustGeo || !dustBasePositions || !dustPhases || !dustMat) return;
+
+    const pos = dustGeo.attributes.position.array;
+    for (let i = 0; i < dustPhases.length; i++) {
+      const i3 = i * 3;
+      const phase = dustPhases[i];
+      pos[i3 + 0] = dustBasePositions[i3 + 0] + Math.sin(clk * 0.46 + phase) * 0.045;
+      pos[i3 + 1] = dustBasePositions[i3 + 1] + Math.sin(clk * 0.25 + phase * 1.7) * 0.08;
+      pos[i3 + 2] = dustBasePositions[i3 + 2] + Math.cos(clk * 0.39 + phase * 0.75) * 0.045;
+    }
+    dustGeo.attributes.position.needsUpdate = true;
+    dustMat.opacity = clamp(0.018 + intensity * 0.2, 0, 0.23);
+  }
+
   /* Camera stays back: ~45–60 m from axis — full ring of masts + canopy in frame */
   const KF = [
-    { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [46, 14, 40], look: [0, 5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [9.5, 2.05, 14], look: [0, 15.6, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0, interior: 0 },
+    { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0, interior: 0 },
+    { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0, interior: 0.05 },
+    { pos: [46, 14, 40], look: [0, 5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0, interior: 0.2 },
+    { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1, interior: 0.78 },
+    { pos: [9.5, 2.05, 14], look: [0, 15.6, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82, interior: 1 },
   ];
 
   const NSEG = 5;
@@ -492,6 +742,7 @@
     const bA = lerp(A.beam, B.beam, t);
     const rA = lerp(A.rays, B.rays, t);
     const cab = lerp(A.cable, B.cable, t);
+    const interior = lerp(A.interior ?? 0, B.interior ?? 0, t);
 
     const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
     bCoreMat.opacity = 0.14 * bA * pulse;
@@ -500,6 +751,15 @@
 
     const oculusWorldY = canopyGroup.position.y + OCULUS_Y_LOCAL;
     bGrp.position.set(0, oculusWorldY + 1.4, 0);
+
+    if (centerPole && centerPoleMat) {
+      const poleReveal = clamp(Math.max(mastS * 0.7, interior), 0, 1);
+      centerPole.visible = poleReveal > 0.02;
+      centerPole.scale.y = Math.max(0.001, oculusWorldY - 0.18);
+      centerPole.position.y = (oculusWorldY - 0.18) * 0.5;
+      const baseOp = centerPoleMat.userData.baseOpacity ?? 1;
+      centerPoleMat.opacity = baseOp * poleReveal;
+    }
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
     rayGrp.position.set(0, 0, 0);
@@ -518,6 +778,9 @@
     const oOp = lerp(A.oculusOp, B.oculusOp, t);
     oculus.material.opacity = oOp;
     oculus.visible = oOp > 0.03;
+
+    setInteriorReveal(interior);
+    updateDustColumn(rA * (0.45 + interior * 0.55));
 
     LWIN.forEach(([inAt, outAt], i) => {
       labels[i].classList.toggle('on', p >= inAt && p <= outAt);
@@ -560,6 +823,7 @@
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0xcfbca0, isMobile ? 0.0065 : 0.0055);
     camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 4000);
 
     const envMap = await new Promise((resolve, reject) => {
@@ -607,6 +871,20 @@
     oculus.rotation.x = Math.PI / 2;
     oculus.visible = false;
     canopyGroup.add(oculus);
+
+    centerPoleMat = new THREE.MeshStandardMaterial({
+      color: 0xd9ccb9,
+      roughness: 0.53,
+      metalness: 0.15,
+      envMapIntensity: 0.8,
+      transparent: true,
+      opacity: 0,
+    });
+    centerPoleMat.userData.baseOpacity = 0.9;
+    centerPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 1, 16), centerPoleMat);
+    centerPole.position.y = 0.5;
+    centerPole.visible = false;
+    scene.add(centerPole);
 
     scene.add(canopyGroup);
 
@@ -764,6 +1042,10 @@
     rayGrp.add(new THREE.Mesh(rayGeo, rayMat));
     rayGrp.position.set(0, 0, 0);
     scene.add(rayGrp);
+
+    createInteriorLounge();
+    setInteriorReveal(0);
+    createDustColumn();
 
     window.addEventListener('scroll', () => {
       applyScrollPhaseControl();
