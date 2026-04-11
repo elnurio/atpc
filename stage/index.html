@@ -209,7 +209,7 @@
   let nylonFloorMesh, nylonFloorMat;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
-  const TENT_SCALE = 8;
+  const TENT_SCALE = 24;
 
   const SQ_N = 4;
   const N_MASTS = SQ_N;
@@ -358,7 +358,7 @@
     ed.position.set(2.2, 3.5, 1.4);
     envScene.add(ed);
     envScene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(180, 36, 18),
+      new THREE.SphereGeometry(540, 36, 18),
       new THREE.MeshStandardMaterial({
         color: 0xf2ece4,
         roughness: 1,
@@ -379,7 +379,7 @@
       metalness: 0,
       envMapIntensity: 0.28,
     });
-    const sand = new THREE.Mesh(new THREE.PlaneGeometry(6800, 6800, 1, 1), sandMat);
+    const sand = new THREE.Mesh(new THREE.PlaneGeometry(20400, 20400, 1, 1), sandMat);
     sand.rotation.x = -Math.PI / 2;
     sand.position.y = -0.04;
     scene.add(sand);
@@ -735,12 +735,12 @@
 
   /* Camera scaled with TENT_SCALE — same framing vs larger ring */
   const KF = [
-    { pos: [384, 256, 336], look: [0, 80, 0], canopyY: 264, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [352, 208, 368], look: [0, 68, 0], canopyY: 280, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [432, 176, 64], look: [0, 72, 0], canopyY: 308, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [368, 112, 320], look: [0, 40, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [320, 160, 320], look: [0, 44, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [132, 26.8, 168], look: [0, 36.8, -52], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [1152, 768, 1008], look: [0, 240, 0], canopyY: 792, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [1056, 624, 1104], look: [0, 204, 0], canopyY: 840, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [1296, 528, 192], look: [0, 216, 0], canopyY: 924, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [1104, 336, 960], look: [0, 120, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [960, 480, 960], look: [0, 132, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [396, 80.4, 504], look: [0, 110.4, -156], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -1025,17 +1025,17 @@
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 8000);
+    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 24000);
 
     setupMinimalSandWorld(renderer, scene);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.07));
     scene.add(new THREE.HemisphereLight(0xf2f0ec, 0xd2c4b0, 0.42));
     const sun = new THREE.DirectionalLight(0xfff4e8, 0.88);
-    sun.position.set(76, 144, 44);
+    sun.position.set(228, 432, 132);
     scene.add(sun);
     const fillSun = new THREE.DirectionalLight(0xe8ecf0, 0.12);
-    fillSun.position.set(-36, 56, -28);
+    fillSun.position.set(-108, 168, -84);
     scene.add(fillSun);
 
     canopyGroup = new THREE.Group();
