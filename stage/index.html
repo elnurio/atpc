@@ -166,19 +166,19 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Coastal ground — open field before anything is built</p>
+    <p>Open coastal ground — asymmetric tent stage, eight anchors, no walls</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Masts lock in — the suspended canopy appears and tensions into place</p>
+    <p>Main mast 12 m, sub-masts, guy lines — steel posts lock to sand</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>The roof descends and seats on the masts — lateral read of the volume</p>
+    <p>Silk / ripstop membrane seats — ø80 cm amber oculus off-centre</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Beams</h2>
-    <p>Light shafts pierce the membrane and flood the bowl</p>
+    <p>Amber shaft through the ring — projection from the crown</p>
   </div>
   <div class="slabel" id="sl4">
     <h2>Interior</h2>
@@ -212,17 +212,32 @@
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let radialCables;
 
-  const T_OUTER = 9.55, T_H = 7.95;
-  const N_FOLD = 6;
-  const OCULUS_Y_LOCAL = T_H - 0.1;
-  const OCULUS_MAJOR = 1.84;
-  const OCULUS_TUBE = 0.11;
+  /* Scale study from tent-japanese-concept.pdf: 30–40 m span, main mast 12 m, sub-masts, ø80 cm oculus, 8–10 anchors, asymmetric hub */
+  const T_OUTER = 10.08;
+  const T_H = 8.12;
+  const N_FOLD = 8;
+  const N_MASTS = 8;
+  const MAST_MAIN_H = 12;
+  const MAST_SUB2_H = 9.1;
+  const MAST_SUB_H = 7.5;
+  const mastHeights = [MAST_MAIN_H, MAST_SUB2_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H];
+  const mastRadTop = [0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03];
+  const mastRadBot = [0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03];
+  function mastTopY(i) { return mastHeights[i] - 0.05; }
+  const MAST_TOP_MAX = mastTopY(0);
+
+  const OCULUS_MAJOR = 0.34;
+  const OCULUS_TUBE = 0.038;
   const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
+  const OCULUS_Y_LOCAL = T_H - 0.1;
+  const HUB_OFS_X = 1.95;
+  const HUB_OFS_Z = 0.52;
+
   const RAY_LEN_SKY = 72;
   const RAY_LEN_BELOW = 22;
-  const RAY_R_SKY = 3.15;
-  const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.992;
-  const RAY_R_IN_FLOOR = 1.78;
+  const RAY_R_SKY = 2.35;
+  const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.99;
+  const RAY_R_IN_FLOOR = 0.44;
 
   function tentH(v, u) {
     const vn = Math.max(0, Math.min(1, v));
@@ -241,32 +256,29 @@
     return vn * T_OUTER * ridge * (1 + 0.06 * Math.sin(N_FOLD * 2 * u + vn * Math.PI));
   }
 
-  const MAST_R = 10.45;
-  const MAST_H = 8.4;
-  const MAST_TOP = MAST_H - 0.05;
-  const RIM_R = 9.35;
+  const MAST_R = 11.12;
+  const RIM_R = 9.88;
   const RIM_Y_LOCAL = 0.08;
 
-  /* Rim never drops below mast line: cables stay “up” to the ring like the PROFILE reference. */
-  const CANOPY_Y_MIN = MAST_TOP - RIM_Y_LOCAL + 0.42;
+  const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46;
 
-  const FABRIC_N = 6;
+  const FABRIC_N = 8;
   const FABRIC_INNER_R = OCULUS_APERTURE_R * 0.96;
   /* Membrane only from Profile onward: flies down from above during 0.4 → 0.6 scroll */
   const FABRIC_SCROLL_START = 0.4;
   const FABRIC_SCROLL_END = 0.6;
-  const FABRIC_FLY_OFFSET = 32;
+  const FABRIC_FLY_OFFSET = 36;
 
   function createCableFabricGeometry() {
     const N = FABRIC_N;
-    const ang0 = Math.PI / 12;
+    const ang0 = Math.PI / 16;
     const yRim = 30 + RIM_Y_LOCAL;
     const yIn = 30 + OCULUS_Y_LOCAL;
     const pos = [];
     const uvs = [];
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2 + ang0;
-      pos.push(Math.cos(a) * MAST_R, MAST_TOP, Math.sin(a) * MAST_R);
+      pos.push(Math.cos(a) * MAST_R, mastTopY(i), Math.sin(a) * MAST_R);
       uvs.push(i / N, 0);
     }
     for (let i = 0; i < N; i++) {
@@ -276,7 +288,7 @@
     }
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2 + ang0;
-      pos.push(Math.cos(a) * FABRIC_INNER_R, yIn, Math.sin(a) * FABRIC_INNER_R);
+      pos.push(Math.cos(a) * FABRIC_INNER_R + HUB_OFS_X, yIn, Math.sin(a) * FABRIC_INNER_R + HUB_OFS_Z);
       uvs.push(i / N, 1);
     }
     const idx = [];
@@ -302,17 +314,20 @@
     const yIn = cy + OCULUS_Y_LOCAL;
     const arr = fabricGeo.attributes.position.array;
     const N = FABRIC_N;
-    const ang0 = Math.PI / 12;
+    const ang0 = Math.PI / 16;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2 + ang0;
       const ib = N + i;
       const ic = 2 * N + i;
+      arr[i * 3 + 0] = Math.cos(a) * MAST_R;
+      arr[i * 3 + 1] = mastTopY(i);
+      arr[i * 3 + 2] = Math.sin(a) * MAST_R;
       arr[ib * 3 + 0] = Math.cos(a) * RIM_R;
       arr[ib * 3 + 1] = yRim;
       arr[ib * 3 + 2] = Math.sin(a) * RIM_R;
-      arr[ic * 3 + 0] = Math.cos(a) * FABRIC_INNER_R;
+      arr[ic * 3 + 0] = Math.cos(a) * FABRIC_INNER_R + HUB_OFS_X;
       arr[ic * 3 + 1] = yIn;
-      arr[ic * 3 + 2] = Math.sin(a) * FABRIC_INNER_R;
+      arr[ic * 3 + 2] = Math.sin(a) * FABRIC_INNER_R + HUB_OFS_Z;
     }
     fabricGeo.attributes.position.needsUpdate = true;
     fabricGeo.computeVertexNormals();
@@ -320,9 +335,9 @@
 
   /* Camera stays back: ~45–60 m from axis — full ring of masts + canopy in frame */
   const KF = [
-    { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 30, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 32, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 34, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 33, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 35, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 38.5, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [46, 14, 40], look: [0, 5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     { pos: [16.5, 3.35, 21], look: [0, 4.6, -6.5], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
@@ -427,16 +442,15 @@
 
   function updateCables(canopyWorldY, cableOpacity) {
     cableMat.opacity = cableOpacity;
-    const yTop = MAST_TOP;
     const yRim = canopyWorldY + RIM_Y_LOCAL;
     let ix = 0;
-    for (let i = 0; i < 6; i++) {
-      const ang = (i / 6) * Math.PI * 2 + Math.PI / 12;
+    for (let i = 0; i < N_MASTS; i++) {
+      const ang = (i / N_MASTS) * Math.PI * 2 + Math.PI / 16;
       const x0 = Math.cos(ang) * MAST_R;
       const z0 = Math.sin(ang) * MAST_R;
       const x1 = Math.cos(ang) * RIM_R;
       const z1 = Math.sin(ang) * RIM_R;
-      cablePositions[ix++] = x0; cablePositions[ix++] = yTop; cablePositions[ix++] = z0;
+      cablePositions[ix++] = x0; cablePositions[ix++] = mastTopY(i); cablePositions[ix++] = z0;
       cablePositions[ix++] = x1; cablePositions[ix++] = yRim; cablePositions[ix++] = z1;
     }
     cableGeo.attributes.position.needsUpdate = true;
@@ -499,14 +513,13 @@
     poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
 
     const oculusWorldY = canopyGroup.position.y + OCULUS_Y_LOCAL;
-    bGrp.position.set(0, oculusWorldY + 1.4, 0);
+    bGrp.position.set(HUB_OFS_X, oculusWorldY + 1.4, HUB_OFS_Z);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
     rayGrp.position.set(0, 0, 0);
     const oW = oculusWorldY;
-    /* One merged beam: sky → oculus → interior, local origin at the hole */
     if (rayGrp.children[0]) {
-      rayGrp.children[0].position.set(0, oW, 0);
+      rayGrp.children[0].position.set(HUB_OFS_X, oW, HUB_OFS_Z);
       rayGrp.children[0].rotation.x = 0.062;
     }
     if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse;
@@ -586,9 +599,9 @@
 
     fabricGeo = createCableFabricGeometry();
     fabricMat = new THREE.MeshStandardMaterial({
-      color: 0xc8b8a6,
-      roughness: 0.58,
-      metalness: 0.07,
+      color: 0xd8cfc0,
+      roughness: 0.46,
+      metalness: 0.05,
       envMapIntensity: 1.05,
       side: THREE.DoubleSide,
       transparent: true,
@@ -597,13 +610,13 @@
     fabricMesh = new THREE.Mesh(fabricGeo, fabricMat);
 
     oclMat = new THREE.MeshLambertMaterial({
-      color: 0x8a8278,
+      color: 0xc9a06a,
       transparent: true,
       opacity: 0,
       depthWrite: true,
     });
     oculus = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_MAJOR, OCULUS_TUBE, 10, 40), oclMat);
-    oculus.position.y = OCULUS_Y_LOCAL;
+    oculus.position.set(HUB_OFS_X, OCULUS_Y_LOCAL, HUB_OFS_Z);
     oculus.rotation.x = Math.PI / 2;
     oculus.visible = false;
     canopyGroup.add(oculus);
@@ -617,33 +630,35 @@
       envMapIntensity: 1.0,
     };
     mastGroup = new THREE.Group();
-    for (let i = 0; i < 6; i++) {
-      const ang = (i / 6) * Math.PI * 2 + Math.PI / 12;
+    for (let i = 0; i < N_MASTS; i++) {
+      const ang = (i / N_MASTS) * Math.PI * 2 + Math.PI / 16;
+      const h = mastHeights[i];
       const m = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.11, 0.14, MAST_H, 10),
+        new THREE.CylinderGeometry(mastRadTop[i], mastRadBot[i], h, 10),
         new THREE.MeshStandardMaterial(mastStd)
       );
-      m.position.set(Math.cos(ang) * MAST_R, MAST_H / 2, Math.sin(ang) * MAST_R);
+      m.position.set(Math.cos(ang) * MAST_R, h / 2, Math.sin(ang) * MAST_R);
       mastGroup.add(m);
 
+      const topY = mastTopY(i);
       const cap = new THREE.Mesh(
-        new THREE.BoxGeometry(0.36, 0.12, 0.5),
+        new THREE.BoxGeometry(0.34, 0.1, 0.46),
         new THREE.MeshStandardMaterial({ ...mastStd, metalness: 0.5 })
       );
-      cap.position.set(Math.cos(ang) * (MAST_R - 0.02), MAST_TOP, Math.sin(ang) * (MAST_R - 0.02));
-      cap.lookAt(0, MAST_TOP, 0);
+      cap.position.set(Math.cos(ang) * (MAST_R - 0.02), topY, Math.sin(ang) * (MAST_R - 0.02));
+      cap.lookAt(0, topY, 0);
       mastGroup.add(cap);
     }
     scene.add(mastGroup);
     scene.add(fabricMesh);
-    updateCableFabricHeights(30);
+    updateCableFabricHeights(33);
 
     cableMat = new THREE.LineBasicMaterial({
       color: 0x3a3835,
       transparent: true,
       opacity: 0,
     });
-    cablePositions = new Float32Array(6 * 6);
+    cablePositions = new Float32Array(N_MASTS * 6);
     cableGeo = new THREE.BufferGeometry();
     cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
@@ -652,10 +667,10 @@
     const hubCY = T_H - 0.28;
     const radialVerts = [];
     for (let i = 0; i < N_FOLD; i++) {
-      const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 12;
+      const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 16;
       const rr = tentR(1, u);
       const hy = tentH(1, u);
-      radialVerts.push(0, hubCY, 0, Math.cos(u) * rr, hy, Math.sin(u) * rr);
+      radialVerts.push(HUB_OFS_X, hubCY, HUB_OFS_Z, Math.cos(u) * rr, hy, Math.sin(u) * rr);
     }
     const radialCableGeo = new THREE.BufferGeometry();
     radialCableGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(radialVerts), 3));
@@ -670,13 +685,13 @@
       opacity: 0,
       envMapIntensity: 0.9,
     });
-    hubRing = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_APERTURE_R * 0.92, 0.065, 10, 44), hubRingMat);
-    hubRing.position.y = T_H - 0.08;
+    hubRing = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_APERTURE_R * 0.9, 0.016, 10, 40), hubRingMat);
+    hubRing.position.set(HUB_OFS_X, T_H - 0.08, HUB_OFS_Z);
     hubRing.rotation.x = Math.PI / 2;
     canopyGroup.add(hubRing);
 
     shadowDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(13.2, 48),
+      new THREE.CircleGeometry(14.6, 52),
       new THREE.MeshBasicMaterial({
         color: 0x1a1510,
         transparent: true,
@@ -699,7 +714,7 @@
       depthWrite: false,
     });
     bGrp.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 1.15, 6.2, 11, 26, 1, true),
+      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 1.2, 2.05, 11, 26, 1, true),
       bHaloMat
     ));
     bCoreMat = new THREE.MeshBasicMaterial({
@@ -711,7 +726,7 @@
       depthWrite: false,
     });
     bGrp.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 0.58, 3.85, 11, 22, 1, true),
+      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 0.62, 1.35, 11, 22, 1, true),
       bCoreMat
     ));
     bGrp.position.y = 0;
@@ -724,7 +739,7 @@
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    pool = new THREE.Mesh(new THREE.CircleGeometry(OCULUS_APERTURE_R * 2.15, 40), poolMat);
+    pool = new THREE.Mesh(new THREE.CircleGeometry(OCULUS_APERTURE_R * 2.8, 40), poolMat);
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.035;
     scene.add(pool);
