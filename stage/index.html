@@ -211,8 +211,11 @@
   let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
-  let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh;
+  let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh, squareTentStakeMesh;
   let mainSun, hemiMain, fillSun;
+  let sceneAmbient;
+  /** Narrow key light through roof oculus (Sky phase) */
+  let oculusSpot;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 24;
@@ -251,6 +254,8 @@
   const OCULUS_MAJOR = OCULUS_APERTURE_R + OCULUS_TUBE;
   const OCULUS_CENTER_X = TENSILE_PEAK_SPEC[0].nx * DIAMOND_R;
   const OCULUS_CENTER_Z = TENSILE_PEAK_SPEC[0].nz * DIAMOND_R;
+  /** Plan radius for removing roof quads — slightly inside fabric torus for clean ring */
+  const ROOF_OCULUS_CUT_R = OCULUS_APERTURE_R * 0.94;
 
   const RAY_LEN_SKY = 72 * TENT_SCALE;
   const RAY_LEN_BELOW = 22 * TENT_SCALE;
@@ -895,35 +900,61 @@
   }
 
   /**
-   * Ground pull points: same winding as ceilingRing, slightly outside + down (cable tension).
+   * Cuts triangles whose plan centroid lies inside a cylinder — one dominant circular opening (oculus).
+   * Keeps fabric ring / crater rim; call after applyRoofCraterDisplacement.
+   */
+  function removeRoofTrianglesInsideOpening(geometry, cx, cz, holeR) {
+    const index = geometry.index;
+    const pos = geometry.attributes.position;
+    if (!index || !pos) return;
+    const ia = index.array;
+    const next = [];
+    for (let i = 0; i < ia.length; i += 3) {
+      const i1 = ia[i];
+      const i2 = ia[i + 1];
+      const i3 = ia[i + 2];
+      const mx = (pos.getX(i1) + pos.getX(i2) + pos.getX(i3)) / 3;
+      const mz = (pos.getZ(i1) + pos.getZ(i2) + pos.getZ(i3)) / 3;
+      if (Math.hypot(mx - cx, mz - cz) < holeR) continue;
+      next.push(i1, i2, i3);
+    }
+    geometry.setIndex(next);
+    geometry.computeVertexNormals();
+  }
+
+  /**
+   * Ground stakes: same winding as ceilingRing — pulled outward and down to grade (tent guy tension).
    */
   function createWallGroundAnchors(ceilingRing) {
-    const yG = 0.055 * TENT_SCALE;
-    const pull = 0.12 * TENT_SCALE;
+    const yG = 0.015 * TENT_SCALE;
+    const pullBase = 0.34 * TENT_SCALE;
     return ceilingRing.map((p) => {
       const h = Math.hypot(p.x, p.z) + 1e-6;
       const ox = p.x / h;
       const oz = p.z / h;
+      const edge = Math.max(Math.abs(p.x), Math.abs(p.z)) / (DIAMOND_R + 1e-6);
+      const pull = pullBase * (0.92 + 0.14 * edge);
       return new THREE.Vector3(p.x + ox * pull, yG, p.z + oz * pull);
     });
   }
 
   /**
-   * Soft balloon-like wall: closed strip from ceiling rim to ground anchors, Verlet + wrap,
-   * outward bias + optional cable pinch targets — not flat panels.
+   * Tensioned tent wall: rim → ground stakes, Verlet springs + outward/down guy logic.
+   * Reads as stretched fabric (camping / tensile stake-down), not a hanging curtain.
    */
   function generateWallMembrane(ceilingRing, groundAnchors, options = {}) {
     const nU = ceilingRing.length;
-    const nV = options.nV ?? 26;
-    const kStruct = options.kStructural ?? 0.9;
-    const kShear = options.kShear ?? 0.44;
-    const iters = options.iterations ?? 155;
-    const dt = options.dt ?? 0.24;
-    const damping = options.damping ?? 0.996;
-    const gY = options.gravityY ?? -0.012 * TENT_SCALE;
-    const outwardBias = options.outwardBias ?? 0.011 * TENT_SCALE;
-    const cableK = options.cableK ?? 0.085;
-    const archBarrelAmp = options.archBarrelAmp ?? 0.11 * TENT_SCALE;
+    const nV = options.nV ?? 32;
+    const kStruct = options.kStructural ?? 1.18;
+    const kShear = options.kShear ?? 0.52;
+    const iters = options.iterations ?? 210;
+    const dt = options.dt ?? 0.22;
+    const damping = options.damping ?? 0.997;
+    const gY = options.gravityY ?? -0.0018 * TENT_SCALE;
+    const outwardBias = options.outwardBias ?? 0.036 * TENT_SCALE;
+    const cableK = options.cableK ?? 0.11;
+    const chordK = options.chordK ?? 0.024;
+    const vRest = options.verticalRestScale ?? 0.87;
 
     const widx = (u, v) => v * nU + u;
     const count = nU * (nV + 1);
@@ -960,18 +991,11 @@
           let y = top.y + (bot.y - top.y) * t;
           let z = top.z + (bot.z - top.z) * t;
           const hl = Math.hypot(x, z) + 1e-6;
-          const sWave = Math.sin((u / nU) * Math.PI * 2 * 3.1 + v * 0.35);
-          const bulge = Math.sin(Math.PI * t) * (0.104 + 0.056 * sWave) * TENT_SCALE;
-          const archRadial = archBarrelAmp * Math.sin(Math.PI * t) ** 2;
-          x += (x / hl) * (bulge + archRadial);
-          z += (z / hl) * (bulge + archRadial);
           const uAz = (u / nU) * Math.PI * 2;
-          const drapeTwist = 0.055 * TENT_SCALE * Math.sin(uAz * 2.15 + v * 0.33) * Math.sin(Math.PI * t);
-          const drapeDiag = 0.042 * TENT_SCALE * Math.cos(uAz * 1.25 - v * 0.48) * t * (1 - t);
-          x += (z / hl) * drapeTwist;
-          z -= (x / hl) * drapeTwist * 0.74;
-          y += Math.sin(Math.PI * t) * 0.038 * TENT_SCALE * Math.cos((u / nU) * Math.PI * 4 + 0.7);
-          y += drapeDiag;
+          const micro = 0.0055 * TENT_SCALE * Math.sin(uAz * 9 + t * 11);
+          const mid = Math.sin(Math.PI * t);
+          x += (x / hl) * micro * mid;
+          z += (z / hl) * micro * mid;
           pos[b] = x;
           pos[b + 1] = y;
           pos[b + 2] = z;
@@ -982,33 +1006,34 @@
 
     prev.set(pos);
 
+    /** Virtual guy points along each stake line — pull fabric down-out, not inward sag */
     const cableTargets = [];
-    const nCable = Math.min(48, Math.max(12, Math.floor(nU / 5)));
+    const nCable = Math.min(64, Math.max(20, Math.floor(nU / 4)));
     for (let c = 0; c < nCable; c++) {
-      const u = Math.floor((c + 0.37) * nU / nCable) % nU;
+      const u = Math.floor((c + 0.5) * nU / nCable) % nU;
       const top = ceilingRing[u];
       const bot = groundAnchors[u];
-      const tv = 0.38 + 0.08 * Math.sin(c * 2.17);
+      const band = (c % 4) * 0.14;
+      const tv = 0.36 + band;
       let cx = top.x + (bot.x - top.x) * tv;
       let cy = top.y + (bot.y - top.y) * tv;
       let cz = top.z + (bot.z - top.z) * tv;
       const ch = Math.hypot(cx, cz) + 1e-6;
-      const pinch = (0.072 + 0.035 * Math.sin(c * 1.9)) * TENT_SCALE;
-      cx -= (cx / ch) * pinch;
-      cz -= (cz / ch) * pinch;
-      cy -= 0.028 * TENT_SCALE;
+      const outNudge = 0.026 * TENT_SCALE;
+      cx += (cx / ch) * outNudge;
+      cz += (cz / ch) * outNudge;
       cableTargets.push({ x: cx, y: cy, z: cz });
     }
 
     const edges = [];
-    function pushEdge(a, b, k) {
+    function pushEdge(a, b, k, restMul = 1) {
       const ax = pos[a * 3];
       const ay = pos[a * 3 + 1];
       const az = pos[a * 3 + 2];
       const bx = pos[b * 3];
       const by = pos[b * 3 + 1];
       const bz = pos[b * 3 + 2];
-      const rest = Math.hypot(bx - ax, by - ay, bz - az);
+      const rest = Math.hypot(bx - ax, by - ay, bz - az) * restMul;
       edges.push({ a, b, rest, k });
     }
 
@@ -1018,10 +1043,10 @@
         const b = widx((u + 1) % nU, v);
         const c = widx(u, v + 1);
         const d = widx((u + 1) % nU, v + 1);
-        pushEdge(a, b, kStruct);
-        pushEdge(a, c, kStruct);
-        pushEdge(a, d, kShear);
-        pushEdge(b, c, kShear);
+        pushEdge(a, b, kStruct * 1.06, 1);
+        pushEdge(a, c, kStruct * 1.14, vRest);
+        pushEdge(a, d, kShear * 1.05, 0.97);
+        pushEdge(b, c, kShear * 1.05, 0.97);
       }
     }
 
@@ -1065,7 +1090,7 @@
         const hl = Math.hypot(px, pz) + 1e-6;
         const vRowG = (vi / nU) | 0;
         const midArch = Math.sin((Math.PI * vRowG) / nV);
-        const radialOE = outwardBias * (0.05 + 0.62 * midArch * midArch);
+        const radialOE = outwardBias * (0.16 + 0.84 * midArch * midArch);
         acc[b] += (px / hl) * radialOE;
         acc[b + 2] += (pz / hl) * radialOE;
       }
@@ -1079,19 +1104,40 @@
         const px = pos[b];
         const py = pos[b + 1];
         const pz = pos[b + 2];
-        const band = Math.floor((u / nU) * cableTargets.length) % cableTargets.length;
+        const iCable = Math.floor((u / nU) * cableTargets.length) % cableTargets.length;
         for (let k = -1; k <= 1; k++) {
-          const ct = cableTargets[(band + k + cableTargets.length) % cableTargets.length];
-          let dx = ct.x - px;
-          let dy = ct.y - py;
-          let dz = ct.z - pz;
-          const d2 = dx * dx + dy * dy + dz * dz + 420;
-          const w = k === 0 ? 1 : 0.45;
+          const ct = cableTargets[(iCable + k + cableTargets.length) % cableTargets.length];
+          const dx = ct.x - px;
+          const dy = ct.y - py;
+          const dz = ct.z - pz;
+          const d2 = dx * dx + dy * dy + dz * dz + 280;
+          const w = k === 0 ? 1 : 0.42;
           const f = (cableK * TENT_SCALE / d2) * w;
           acc[b] += dx * f;
           acc[b + 1] += dy * f;
           acc[b + 2] += dz * f;
         }
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const u = vi % nU;
+        const vRow = (vi / nU) | 0;
+        if (vRow === 0 || vRow === nV) continue;
+        const b = vi * 3;
+        const top = ceilingRing[u];
+        const bot = groundAnchors[u];
+        const t = vRow / nV;
+        const tx = top.x + (bot.x - top.x) * t;
+        const ty = top.y + (bot.y - top.y) * t;
+        const tz = top.z + (bot.z - top.z) * t;
+        const dx = tx - pos[b];
+        const dy = ty - pos[b + 1];
+        const dz = tz - pos[b + 2];
+        const ck = chordK * TENT_SCALE;
+        acc[b] += dx * ck;
+        acc[b + 1] += dy * ck;
+        acc[b + 2] += dz * ck;
       }
 
       for (let vi = 0; vi < count; vi++) {
@@ -1171,23 +1217,27 @@
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
     const wallMem = generateWallMembrane(tensile.ceilingRing, wallAnchors, {
-      nV: 32,
-      iterations: 182,
-      outwardBias: 0.021 * TENT_SCALE,
-      archBarrelAmp: 0.16 * TENT_SCALE,
-      cableK: 0.098,
+      nV: 38,
+      iterations: 228,
+      outwardBias: 0.041 * TENT_SCALE,
+      cableK: 0.125,
+      chordK: 0.029,
+      gravityY: -0.0014 * TENT_SCALE,
+      kStructural: 1.24,
+      kShear: 0.55,
+      verticalRestScale: 0.86,
     });
 
     const roofBumpRep = 3.2;
     const rBump = bedding.bumpMap.clone();
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
     rBump.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
-    const wallBumpRep = 4.2;
-    const wBump = bedding.bumpMap.clone();
-    wBump.wrapS = wBump.wrapT = THREE.RepeatWrapping;
-    wBump.repeat.set(wallBumpRep * 1.9, wallBumpRep * 2.4);
-    const wallMapSkin = bedding.map.clone();
-    wallMapSkin.repeat.set(5.8, 4.5);
+    const wallBump = bedding.bumpMap.clone();
+    wallBump.wrapS = wallBump.wrapT = THREE.RepeatWrapping;
+    wallBump.repeat.set(roofBumpRep * 2.05, roofBumpRep * 2.12);
+    const wallMap = bedding.map.clone();
+    wallMap.wrapS = wallMap.wrapT = THREE.RepeatWrapping;
+    wallMap.repeat.set(5.4, 5.2);
 
     const skinRoofMat = new THREE.MeshStandardMaterial({
       color: 0xede8de,
@@ -1206,16 +1256,19 @@
       depthWrite: false,
     });
     const skinWallMat = skinRoofMat.clone();
-    skinWallMat.color.setHex(0xe4dbcf);
-    skinWallMat.map = wallMapSkin;
-    skinWallMat.bumpMap = wBump;
-    skinWallMat.bumpScale = 0.022 * (TENT_SCALE / 4);
-    skinWallMat.roughness = 0.97;
-    skinWallMat.envMapIntensity = 0.26;
-    skinWallMat.opacity = 0.5;
+    skinWallMat.color.setHex(0xeee6da);
+    skinWallMat.map = wallMap;
+    skinWallMat.bumpMap = wallBump;
+    skinWallMat.bumpScale = 0.0185 * (TENT_SCALE / 4);
+    skinWallMat.roughness = 0.94;
+    skinWallMat.envMapIntensity = 0.34;
+    skinWallMat.emissive.setHex(0xf2ebe0);
+    skinWallMat.emissiveIntensity = 0.042;
+    skinWallMat.opacity = 0.58;
 
     const roofGeo = tensile.geometry.clone();
     applyRoofCraterDisplacement(roofGeo);
+    removeRoofTrianglesInsideOpening(roofGeo, OCULUS_CENTER_X, OCULUS_CENTER_Z, ROOF_OCULUS_CUT_R);
     const wallGeoForMerge = wallMem.geometry.clone();
     const roofIndexCount = roofGeo.index.count;
     const wallIndexCount = wallGeoForMerge.index.count;
@@ -1229,9 +1282,12 @@
     const unifiedSkinMesh = new THREE.Mesh(mergedSkinGeo, [skinRoofMat, skinWallMat]);
     unifiedSkinMesh.name = 'unifiedTentSkin';
     unifiedSkinMesh.visible = false;
+    unifiedSkinMesh.frustumCulled = false;
     g.add(unifiedSkinMesh);
 
     const roofVeilGeo = tensile.geometry.clone();
+    applyRoofCraterDisplacement(roofVeilGeo);
+    removeRoofTrianglesInsideOpening(roofVeilGeo, OCULUS_CENTER_X, OCULUS_CENTER_Z, ROOF_OCULUS_CUT_R);
     const rBumpVeil = bedding.bumpMap.clone();
     rBumpVeil.wrapS = rBumpVeil.wrapT = THREE.RepeatWrapping;
     rBumpVeil.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
@@ -1241,6 +1297,7 @@
     roofVeilMat.emissiveIntensity = 0.048;
     roofVeilMat.envMapIntensity = 0.26;
     roofVeilMat.depthWrite = false;
+    roofVeilMat.side = THREE.DoubleSide;
     const roofVeilMesh = new THREE.Mesh(roofVeilGeo, roofVeilMat);
     roofVeilMesh.position.y = 4.15 * TENT_SCALE;
     roofVeilMesh.scale.set(1.042, 1, 1.042);
@@ -1252,7 +1309,7 @@
     g.add(fabricRoofGroup);
 
     const tentFloorTex = makeTentInteriorFloorTextures();
-    const fR = DIAMOND_R * 1.01;
+    const fR = DIAMOND_R * 1.07;
     const floorShape = new THREE.Shape();
     floorShape.moveTo(0, -fR);
     floorShape.lineTo(fR, 0);
@@ -1262,7 +1319,7 @@
     const floorGeo = new THREE.ShapeGeometry(floorShape, 36);
     floorGeo.rotateX(-Math.PI / 2);
     const fPos = floorGeo.attributes.position;
-    const foldAmp = 0.11 * TENT_SCALE;
+    const foldAmp = 0.06 * TENT_SCALE;
     for (let i = 0; i < fPos.count; i++) {
       const x = fPos.getX(i);
       const y = fPos.getY(i);
@@ -1275,35 +1332,65 @@
     tentFloorTex.map.anisotropy = bedding.map.anisotropy || 1;
     tentFloorTex.bumpMap.anisotropy = bedding.map.anisotropy || 1;
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xd9cfba,
+      color: 0xe3d6c4,
       map: tentFloorTex.map,
       bumpMap: tentFloorTex.bumpMap,
-      bumpScale: 0.038 * (TENT_SCALE / 4),
-      roughness: 0.94,
+      bumpScale: 0.048 * (TENT_SCALE / 4),
+      roughness: 0.92,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.22,
-      emissive: new THREE.Color(0xcec4b4),
-      emissiveIntensity: 0.014,
+      envMapIntensity: 0.26,
+      emissive: new THREE.Color(0xd8cbb8),
+      emissiveIntensity: 0.022,
       side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.97,
+      transparent: false,
+      opacity: 1,
       depthWrite: true,
       polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
+      polygonOffsetFactor: 2,
+      polygonOffsetUnits: 2,
     });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.position.y = 0.14 * TENT_SCALE;
+    floorMesh.position.y = 0.2 * TENT_SCALE;
+    floorMesh.renderOrder = 1;
     g.add(floorMesh);
 
+    const stakeEvery = Math.max(1, Math.floor(wallAnchors.length / 32));
+    let nStakes = 0;
+    for (let i = 0; i < wallAnchors.length; i += stakeEvery) nStakes++;
+    const stakeGeo = new THREE.CylinderGeometry(0.05 * TENT_SCALE, 0.065 * TENT_SCALE, 0.055 * TENT_SCALE, 6);
+    stakeGeo.translate(0, 0.028 * TENT_SCALE, 0);
+    const stakeMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3630,
+      roughness: 0.91,
+      metalness: 0.07,
+      envMap,
+      envMapIntensity: 0.2,
+    });
+    const stakeMesh = new THREE.InstancedMesh(stakeGeo, stakeMat, nStakes);
+    const stakeDummy = new THREE.Object3D();
+    let stakeIdx = 0;
+    for (let i = 0; i < wallAnchors.length; i += stakeEvery) {
+      stakeDummy.position.copy(wallAnchors[i]);
+      stakeDummy.rotation.set(0, 0, 0);
+      stakeDummy.scale.setScalar(1);
+      stakeDummy.updateMatrix();
+      stakeMesh.setMatrixAt(stakeIdx++, stakeDummy.matrix);
+    }
+    stakeMesh.instanceMatrix.needsUpdate = true;
+    stakeMesh.name = 'tentGroundStakes';
+    g.add(stakeMesh);
+
     const fabricMaterials = [skinRoofMat, roofVeilMat, skinWallMat, floorMat];
+
+    stakeMesh.visible = false;
 
     return {
       group: g,
       fabricMaterials,
       wallMesh: unifiedSkinMesh,
       unifiedSkinMesh,
+      stakeMesh,
       fabricRoofGroup,
       ceilingRing: tensile.ceilingRing,
       diagMat: null,
@@ -1321,8 +1408,8 @@
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
     { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
-    /** Entry look-up (Sky): чуть ближе вперёд внутрь, взгляд на купол и проём света */
-    { pos: [158, 78, 212], look: [-44, 274, 22], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /** Sky: still inside volume — look catches oculus ring + beams + peripheral textile walls */
+    { pos: [168, 84, 208], look: [-42, 250, 36], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
   const NSEG = 6;
@@ -1462,6 +1549,7 @@
     posA.set(...A.pos); posB.set(...B.pos);
     camera.position.lerpVectors(posA, posB, t);
     const upliftBoost = s === 5 ? t : 0;
+    const oculusOpKF = lerp(A.oculusOp ?? 0, B.oculusOp ?? 0, t);
     const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
     let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
     camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
@@ -1471,7 +1559,7 @@
     lkT.lerpVectors(lkA, lkB, t);
     camera.lookAt(lkT);
 
-    camera.fov = cameraBaseFov;
+    camera.fov = cameraBaseFov + upliftBoost * 5.5;
     camera.updateProjectionMatrix();
 
     const cy = lerp(A.canopyY, B.canopyY, t);
@@ -1486,7 +1574,8 @@
       const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
       const wallReveal = ss(clamp((p - WALLS_SCROLL_START) / (WALLS_SCROLL_END - WALLS_SCROLL_START), 0, 1));
       if (squareWallMesh) {
-        squareWallMesh.visible = wallReveal > 0.004;
+        const wallsOn = wallReveal > 0.004;
+        squareWallMesh.visible = wallsOn || upliftBoost > 0.008;
       }
       const roofProg = clamp((p - ROOF_SCROLL_START) / (ROOF_SCROLL_END - ROOF_SCROLL_START), 0, 1);
       const roofInstallEase = ss(ss(roofProg));
@@ -1503,12 +1592,25 @@
         }
         squareFabricRoofGroup.position.y = roofLocalY;
       }
-      const fabricSheer = [0.64, 0.36, 0.5, 0.46];
+      const skyHold = upliftBoost;
+      const fabricSheer = [
+        0.64 + 0.24 * skyHold,
+        0.36 + 0.2 * skyHold,
+        0.5 + 0.46 * skyHold,
+        0.46,
+      ];
       const roofGlow = 1 + 0.14 * upliftBoost;
       squareFabricMats.forEach((m, mi) => {
+        if (mi === 3) {
+          m.opacity = Math.min(1, 0.12 + 0.88 * wallReveal);
+          m.transparent = m.opacity < 0.999;
+          return;
+        }
         const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
-        const wallMul = mi === 2 ? wallReveal : 1;
-        const topMul = mi <= 1 ? roofGlow : 1;
+        const wallMul = mi === 2
+          ? (skyHold > 0.008 ? Math.max(wallReveal, 0.22 + 0.78 * skyHold) : wallReveal)
+          : 1;
+        const topMul = mi <= 1 ? roofGlow : mi === 2 ? 1 + 0.22 * skyHold : 1;
         let op = Math.min(1, baseOp * sheer * wallMul * topMul);
         if (mi <= 1) {
           if (p < ROOF_SCROLL_START) op = 0;
@@ -1516,7 +1618,17 @@
         }
         m.opacity = op;
         m.transparent = true;
+        if (mi === 0) {
+          m.emissiveIntensity = 0.034 * (1 + 0.9 * skyHold);
+        } else if (mi === 1) {
+          m.emissiveIntensity = 0.048 * (1 + 0.45 * skyHold);
+        } else if (mi === 2) {
+          m.emissiveIntensity = 0.042 * (1 + 1.1 * skyHold);
+        }
       });
+      if (squareTentStakeMesh) {
+        squareTentStakeMesh.visible = wallReveal > 0.02;
+      }
       if (squareTentDiagMat) {
         squareTentDiagMat.opacity = 0.34 * baseOp;
       }
@@ -1524,12 +1636,24 @@
 
     if (mainSun && hemiMain) {
       const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
-      mainSun.intensity = lerp(0.68, 0.48, uDim) + 0.42 * upliftBoost;
-      hemiMain.intensity = lerp(0.48, 0.38, uDim) + 0.1 * upliftBoost;
+      const skyDim = upliftBoost * oculusOpKF;
+      let sunI = lerp(0.68, 0.48, uDim) + 0.38 * upliftBoost;
+      sunI *= 1 - 0.28 * skyDim;
+      mainSun.intensity = Math.max(0.22, sunI);
+      let hemiI = (lerp(0.48, 0.38, uDim) + 0.08 * upliftBoost) * (1 - 0.52 * skyDim);
+      hemiMain.intensity = Math.max(0.12, hemiI);
       if (fillSun) {
-        fillSun.intensity = 0.16 * (1 - 0.72 * upliftBoost);
+        fillSun.intensity = 0.16 * (1 - 0.82 * upliftBoost * oculusOpKF);
       }
-      mainSun.position.set(58, 132 + 52 * upliftBoost, 52);
+      mainSun.position.set(58, 132 + 48 * upliftBoost, 52);
+    }
+    if (sceneAmbient) {
+      sceneAmbient.intensity = 0.09 * (1 - 0.62 * upliftBoost * oculusOpKF);
+    }
+    if (oculusSpot) {
+      const sb = upliftBoost * oculusOpKF;
+      oculusSpot.visible = sb > 0.02;
+      oculusSpot.intensity = 3.6 * sb;
     }
 
     const mastS = lerp(A.mast, B.mast, t);
@@ -1560,15 +1684,19 @@
       rayGrp.children[0].position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
       rayGrp.children[0].rotation.x = 0.062;
     }
-    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost;
+    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost * (0.88 + 0.35 * oculusOpKF);
 
     updateTreeGuyCables(
       cab * 0.62,
       squareBedTentGroup ? squareBedTentGroup.position.y : 0
     );
 
-    oculus.material.opacity = 0;
-    oculus.visible = false;
+    const oculusShow = upliftBoost * oculusOpKF;
+    if (oculus && oclMat) {
+      oculus.visible = oculusShow > 0.035;
+      oclMat.opacity = oculus.visible ? 0.18 + 0.52 * oculusShow : 0;
+      oclMat.transparent = oclMat.opacity < 0.995;
+    }
 
     LWIN.forEach(([inAt, outAt], i) => {
       labels[i].classList.toggle('on', p >= inAt && p <= outAt);
@@ -1653,7 +1781,8 @@
 
     setupForestClearingWorld(renderer, scene);
 
-    scene.add(new THREE.AmbientLight(0xeef2ea, 0.09));
+    sceneAmbient = new THREE.AmbientLight(0xeef2ea, 0.09);
+    scene.add(sceneAmbient);
     hemiMain = new THREE.HemisphereLight(0xeef2ea, 0xa8b8a5, 0.48);
     scene.add(hemiMain);
     mainSun = new THREE.DirectionalLight(0xfff6e8, 0.68);
@@ -1662,6 +1791,15 @@
     fillSun = new THREE.DirectionalLight(0xd8eadc, 0.16);
     fillSun.position.set(-42, 62, -32);
     scene.add(fillSun);
+
+    oculusSpot = new THREE.SpotLight(0xfff2e0, 0, 1200, 0.36, 0.5, 1.55);
+    oculusSpot.position.set(OCULUS_CENTER_X, SQ_ROOF_Y + 1.25 * TENT_SCALE, OCULUS_CENTER_Z);
+    const spotTgt = new THREE.Object3D();
+    spotTgt.position.set(OCULUS_CENTER_X, 0.04 * TENT_SCALE, OCULUS_CENTER_Z);
+    oculusSpot.target = spotTgt;
+    oculusSpot.visible = false;
+    scene.add(spotTgt);
+    scene.add(oculusSpot);
 
     canopyGroup = new THREE.Group();
     scene.add(canopyGroup);
@@ -1675,14 +1813,18 @@
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
     squareWallMesh = sqTent.wallMesh;
+    squareTentStakeMesh = sqTent.stakeMesh;
     shelterCeilingRing = sqTent.ceilingRing;
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
-      color: 0xc9a06a,
+      color: 0xd8b080,
+      emissive: 0x2a1a0c,
+      emissiveIntensity: 0.22,
       transparent: true,
       opacity: 0,
       depthWrite: true,
+      side: THREE.DoubleSide,
     });
     oculus = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_MAJOR, OCULUS_TUBE, 10, 40), oclMat);
     oculus.position.set(OCULUS_CENTER_X, SQ_ROOF_OCULUS_Y, OCULUS_CENTER_Z);
