@@ -1513,16 +1513,16 @@
     const floorTopY = 0.2 * TENT_SCALE;
     const minClearAboveFloor = 0.34 * TENT_SCALE;
     const voileMat = new THREE.MeshStandardMaterial({
-      color: 0xf5f2ec,
-      roughness: 0.97,
+      color: 0xfcfaf7,
+      roughness: 0.96,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.32,
-      emissive: new THREE.Color(0xede8df),
-      emissiveIntensity: 0.055,
+      envMapIntensity: 0.38,
+      emissive: new THREE.Color(0xf6f4f0),
+      emissiveIntensity: 0.072,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.58,
       depthWrite: false,
     });
     function hfDiamondOk(px, pz) {
@@ -1543,7 +1543,7 @@
         pz = Math.sin(t) * rad * (0.8 + hfRnd() * 0.38);
         px += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
         pz += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
-        const minD = (0.098 + hfRnd() * 0.072) * DIAMOND_R;
+        const minD = (0.11 + hfRnd() * 0.082) * DIAMOND_R;
         let spaced = true;
         for (let i = 0; i < hfPlaced.length; i++) {
           if (Math.hypot(hfPlaced[i].x - px, hfPlaced[i].z - pz) < minD) {
@@ -1560,10 +1560,10 @@
       const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
       const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
       const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
-      const w = (0.042 + hfRnd() * 0.078) * DIAMOND_R;
+      const w = (0.068 + hfRnd() * 0.112) * DIAMOND_R;
       const stripGeo = new THREE.PlaneGeometry(w, len, 1, 8);
       const mat = voileMat.clone();
-      mat.opacity = 0.44 + hfRnd() * 0.2;
+      mat.opacity = 0.5 + hfRnd() * 0.18;
       mat.transparent = true;
       mat.depthWrite = false;
       mat.userData.hangBaseOpacity = mat.opacity;
