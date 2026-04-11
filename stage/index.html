@@ -337,6 +337,11 @@
   const ROOF_PROFILE_SEG = 2;
   /** Короткий ход «установки» купола (не большое падение — финал = штатная геометрия натяжения) */
   const ROOF_DESCEND_Y = 0.26 * TENT_SCALE;
+  /**
+   * Подвесная вуаль под куполом: только финальный акцент Profile — скрыта большую часть сегмента,
+   * плавное появление в последних ~12% трека установки купола (синхрон с «посадкой» мембраны).
+   */
+  const HANGING_PROFILE_LATE_START = 0.875;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Стол DJ — фаза Light (sl3): появляется от начала сегмента 3 и к концу Light уже полностью */
   const INTERIOR_TABLE_LIGHT_SEG = 3;
@@ -1533,6 +1538,7 @@
       mat.opacity = 0.44 + hfRnd() * 0.2;
       mat.transparent = true;
       mat.depthWrite = false;
+      mat.userData.hangBaseOpacity = mat.opacity;
       const strip = new THREE.Mesh(stripGeo, mat);
       strip.position.set(0, -0.5 * len, 0);
       strip.renderOrder = 2;
@@ -1898,13 +1904,26 @@
         squareTentDiagMat.opacity = 0.34 * baseOp;
       }
       if (hangingInteriorFabricGroup) {
-        const hangVis =
-          wallReveal > 0.055
-          && p >= ROOF_SCROLL_START - 0.02
-          && roofInstallEase > 0.08;
+        let hangAccentT = 0;
+        if (p >= ROOF_SCROLL_START && p < ROOF_SCROLL_END) {
+          const uLate = clamp(
+            (roofProg - HANGING_PROFILE_LATE_START) / Math.max(1e-6, 1 - HANGING_PROFILE_LATE_START),
+            0,
+            1
+          );
+          hangAccentT = ss(uLate);
+        } else if (p >= ROOF_SCROLL_END) {
+          hangAccentT = 1;
+        }
+        const hangVis = hangAccentT > 0.008 && p >= ROOF_SCROLL_START - 1e-6 && wallReveal > 0.02;
         hangingInteriorFabricGroup.visible = hangVis;
         if (hangVis) {
           hangingInteriorFabricGroup.traverse((obj) => {
+            if (obj.isMesh && obj.material && obj.material.userData && obj.material.userData.hangBaseOpacity != null) {
+              const b = obj.material.userData.hangBaseOpacity;
+              obj.material.opacity = b * hangAccentT;
+              obj.material.transparent = true;
+            }
             if (!obj.userData.panelSway) return;
             const u = obj.userData;
             const ph = u.swayPhase;
@@ -2590,12 +2609,12 @@
       transparent: true,
       depthWrite: false,
     });
-    /** Отдельные напольные подушки: белые, спокойная ткань (не синий accent) */
+    /** Отдельные напольные подушки: бежево-серый, спокойная ткань */
     const floorCushionMat = new THREE.MeshStandardMaterial({
       ...futonMatOpts,
-      color: 0xedeff4,
-      emissive: 0x2a2c30,
-      emissiveIntensity: 0.04,
+      color: 0xc4bbb0,
+      emissive: 0x2a2622,
+      emissiveIntensity: 0.035,
     });
 
     const mattGeo = makeRoundedBox(2.0 * M2I, FUTON_H_M * M2I, 3.2 * M2I);
