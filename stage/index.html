@@ -386,11 +386,11 @@
   // ── 5 scroll keyframes ────────────────────────────────────────────
   // p * 4 → step 0–4, lerp between KF[s] and KF[s+1]
   const KF = [
-    { pos:[20, 28, 20], look:[0, 0,    0] }, // 0 — aerial empty
-    { pos:[16, 22, 16], look:[0, 7,    0] }, // 1 — aerial + structure
-    { pos:[16, 10,  2], look:[0, 8.0,  0] }, // 2 — side view (tent silhouette)
-    { pos:[12,  5,  0], look:[0, 8.5,  0] }, // 3 — side view + beams
-    { pos:[ 1,  2,  4], look:[0, 10.0, 0] }, // 4 — inside, looking up at apex
+    { pos:[20, 28, 20], look:[0,  0,   0] }, // 0 — aerial empty
+    { pos:[11,  7, 11], look:[0,  1.5, 0] }, // 1 — structure: medium aerial, interior visible
+    { pos:[16, 10,  2], look:[0,  8.0, 0] }, // 2 — side view (tent silhouette)
+    { pos:[12,  5,  0], look:[0,  8.5, 0] }, // 3 — side view + beams
+    { pos:[ 5,  3,  5], look:[0,  1.0, 0] }, // 4 — inside corner, looking at furniture
   ];
 
   // Label windows [inAt, outAt]
@@ -444,8 +444,8 @@
     const pA = clamp((p - 0.18) / 0.10, 0, 1);
     polesGroup.traverse(c => { if (c.material && 'opacity' in c.material) c.material.opacity = pA; });
 
-    // Interior: fade in with Structure p=0.22→0.42
-    const intA = clamp((p - 0.22) / 0.20, 0, 1);
+    // Interior: fade in with Structure p=0.20→0.34
+    const intA = clamp((p - 0.20) / 0.14, 0, 1);
     interiorGroup.traverse(c => { if (c.isMesh) c.material.opacity = intA; });
 
     // Canopy: fade in p=0.25→0.35
