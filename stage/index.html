@@ -203,7 +203,8 @@
 
   const HDR_URL = 'https://threejs.org/examples/textures/equirectangular/blouberg_sunrise_2_1k.hdr';
 
-  const GP_HEIGHT = 16;
+  /* Taller projection pushes distant ground/houses down; sky map is cropped separately. */
+  const GP_HEIGHT = 22;
   const GP_RADIUS = 240;
 
   let scene, camera, renderer;
@@ -273,7 +274,9 @@
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
   const INTERIOR_SCALE = 5;
-  const INTERIOR_BURY_Y = 2.55;
+  /** World footprint & mesh sizes vs previous layout (1 = old scale). */
+  const INTERIOR_LAYOUT = 2;
+  const INTERIOR_BURY_Y = 2.55 * INTERIOR_LAYOUT;
   const INTERIOR_STAGGER = 0.052;
 
   function interiorRiseEase(t) {
@@ -689,7 +692,15 @@
     });
     envMap.mapping = THREE.EquirectangularReflectionMapping;
 
-    const skybox = new GroundedSkybox(envMap, GP_HEIGHT, GP_RADIUS, 112);
+    const skyMap = envMap.clone();
+    skyMap.mapping = THREE.EquirectangularReflectionMapping;
+    skyMap.wrapS = THREE.RepeatWrapping;
+    skyMap.wrapT = THREE.ClampToEdgeWrapping;
+    skyMap.repeat.set(1, 0.52);
+    skyMap.offset.set(0, 0.29);
+    skyMap.needsUpdate = true;
+
+    const skybox = new GroundedSkybox(skyMap, GP_HEIGHT, GP_RADIUS, 112);
     skybox.position.y = GP_HEIGHT - 0.01;
     scene.add(skybox);
     scene.environment = envMap;
@@ -861,6 +872,7 @@
 
     interiorGroup = new THREE.Group();
     const invS = 1 / INTERIOR_SCALE;
+    const L = INTERIOR_LAYOUT;
     const intMatBase = new THREE.MeshStandardMaterial({
       color: 0x9a8f86,
       roughness: 0.78,
@@ -886,17 +898,17 @@
       return a + rnd() * (b - a);
     }
 
-    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.19, 0.72), intMatBase);
-    lowTable.position.set(0, 0.095 * invS, 0);
+    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.15 * L, 0.19 * L, 0.72 * L), intMatBase);
+    lowTable.position.set(0, 0.095 * L * invS, 0);
     registerInteriorRise(lowTable, 0, -0.06);
     interiorGroup.add(lowTable);
 
-    const futonGeo = new THREE.BoxGeometry(2.05, 0.1, 1.05);
+    const futonGeo = new THREE.BoxGeometry(2.05 * L, 0.1 * L, 1.05 * L);
     const futonL = new THREE.Mesh(futonGeo, intMatBase);
     futonL.position.set(
-      (-2.95 + rndRange(-0.22, 0.22)) * invS,
-      0.05 * invS,
-      (1.35 + rndRange(-0.2, 0.2)) * invS
+      (-2.95 + rndRange(-0.22, 0.22)) * L * invS,
+      0.05 * L * invS,
+      (1.35 + rndRange(-0.2, 0.2)) * L * invS
     );
     futonL.rotation.y = 0.35 + rndRange(-0.12, 0.12);
     registerInteriorRise(futonL, 1, 0.08);
@@ -904,19 +916,19 @@
 
     const futonR = new THREE.Mesh(futonGeo, intMatBase);
     futonR.position.set(
-      (2.95 + rndRange(-0.22, 0.22)) * invS,
-      0.05 * invS,
-      (-1.35 + rndRange(-0.2, 0.2)) * invS
+      (2.95 + rndRange(-0.22, 0.22)) * L * invS,
+      0.05 * L * invS,
+      (-1.35 + rndRange(-0.2, 0.2)) * L * invS
     );
     futonR.rotation.y = Math.PI - 0.35 + rndRange(-0.12, 0.12);
     registerInteriorRise(futonR, 2, -0.08);
     interiorGroup.add(futonR);
 
-    const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.2, 14), intMatBase);
+    const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.36 * L, 0.42 * L, 0.2 * L, 14), intMatBase);
     cushion.position.set(
-      (0.15 + rndRange(-0.25, 0.25)) * invS,
-      0.1 * invS,
-      (2.65 + rndRange(-0.2, 0.2)) * invS
+      (0.15 + rndRange(-0.25, 0.25)) * L * invS,
+      0.1 * L * invS,
+      (2.65 + rndRange(-0.2, 0.2)) * L * invS
     );
     cushion.rotation.y = rndRange(0, Math.PI * 2);
     registerInteriorRise(cushion, 3, 0.09);
