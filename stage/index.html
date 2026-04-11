@@ -263,7 +263,8 @@
   const WALLS_SCROLL_END = 1 / 6 + 0.14;
   /** Индекс сегмента скролла «Profile» (sl2) — тканевый купол появляется только здесь */
   const ROOF_PROFILE_SEG = 2;
-  const ROOF_DESCEND_Y = 3.05 * TENT_SCALE;
+  /** Короткий ход «установки» купола (не большое падение — финал = штатная геометрия натяжения) */
+  const ROOF_DESCEND_Y = 0.26 * TENT_SCALE;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
@@ -615,8 +616,8 @@
         const b = ii * 3;
         pos[b] = x;
         pos[b + 1] = y0
-          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.014 * TENT_SCALE
-          + Math.cos(v * 5.8 - u * 1.7) * 0.011 * TENT_SCALE;
+          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.0085 * TENT_SCALE
+          + Math.cos(v * 5.8 - u * 1.7) * 0.007 * TENT_SCALE;
         pos[b + 2] = z;
 
         let kind = 0;
@@ -1039,6 +1040,9 @@
       nu: 78,
       nv: 78,
       iterations: 175,
+      gravityY: -0.009 * TENT_SCALE,
+      kStructural: 1.04,
+      kShear: 0.4,
     });
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
@@ -1321,18 +1325,27 @@
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
       squareBedTentGroup.visible = true;
       const settleFade = 1 - ss(clamp(p / 0.38, 0, 1));
-      squareBedTentGroup.position.y = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
+      const parentBob = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
+      squareBedTentGroup.position.y = parentBob;
       const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
       const wallReveal = ss(clamp((p - WALLS_SCROLL_START) / (WALLS_SCROLL_END - WALLS_SCROLL_START), 0, 1));
       if (squareWallMesh) {
         squareWallMesh.visible = wallReveal > 0.004;
       }
       const roofProg = clamp((p - ROOF_SCROLL_START) / (ROOF_SCROLL_END - ROOF_SCROLL_START), 0, 1);
-      const roofInstallEase = ss(roofProg);
+      const roofInstallEase = ss(ss(roofProg));
       if (squareFabricRoofGroup) {
         const roofOn = p >= ROOF_SCROLL_START - 1e-8;
         squareFabricRoofGroup.visible = roofOn;
-        squareFabricRoofGroup.position.y = roofOn ? (1 - roofInstallEase) * ROOF_DESCEND_Y : ROOF_DESCEND_Y;
+        let roofLocalY;
+        if (!roofOn) {
+          roofLocalY = ROOF_DESCEND_Y;
+        } else if (p < ROOF_SCROLL_END) {
+          roofLocalY = (1 - roofInstallEase) * ROOF_DESCEND_Y;
+        } else {
+          roofLocalY = -parentBob;
+        }
+        squareFabricRoofGroup.position.y = roofLocalY;
       }
       const fabricSheer = [0.64, 0.36, 0.5, 0.46];
       const roofGlow = 1 + 0.14 * upliftBoost;
