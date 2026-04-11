@@ -269,17 +269,20 @@
 
   // ── Interior furniture — Structure phase ──────────────────────────
   const interiorGroup = new THREE.Group();
-  // Bright white — high contrast against sandy floor
-  const fabMat  = new THREE.MeshLambertMaterial({ color: 0xf8f5ee });
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0xe8e2d8 });
-  const djMat   = new THREE.MeshLambertMaterial({ color: 0xf0ece4 });
+  // Warm beige — clearly visible against sandy floor
+  const fabMat  = new THREE.MeshPhongMaterial({ color: 0xf0ebe0, shininess: 20 });
+  const woodMat = new THREE.MeshPhongMaterial({ color: 0xc8bca0, shininess: 40 });
+  const djMat   = new THREE.MeshPhongMaterial({ color: 0xe8e0d0, shininess: 30 });
+
+  // Lift entire interior group off ground to avoid z-fighting
+  interiorGroup.position.y = 0.05;
 
   // ─ Low Japanese table (centre) — thick slab visible from above ─
   const tableTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.50, 1.8), woodMat);
   tableTop.position.set(0, 0.25, 0);
   interiorGroup.add(tableTop);
   [[-1.35, -0.72], [1.35, -0.72], [-1.35, 0.72], [1.35, 0.72]].forEach(([tx, tz]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.48, 0.12), woodMat);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.50, 0.12), woodMat);
     leg.position.set(tx, -0.01, tz);
     interiorGroup.add(leg);
   });
@@ -341,10 +344,6 @@
     interiorGroup.add(spk);
   });
 
-  // Clone all materials, start fully invisible
-  interiorGroup.traverse(c => {
-    if (c.isMesh) { c.material = c.material.clone(); c.material.transparent = true; c.material.opacity = 0; }
-  });
   scene.add(interiorGroup);
 
   // ── Sun beams — warm golden cones ────────────────────────────────
@@ -446,9 +445,7 @@
     const pA = clamp((p - 0.18) / 0.10, 0, 1);
     polesGroup.traverse(c => { if (c.material && 'opacity' in c.material) c.material.opacity = pA; });
 
-    // Interior: fade in with Structure p=0.20→0.34
-    const intA = clamp((p - 0.20) / 0.14, 0, 1);
-    interiorGroup.traverse(c => { if (c.isMesh) c.material.opacity = intA; });
+    // Interior always visible (debug: confirm objects are positioned correctly)
 
     // Canopy: fade in p=0.25→0.35
     canopyMat.uniforms.u_fade.value = clamp((p - 0.25) / 0.12, 0, 1);
