@@ -15,7 +15,7 @@
     }
 
     canvas {
-      position: fixed;3д о
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
@@ -270,8 +270,87 @@
   const FABRIC_SCROLL_END = 0.6;
   const FABRIC_FLY_OFFSET = 36;
   /* Interior props fade in as you approach Beams / Interior (scroll 0 → 1) */
-  const INTERIOR_PROPS_START = 0.58;
-  const INTERIOR_PROPS_FULL = 0.82;
+  const INTERIOR_PROPS_START = 0.56;
+  const INTERIOR_PROPS_FULL = 0.88;
+  const INTERIOR_SCALE = 5;
+  const INTERIOR_BURY_Y = 2.55;
+  const INTERIOR_STAGGER = 0.052;
+
+  function interiorRiseEase(t) {
+    t = clamp(t, 0, 1);
+    const s = t * t * (3 - 2 * t);
+    return Math.min(1, s + Math.sin(s * Math.PI) * 0.08);
+  }
+
+  /** Procedural cotton / percale sheet look (diffuse + bump) */
+  function makeBeddingFabricTextures() {
+    const w = 1024;
+    const h = 1024;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#f0e8df';
+    ctx.fillRect(0, 0, w, h);
+    const step = 5;
+    for (let y = 0; y < h; y += step) {
+      ctx.strokeStyle = `rgba(168, 148, 128, ${0.05 + (y % (step * 3) === 0 ? 0.035 : 0)})`;
+      ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+    for (let x = 0; x < w; x += step) {
+      ctx.strokeStyle = 'rgba(138, 122, 106, 0.042)';
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
+    for (let y = 0; y < h; y += 36) ctx.fillRect(0, y, w, 8);
+    const lg = ctx.createLinearGradient(0, 0, w, h);
+    lg.addColorStop(0, 'rgba(255, 252, 248, 0.11)');
+    lg.addColorStop(0.45, 'rgba(0, 0, 0, 0)');
+    lg.addColorStop(1, 'rgba(88, 72, 58, 0.055)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(0, 0, w, h);
+
+    const map = new THREE.CanvasTexture(c);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.wrapS = map.wrapT = THREE.RepeatWrapping;
+    map.repeat.set(4.2, 4.2);
+
+    const cb = document.createElement('canvas');
+    cb.width = 512;
+    cb.height = 512;
+    const bx = cb.getContext('2d');
+    const img = bx.createImageData(512, 512);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const px = (i / 4) % 512;
+      const py = (i / 4 / 512) | 0;
+      const weave = Math.sin(px * 0.12) * 10 + Math.sin(py * 0.11) * 10;
+      const v = clamp(118 + weave + (Math.random() - 0.5) * 14, 85, 175);
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    bx.putImageData(img, 0, 0);
+    bx.strokeStyle = 'rgba(40, 35, 30, 0.07)';
+    bx.lineWidth = 0.5;
+    for (let y = 0; y < 512; y += 3) {
+      bx.beginPath();
+      bx.moveTo(0, y);
+      bx.lineTo(512, y);
+      bx.stroke();
+    }
+    const bumpMap = new THREE.CanvasTexture(cb);
+    bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
+    bumpMap.repeat.set(9, 9);
+
+    return { map, bumpMap };
+  }
 
   function createCableFabricGeometry() {
     const N = FABRIC_N;
@@ -547,9 +626,28 @@
 
     if (interiorGroup) {
       const u = clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START), 0, 1);
-      interiorGroup.visible = u > 0.015;
-      const sc = 0.82 + 0.18 * ss(u);
-      interiorGroup.scale.setScalar(sc);
+      interiorGroup.visible = u > 0.006;
+      const scG = (0.9 + 0.1 * ss(u)) * INTERIOR_SCALE;
+      interiorGroup.scale.setScalar(scG);
+
+      const riseSpan = 0.52;
+      interiorGroup.children.forEach((mesh) => {
+        const ud = mesh.userData;
+        if (!ud.interiorBase) return;
+        const t0 = clamp((u - ud.interiorDelay) / riseSpan, 0, 1);
+        const ti = interiorRiseEase(t0);
+        const { bx, by, bz } = ud.interiorBase;
+        mesh.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
+        const scM = 0.18 + 0.82 * ti;
+        mesh.scale.setScalar(scM);
+        if (mesh.material && mesh.material.opacity !== undefined) {
+          mesh.material.opacity = clamp(ti * 1.08, 0, 1);
+          mesh.material.transparent = mesh.material.opacity < 0.995;
+        }
+        const baseRy = ud.interiorRotY ?? 0;
+        const tw = ud.interiorTwist ?? 0;
+        mesh.rotation.y = baseRy + tw * (1 - ti);
+      });
     }
   }
 
@@ -609,11 +707,17 @@
     canopyGroup = new THREE.Group();
 
     fabricGeo = createCableFabricGeometry();
+    const bedding = makeBeddingFabricTextures();
+    const maxAni = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+    bedding.map.anisotropy = maxAni;
     fabricMat = new THREE.MeshStandardMaterial({
-      color: 0xd8cfc0,
-      roughness: 0.46,
-      metalness: 0.05,
-      envMapIntensity: 1.05,
+      color: 0xffffff,
+      map: bedding.map,
+      bumpMap: bedding.bumpMap,
+      bumpScale: 0.028,
+      roughness: 0.64,
+      metalness: 0,
+      envMapIntensity: 0.88,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 1,
@@ -756,26 +860,39 @@
     scene.add(pool);
 
     interiorGroup = new THREE.Group();
-    const intMat = new THREE.MeshStandardMaterial({
+    const invS = 1 / INTERIOR_SCALE;
+    const intMatBase = new THREE.MeshStandardMaterial({
       color: 0x9a8f86,
       roughness: 0.78,
       metalness: 0.04,
       envMapIntensity: 0.65,
+      transparent: true,
+      opacity: 0,
     });
+    function registerInteriorRise(mesh, delaySteps, twist = 0) {
+      mesh.material = intMatBase.clone();
+      mesh.userData.interiorBase = { bx: mesh.position.x, by: mesh.position.y, bz: mesh.position.z };
+      mesh.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
+      mesh.userData.interiorRotY = mesh.rotation.y;
+      if (twist) mesh.userData.interiorTwist = twist;
+      mesh.scale.setScalar(0.18);
+    }
     for (let i = 0; i < 6; i++) {
       const ang = (i / 6) * Math.PI * 2 + 0.4;
       const rr = 2.2 + (i % 3) * 1.05;
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.55, 0.32, 14), intMat);
-      c.position.set(Math.cos(ang) * rr, 0.18, Math.sin(ang) * rr);
-      c.castShadow = false;
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.55, 0.32, 14), intMatBase);
+      c.position.set(Math.cos(ang) * rr * invS, 0.18 * invS, Math.sin(ang) * rr * invS);
+      registerInteriorRise(c, i, 0.12 * (i % 2 === 0 ? 1 : -1));
       interiorGroup.add(c);
     }
-    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.65), intMat);
-    lowTable.position.set(-1.2, 0.14, 1.4);
+    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.65), intMatBase);
+    lowTable.position.set(-1.2 * invS, 0.14 * invS, 1.4 * invS);
+    registerInteriorRise(lowTable, 6, -0.09);
     interiorGroup.add(lowTable);
-    const djDeck = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.16, 1.15), intMat);
-    djDeck.position.set(3.1, 0.1, 0.35);
+    const djDeck = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.16, 1.15), intMatBase);
+    djDeck.position.set(3.1 * invS, 0.1 * invS, 0.35 * invS);
     djDeck.rotation.y = -0.2;
+    registerInteriorRise(djDeck, 7, 0.11);
     interiorGroup.add(djDeck);
     interiorGroup.visible = false;
     scene.add(interiorGroup);
