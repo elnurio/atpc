@@ -97,6 +97,8 @@
   // ── Renderer ──────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   // Lock height once — prevents mobile browser chrome (address bar)
   // from changing innerHeight mid-scroll and causing the canvas to jump
   let lockedH = innerHeight;
@@ -114,24 +116,35 @@
   scene.add(new THREE.HemisphereLight(0xdde6f0, 0xc8b080, 0.85));
   const sun = new THREE.DirectionalLight(0xffe8c8, 1.8);
   sun.position.set(14, 20, 8);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width  = 1024;
+  sun.shadow.mapSize.height = 1024;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far  = 80;
+  sun.shadow.camera.left = -18;  sun.shadow.camera.right = 18;
+  sun.shadow.camera.top  = 18;   sun.shadow.camera.bottom = -18;
+  sun.shadow.bias = -0.001;
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0xfff4e8, 0.35);
   fill.position.set(-8, 8, -5);
   scene.add(fill);
 
   // ── Ground — sandy desert ─────────────────────────────────────────
-  // Outer earth
-  scene.add(Object.assign(
-    new THREE.Mesh(new THREE.PlaneGeometry(80, 80),
-      new THREE.MeshLambertMaterial({ color: 0xa08860 })),
-    { rotation: { x: -Math.PI / 2 }, position: { x: 0, y: -0.04, z: 0 } }
-  ));
-  // Sandy plaza (stage footprint)
-  scene.add(Object.assign(
-    new THREE.Mesh(new THREE.PlaneGeometry(22, 22),
-      new THREE.MeshLambertMaterial({ color: 0xc0a878 })),
-    { rotation: { x: -Math.PI / 2 }, position: { x: 0, y: 0, z: 0 } }
-  ));
+  const geoGround = new THREE.PlaneGeometry(80, 80);
+  const matGround = new THREE.MeshLambertMaterial({ color: 0xa08860 });
+  const meshGround = new THREE.Mesh(geoGround, matGround);
+  meshGround.rotation.x = -Math.PI / 2;
+  meshGround.position.y = -0.04;
+  meshGround.receiveShadow = true;
+  scene.add(meshGround);
+
+  const geoPlaza = new THREE.PlaneGeometry(22, 22);
+  const matPlaza = new THREE.MeshLambertMaterial({ color: 0xc0a878 });
+  const meshPlaza = new THREE.Mesh(geoPlaza, matPlaza);
+  meshPlaza.rotation.x = -Math.PI / 2;
+  meshPlaza.position.y = 0;
+  meshPlaza.receiveShadow = true;
+  scene.add(meshPlaza);
 
   // ── Canopy — Rotational Pneu — GPU shader ─────────────────────────
   const VERT = /* glsl */`
@@ -241,6 +254,7 @@
   })();
 
   tentGroup.position.y = CANOPY_Y;
+  tentGroup.traverse(function(c) { if (c.isMesh) c.castShadow = true; });
   scene.add(tentGroup);
 
   // ── Poles + suspension cables ─────────────────────────────────────
@@ -268,37 +282,38 @@
   scene.add(polesGroup);
 
   // ── Interior furniture ────────────────────────────────────────────
-  // Using MeshBasicMaterial (no lighting) and direct scene.add
-  const iMat1 = new THREE.MeshBasicMaterial({ color: 0xb8a88a }); // table - warm tan
-  const iMat2 = new THREE.MeshBasicMaterial({ color: 0xe8e0d0 }); // loungers - pale
-  const iMat3 = new THREE.MeshBasicMaterial({ color: 0x9a8870 }); // speakers - dark tan
+  function addFurniture(geo, mat, x, y, z) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow    = true;
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+  const mTable   = new THREE.MeshLambertMaterial({ color: 0xb8a070 }); // warm wood
+  const mFabric  = new THREE.MeshLambertMaterial({ color: 0xf0ebe0 }); // white fabric
+  const mSpeaker = new THREE.MeshLambertMaterial({ color: 0x706050 }); // dark
 
-  // Centre table
-  const iTbl = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.2, 2.0), iMat1);
-  iTbl.position.set(0, 0.6, 0);
-  scene.add(iTbl);
+  // Centre DJ table (raised so shadow is visible below)
+  addFurniture(new THREE.BoxGeometry(3.5, 1.2, 2.0), mTable,   0,    0.6,  0);
+  // DJ console on table
+  addFurniture(new THREE.BoxGeometry(2.8, 0.5, 1.4), mSpeaker, 0,    1.45, 0);
 
   // 4 loungers
-  [ [-3.5,  1.5], [ 3.5,  1.5],
-    [-3.5, -2.5], [ 3.5, -2.5] ].forEach(function(p) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.0, 1.3), iMat2);
-    m.position.set(p[0], 0.5, p[1]);
-    scene.add(m);
-  });
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric, -3.2,  0.3,  1.5);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,  3.2,  0.3,  1.5);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric, -2.8,  0.3, -2.2);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,  2.8,  0.3, -2.2);
 
-  // 2 speakers
-  [ [-5.5, 0], [5.5, 0] ].forEach(function(p) {
-    const s = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.5, 0.9), iMat3);
-    s.position.set(p[0], 1.25, p[1]);
-    scene.add(s);
-  });
+  // Pillows on loungers
+  addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric, -4.2, 0.7,  1.5);
+  addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric,  4.2, 0.7,  1.5);
+  addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric, -4.0, 0.7, -2.2);
+  addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric,  4.0, 0.7, -2.2);
 
-  // Pillows
-  [ [1, 3.5], [-1, 4], [2, -3.5], [-4, 0.5] ].forEach(function(p) {
-    const pl = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), iMat2);
-    pl.position.set(p[0], 0.25, p[1]);
-    scene.add(pl);
-  });
+  // Column speakers
+  addFurniture(new THREE.BoxGeometry(0.8, 2.0, 0.8), mSpeaker, -5.2, 1.0, -1.5);
+  addFurniture(new THREE.BoxGeometry(0.8, 2.0, 0.8), mSpeaker,  5.2, 1.0,  1.5);
 
 
   // ── Sun beams — warm golden cones ────────────────────────────────
