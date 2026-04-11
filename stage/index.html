@@ -206,6 +206,8 @@
 
   let scene, camera, renderer;
   let canopyGroup, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
+  /** Кромка купола для оттяжек к «якорным» деревьям (без мачт) */
+  let shelterCeilingRing = null;
   let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
@@ -257,6 +259,22 @@
   const RAY_R_IN_FLOOR = 0.44 * TENT_SCALE;
 
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
+
+  /** Точки оттяжки к кольцу леса: высота — зона крепления к стволу/нижней кроне */
+  const NUM_TREE_GUYS = 28;
+  const treeGuyAnchors = [];
+  {
+    const trunkTieY = 0.51 * MAST_MAIN_H;
+    const treeR = DIAMOND_R * 1.52 + 58;
+    for (let i = 0; i < NUM_TREE_GUYS; i++) {
+      const a = (i / NUM_TREE_GUYS) * Math.PI * 2 + 0.38 + 0.062 * Math.sin(i * 2.97) + 0.038 * Math.sin(i * 5.2);
+      treeGuyAnchors.push(new THREE.Vector3(
+        Math.cos(a) * treeR,
+        trunkTieY,
+        Math.sin(a) * treeR
+      ));
+    }
+  }
 
   /** Купол/пол с первого кадра; боковые стены — только с фазы Structure (скролл) */
   const WALLS_SCROLL_START = 1 / 6 + 0.02;
@@ -853,6 +871,7 @@
     const gY = options.gravityY ?? -0.012 * TENT_SCALE;
     const outwardBias = options.outwardBias ?? 0.011 * TENT_SCALE;
     const cableK = options.cableK ?? 0.085;
+    const archBarrelAmp = options.archBarrelAmp ?? 0.11 * TENT_SCALE;
 
     const widx = (u, v) => v * nU + u;
     const count = nU * (nV + 1);
@@ -891,8 +910,9 @@
           const hl = Math.hypot(x, z) + 1e-6;
           const sWave = Math.sin((u / nU) * Math.PI * 2 * 3.1 + v * 0.35);
           const bulge = Math.sin(Math.PI * t) * (0.104 + 0.056 * sWave) * TENT_SCALE;
-          x += (x / hl) * bulge;
-          z += (z / hl) * bulge;
+          const archRadial = archBarrelAmp * Math.sin(Math.PI * t) ** 2;
+          x += (x / hl) * (bulge + archRadial);
+          z += (z / hl) * (bulge + archRadial);
           y += Math.sin(Math.PI * t) * 0.038 * TENT_SCALE * Math.cos((u / nU) * Math.PI * 4 + 0.7);
           pos[b] = x;
           pos[b + 1] = y;
@@ -985,8 +1005,11 @@
         const px = pos[b];
         const pz = pos[b + 2];
         const hl = Math.hypot(px, pz) + 1e-6;
-        acc[b] += (px / hl) * outwardBias * 0.045;
-        acc[b + 2] += (pz / hl) * outwardBias * 0.045;
+        const vRowG = (vi / nU) | 0;
+        const midArch = Math.sin((Math.PI * vRowG) / nV);
+        const radialOE = outwardBias * (0.05 + 0.62 * midArch * midArch);
+        acc[b] += (px / hl) * radialOE;
+        acc[b + 2] += (pz / hl) * radialOE;
       }
 
       for (let vi = 0; vi < count; vi++) {
@@ -1090,9 +1113,11 @@
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
     const wallMem = generateWallMembrane(tensile.ceilingRing, wallAnchors, {
-      nV: 28,
-      iterations: 168,
-      outwardBias: 0.013 * TENT_SCALE,
+      nV: 32,
+      iterations: 182,
+      outwardBias: 0.021 * TENT_SCALE,
+      archBarrelAmp: 0.16 * TENT_SCALE,
+      cableK: 0.098,
     });
 
     const roofBumpRep = 3.2;
@@ -1209,7 +1234,15 @@
 
     const fabricMaterials = [roofMat, roofVeilMat, wallMat, floorMat];
 
-    return { group: g, fabricMaterials, wallMesh, fabricRoofGroup, diagMat: null, wallWindUniforms: null };
+    return {
+      group: g,
+      fabricMaterials,
+      wallMesh,
+      fabricRoofGroup,
+      ceilingRing: tensile.ceilingRing,
+      diagMat: null,
+      wallWindUniforms: null,
+    };
   }
 
   /* Camera path — independent of TENT_SCALE; enlarge shell only via TENT_SCALE above */
@@ -1332,15 +1365,24 @@
     [-DIAMOND_R, 0],
   ];
 
-  function updateCables(canopyWorldY, cableOpacity) {
+  function updateTreeGuyCables(cableOpacity, tentGroupY) {
     cableMat.opacity = cableOpacity;
-    const yRim = canopyWorldY + RIM_Y_LOCAL;
-    const yTop = SQ_POST_H;
+    if (!shelterCeilingRing || !shelterCeilingRing.length || !cablePositions) return;
+    const nRing = shelterCeilingRing.length;
     let ix = 0;
-    for (let i = 0; i < SQ_N; i++) {
-      const [cx, cz] = SQ_CORNERS[i];
-      cablePositions[ix++] = cx; cablePositions[ix++] = yTop; cablePositions[ix++] = cz;
-      cablePositions[ix++] = cx; cablePositions[ix++] = yRim; cablePositions[ix++] = cz;
+    for (let i = 0; i < NUM_TREE_GUYS; i++) {
+      const ri = Math.floor((i + 0.37) * nRing / NUM_TREE_GUYS) % nRing;
+      const p = shelterCeilingRing[ri];
+      const ax = p.x;
+      const ay = p.y + tentGroupY;
+      const az = p.z;
+      const t = treeGuyAnchors[i];
+      cablePositions[ix++] = ax;
+      cablePositions[ix++] = ay;
+      cablePositions[ix++] = az;
+      cablePositions[ix++] = t.x;
+      cablePositions[ix++] = t.y;
+      cablePositions[ix++] = t.z;
     }
     cableGeo.attributes.position.needsUpdate = true;
   }
@@ -1425,7 +1467,7 @@
     }
 
     const mastS = lerp(A.mast, B.mast, t);
-    mastGroup.visible = mastS > 0.02;
+    mastGroup.visible = false;
     mastGroup.scale.setScalar(1);
     mastGroup.scale.y = Math.max(0.001, mastS);
 
@@ -1454,7 +1496,10 @@
     }
     if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse * rayBoost;
 
-    updateCables(canopyGroup.position.y, cab * 0.55);
+    updateTreeGuyCables(
+      cab * 0.62,
+      squareBedTentGroup ? squareBedTentGroup.position.y : 0
+    );
 
     oculus.material.opacity = 0;
     oculus.visible = false;
@@ -1564,6 +1609,7 @@
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
     squareWallMesh = sqTent.wallMesh;
+    shelterCeilingRing = sqTent.ceilingRing;
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
@@ -1606,14 +1652,15 @@
       cap.lookAt(0, topY, 0);
       mastGroup.add(cap);
     }
+    mastGroup.visible = false;
     scene.add(mastGroup);
 
     cableMat = new THREE.LineBasicMaterial({
-      color: 0x3a3835,
+      color: 0x3a4236,
       transparent: true,
       opacity: 0,
     });
-    cablePositions = new Float32Array(SQ_N * 6);
+    cablePositions = new Float32Array(NUM_TREE_GUYS * 6);
     cableGeo = new THREE.BufferGeometry();
     cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
