@@ -2160,22 +2160,6 @@
       transparent: true,
       opacity: 0,
     });
-    const futonMatBase = new THREE.MeshStandardMaterial({
-      color: 0xfdfcfa,
-      roughness: 0.94,
-      metalness: 0,
-      envMapIntensity: 0.36,
-      transparent: true,
-      opacity: 0,
-    });
-    const pillowMatBase = new THREE.MeshStandardMaterial({
-      color: 0xfaf9f7,
-      roughness: 0.93,
-      metalness: 0,
-      envMapIntensity: 0.34,
-      transparent: true,
-      opacity: 0,
-    });
     function registerInteriorRise(mesh, delaySteps, twist = 0, mat = intMatBase, reveal = 'props') {
       mesh.material = mat.clone();
       mesh.userData.interiorBase = { bx: mesh.position.x, by: mesh.position.y, bz: mesh.position.z };
@@ -2185,7 +2169,7 @@
       if (twist) mesh.userData.interiorTwist = twist;
       mesh.scale.setScalar(0.18);
     }
-    function registerInteriorRiseGroup(group, delaySteps, twist = 0) {
+    function registerInteriorRiseGroup(group, delaySteps, twist = 0, reveal = 'props') {
       group.traverse((obj) => {
         if (obj.isMesh && obj.material && obj.material.clone) {
           obj.material = obj.material.clone();
@@ -2194,8 +2178,96 @@
       group.userData.interiorBase = { bx: group.position.x, by: group.position.y, bz: group.position.z };
       group.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
       group.userData.interiorRotY = group.rotation.y;
+      group.userData.interiorReveal = reveal;
       if (twist) group.userData.interiorTwist = twist;
       group.scale.setScalar(0.18);
+    }
+
+    /** Скруглённый «матрас» (сфероид), ~м → локаль интерьера шатра */
+    function makeRoundedBox(W, H, D) {
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+      const ws = 24;
+      const hs = 12;
+      for (let iy = 0; iy <= hs; iy++) {
+        const v = iy / hs;
+        for (let ix = 0; ix <= ws; ix++) {
+          const u = ix / ws;
+          const theta = u * Math.PI * 2;
+          const phi = v * Math.PI;
+          const sx = Math.sin(phi) * Math.cos(theta);
+          const sy = Math.cos(phi);
+          const sz = Math.sin(phi) * Math.sin(theta);
+          positions.push(
+            Math.sign(sx) * Math.pow(Math.abs(sx), 0.65) * W / 2,
+            Math.sign(sy) * Math.pow(Math.abs(sy), 0.55) * H / 2,
+            Math.sign(sz) * Math.pow(Math.abs(sz), 0.65) * D / 2
+          );
+          normals.push(sx, sy, sz);
+          uvs.push(u, 1 - v);
+        }
+      }
+      for (let iy = 0; iy < hs; iy++) {
+        for (let ix = 0; ix < ws; ix++) {
+          const a = iy * (ws + 1) + ix;
+          const b = a + 1;
+          const c = (iy + 1) * (ws + 1) + ix + 1;
+          const d = (iy + 1) * (ws + 1) + ix;
+          indices.push(a, b, d, b, c, d);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    function makePillowGeo(W, H, D) {
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+      const ws = 16;
+      const hs = 10;
+      for (let iy = 0; iy <= hs; iy++) {
+        const v = iy / hs;
+        for (let ix = 0; ix <= ws; ix++) {
+          const u = ix / ws;
+          const theta = u * Math.PI * 2;
+          const phi = v * Math.PI;
+          const sx = Math.sin(phi) * Math.cos(theta);
+          const sy = Math.cos(phi);
+          const sz = Math.sin(phi) * Math.sin(theta);
+          positions.push(
+            Math.sign(sx) * Math.pow(Math.abs(sx), 0.6) * W / 2,
+            Math.sign(sy) * Math.pow(Math.abs(sy), 0.45) * H / 2,
+            Math.sign(sz) * Math.pow(Math.abs(sz), 0.6) * D / 2
+          );
+          normals.push(sx, sy, sz);
+          uvs.push(u, 1 - v);
+        }
+      }
+      for (let iy = 0; iy < hs; iy++) {
+        for (let ix = 0; ix < ws; ix++) {
+          const a = iy * (ws + 1) + ix;
+          const b = a + 1;
+          const c = (iy + 1) * (ws + 1) + ix + 1;
+          const d = (iy + 1) * (ws + 1) + ix;
+          indices.push(a, b, d, b, c, d);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      return geo;
     }
     let rngState = 20260410;
     function rnd() {
@@ -2351,157 +2423,105 @@
     registerInteriorRiseGroup(lowDjBooth, 0, -0.06);
     interiorGroup.add(lowDjBooth);
 
-    const futonPlaced = [];
-    const djLocalX = OCULUS_CENTER_X / INTERIOR_SCALE;
-    const djLocalZ = OCULUS_CENTER_Z / INTERIOR_SCALE;
-    /** Manhattan-граница ромба в локали интерьера (мир / INTERIOR_SCALE) — было 4.85*L*invS≈3.9, матрасы никогда не помещались */
-    const floorL1Limit = DIAMOND_R * invS * 0.93;
-    const mPerWorldUnit = 24 / (2 * DIAMOND_R);
-    const futonMinGapLocal = FUTON_MIN_SPACING_M / mPerWorldUnit / INTERIOR_SCALE;
-    const futonBreathLocal = futonMinGapLocal + 0.12 * L * invS;
-    const djDist0 = Math.hypot(djLocalX, djLocalZ);
-    const futonHubExcl = Math.max(2.2 * L * invS, djDist0 * 0.38);
-    const futonMaxReach = floorL1Limit;
-    const djExclR = 0.5 * Math.hypot(topW, topD) + 0.24 * L * invS;
+    /** Чертёж: 1 ед ≈ 1 м → локаль interiorGroup (ромб шатра) */
+    const M2I = 3.52;
+    const intFloorY = 0.036 * L * invS;
+    const intEnv = scene.environment;
+    const futonMatOpts = {
+      roughness: 0.86,
+      metalness: 0,
+      envMap: intEnv,
+      envMapIntensity: 0.5,
+      transparent: true,
+      opacity: 0,
+    };
+    const futonColors = [0xa8c8d8, 0xb2ccdc, 0xbdd5df, 0x96bccf, 0xc8e2ee];
+    const futonMats = futonColors.map((c) => new THREE.MeshStandardMaterial({ ...futonMatOpts, color: c }));
+    const pillowMats = [
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xddedf5 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe4f0f8 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xd8eaf2 }),
+    ];
+    const quiltMat = new THREE.MeshStandardMaterial({
+      ...futonMatOpts,
+      color: 0x6888a0,
+      opacity: 0,
+      transparent: true,
+      depthWrite: false,
+    });
+    const cushionMat = new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0x88b8c8 });
 
-    function futonHalfDiag(fw, fd) {
-      return 0.5 * Math.hypot(fw, fd);
-    }
-    function futonPlacementValid(x, z, halfDiag) {
-      const hubR = futonHubExcl + halfDiag + futonBreathLocal * 0.55;
-      if (Math.hypot(x, z) < hubR) return false;
-      if (Math.abs(x) + Math.abs(z) + halfDiag * 1.42 > futonMaxReach * 0.98) return false;
-      if (Math.hypot(x - djLocalX, z - djLocalZ) < djExclR + halfDiag + futonBreathLocal) return false;
-      for (let i = 0; i < futonPlaced.length; i++) {
-        const o = futonPlaced[i];
-        const need = o.halfDiag + halfDiag + futonBreathLocal;
-        if (Math.hypot(o.x - x, o.z - z) < need - 1e-6) return false;
-      }
-      return true;
-    }
-    function sampleFutonXZ(fi, attempt) {
-      const span = Math.max(0.15 * L * invS, futonMaxReach - futonHubExcl);
-      const u = rnd();
-      let rMin = futonHubExcl + span * 0.04;
-      let rMax = futonMaxReach * 0.93;
-      if (u < 0.24) {
-        rMax = futonHubExcl + span * 0.44;
-      } else if (u < 0.48) {
-        rMin = futonHubExcl + span * 0.22;
-        rMax = futonHubExcl + span * 0.68;
-      } else if (u < 0.72) {
-        rMin = futonHubExcl + span * 0.45;
-        rMax = futonHubExcl + span * 0.9;
+    const mattGeo = makeRoundedBox(2.0 * M2I, 0.38 * M2I, 3.2 * M2I);
+    const pillGeoSm = makePillowGeo(0.82 * M2I, 0.22 * M2I, 0.56 * M2I);
+    const pillGeoWide = makePillowGeo(1.72 * M2I, 0.22 * M2I, 0.56 * M2I);
+    const cushGeo = makePillowGeo(0.82 * M2I, 0.2 * M2I, 0.82 * M2I);
+
+    function makeFutonAssembly(xm, zm, rotY, mi, pillows, delaySteps, twist = 0) {
+      const group = new THREE.Group();
+      group.name = 'futonAssembly';
+      const matt = new THREE.Mesh(mattGeo, futonMats[mi % futonMats.length].clone());
+      matt.position.y = 0.19 * M2I;
+      matt.castShadow = true;
+      matt.receiveShadow = true;
+      group.add(matt);
+
+      [-0.85 * M2I, 0, 0.85 * M2I].forEach((zi) => {
+        const q = new THREE.Mesh(
+          new THREE.BoxGeometry(1.85 * M2I, 0.008 * M2I, 0.014 * M2I),
+          quiltMat.clone()
+        );
+        q.position.set(0, 0.375 * M2I, zi);
+        group.add(q);
+      });
+      [-0.55 * M2I, 0, 0.55 * M2I].forEach((xi) => {
+        const q = new THREE.Mesh(
+          new THREE.BoxGeometry(0.014 * M2I, 0.008 * M2I, 3.05 * M2I),
+          quiltMat.clone()
+        );
+        q.position.set(xi, 0.375 * M2I, 0);
+        group.add(q);
+      });
+
+      const pm = pillowMats[mi % pillowMats.length].clone();
+      if (pillows === 'two') {
+        [-0.52 * M2I, 0.52 * M2I].forEach((px) => {
+          const p = new THREE.Mesh(pillGeoSm, pm.clone());
+          p.position.set(px, 0.49 * M2I, -1.26 * M2I);
+          p.castShadow = true;
+          group.add(p);
+        });
       } else {
-        rMin = futonHubExcl + span * 0.58;
-        rMax = futonMaxReach * 0.97;
+        const p = new THREE.Mesh(pillGeoWide, pm.clone());
+        p.position.set(0, 0.49 * M2I, -1.26 * M2I);
+        p.castShadow = true;
+        group.add(p);
       }
-      if (rMax <= rMin) rMax = rMin + span * 0.08;
-      const ang = rnd() * Math.PI * 2 + fi * 0.41 + attempt * 0.017;
-      const rad = rMin + rnd() * (rMax - rMin);
-      const ex = 0.74 + rnd() * 0.34;
-      const ez = 0.72 + rnd() * 0.36;
-      let x = Math.cos(ang) * rad * ex;
-      let z = Math.sin(ang) * rad * ez;
-      x += (rnd() - 0.5) * 0.26 * L * invS;
-      z += (rnd() - 0.5) * 0.26 * L * invS;
-      if (rnd() < 0.28) {
-        const edge = futonMaxReach * (0.58 + rnd() * 0.38);
-        const sx = rnd() < 0.5 ? 1 : -1;
-        const sz = rnd() < 0.5 ? 1 : -1;
-        x = sx * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.22 * L * invS;
-        z = sz * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.22 * L * invS;
-      }
-      return { x, z };
-    }
-    function shuffleIndices(n) {
-      const a = Array.from({ length: n }, (_, i) => i);
-      for (let i = n - 1; i > 0; i--) {
-        const j = Math.floor(rnd() * (i + 1));
-        const t = a[i];
-        a[i] = a[j];
-        a[j] = t;
-      }
-      return a;
+
+      group.position.set(xm * M2I, intFloorY, zm * M2I);
+      group.rotation.y = rotY;
+      registerInteriorRiseGroup(group, delaySteps, twist, 'table');
+      interiorGroup.add(group);
     }
 
-    const nFutonsTarget = 34;
-    const maxAttemptsPer = 520;
-    const futonOrder = shuffleIndices(nFutonsTarget);
-    for (let k = 0; k < futonOrder.length; k++) {
-      const fi = futonOrder[k];
-      const fw = (1.48 + rnd() * 0.78) * L;
-      const fd = (0.78 + rnd() * 0.56) * L;
-      const fh = (0.068 + rnd() * 0.048) * L;
-      const halfDiag = futonHalfDiag(fw, fd);
-      let placed = false;
-      let x = 0;
-      let z = 0;
-      for (let att = 0; att < maxAttemptsPer && !placed; att++) {
-        const s = sampleFutonXZ(fi, att);
-        x = s.x;
-        z = s.z;
-        if (futonPlacementValid(x, z, halfDiag)) placed = true;
-      }
-      if (!placed) continue;
-      futonPlaced.push({ x, z, halfDiag });
-      const futon = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, fd), futonMatBase);
-      const futonFloorY = 0.036 * L * invS + 0.5 * fh;
-      futon.position.set(x, futonFloorY, z);
-      futon.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.38, 0.38);
-      const twist = rndRange(-0.16, 0.16);
-      registerInteriorRise(futon, 1 + Math.floor(fi * 1.2 + rnd() * 4), twist, futonMatBase, 'table');
-      interiorGroup.add(futon);
+    function addLooseCushion(xm, zm, delaySteps, twist = 0) {
+      const mesh = new THREE.Mesh(cushGeo, cushionMat);
+      mesh.position.set(xm * M2I, intFloorY + 0.1 * M2I, zm * M2I);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      registerInteriorRise(mesh, delaySteps, twist, cushionMat, 'table');
+      interiorGroup.add(mesh);
     }
 
-    const pillowPlaced = [];
-    const pillowBreath = futonBreathLocal * 0.42;
-    function pillowPlacementValid(x, z, pr) {
-      if (Math.hypot(x, z) < futonHubExcl + pr * 0.95) return false;
-      if (Math.abs(x) + Math.abs(z) + pr * 1.35 > futonMaxReach * 0.97) return false;
-      if (Math.hypot(x - djLocalX, z - djLocalZ) < djExclR + pr + futonBreathLocal * 0.55) return false;
-      for (let i = 0; i < futonPlaced.length; i++) {
-        const o = futonPlaced[i];
-        const need = o.halfDiag + pr + futonBreathLocal * 0.78;
-        if (Math.hypot(o.x - x, o.z - z) < need - 1e-6) return false;
-      }
-      for (let j = 0; j < pillowPlaced.length; j++) {
-        const q = pillowPlaced[j];
-        if (Math.hypot(q.x - x, q.z - z) < q.r + pr + pillowBreath) return false;
-      }
-      return true;
-    }
+    makeFutonAssembly(-6.2, -4.5, Math.PI * 0.1, 0, 'two', 2, rndRange(-0.06, 0.06));
+    makeFutonAssembly(1.2, -5.5, Math.PI * 0.5, 1, 'one', 3, rndRange(-0.05, 0.05));
+    makeFutonAssembly(6.2, -3.0, Math.PI * -0.15, 2, 'two', 4, rndRange(-0.07, 0.07));
+    makeFutonAssembly(-5.2, 2.8, Math.PI * 0.72, 3, 'two', 5, rndRange(-0.05, 0.05));
+    makeFutonAssembly(4.8, 3.2, Math.PI * -0.33, 4, 'one', 6, rndRange(-0.06, 0.06));
 
-    const nPillowsTarget = 26;
-    const pillowOrder = shuffleIndices(nPillowsTarget);
-    for (let k = 0; k < pillowOrder.length; k++) {
-      const pi = pillowOrder[k];
-      const rt = (0.1 + rnd() * 0.11) * L;
-      const rb = rt * (1.02 + rnd() * 0.08);
-      const ph = (0.052 + rnd() * 0.05) * L;
-      const pr = Math.max(rt, rb) + pillowBreath * 0.4;
-      let placed = false;
-      let x = 0;
-      let z = 0;
-      for (let att = 0; att < maxAttemptsPer && !placed; att++) {
-        const s = sampleFutonXZ(pi + 41, att + pi * 3);
-        x = s.x;
-        z = s.z;
-        if (pillowPlacementValid(x, z, pr)) placed = true;
-      }
-      if (!placed) continue;
-      pillowPlaced.push({ x, z, r: pr });
-      const pGeo = new THREE.CylinderGeometry(rt, rb, ph, 14);
-      const pillow = new THREE.Mesh(pGeo, pillowMatBase);
-      const pillowFloorY = 0.036 * L * invS + 0.5 * ph;
-      pillow.position.set(x, pillowFloorY, z);
-      pillow.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.55, 0.55);
-      pillow.rotation.x = rndRange(-0.04, 0.04);
-      pillow.rotation.z = rndRange(-0.04, 0.04);
-      const twist = rndRange(-0.12, 0.12);
-      registerInteriorRise(pillow, 2 + Math.floor(pi * 1.1 + rnd() * 5), twist, pillowMatBase, 'table');
-      interiorGroup.add(pillow);
-    }
+    addLooseCushion(-2.6, -3.2, 8, rndRange(-0.04, 0.04));
+    addLooseCushion(3.6, -1.4, 9, rndRange(-0.03, 0.03));
+    addLooseCushion(-0.4, 1.6, 10, rndRange(-0.05, 0.05));
+    addLooseCushion(0.6, -0.8, 11, rndRange(-0.04, 0.04));
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
