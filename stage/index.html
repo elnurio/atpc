@@ -9,8 +9,8 @@
 
     html { background: #1a1f1c; }
     body {
-      height: 480vh;
-      min-height: 480vh;
+      height: 576vh;
+      min-height: 576vh;
       background: #1a1f1c;
     }
 
@@ -104,7 +104,7 @@
     .dot.on { background: rgba(240, 235, 220, 0.65); transform: scale(1.8); }
 
     @media (max-width: 900px), (pointer: coarse) {
-      body { height: 560vh; min-height: 560vh; }
+      body { height: 672vh; min-height: 672vh; }
 
       #back {
         top: calc(env(safe-area-inset-top, 0px) + 18px);
@@ -184,6 +184,10 @@
     <h2>Interior</h2>
     <p>We move inside the shell</p>
   </div>
+  <div class="slabel" id="sl5">
+    <h2>Sky</h2>
+    <p>At the threshold — looking up through the luminous canopy</p>
+  </div>
 
   <div id="hint"><span>Scroll</span><div id="hint-line"></div></div>
 
@@ -193,6 +197,7 @@
     <div class="dot" id="d2"></div>
     <div class="dot" id="d3"></div>
     <div class="dot" id="d4"></div>
+    <div class="dot" id="d5"></div>
   </div>
 
   <script type="module">
@@ -205,7 +210,7 @@
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
   let squareBedTentGroup, squareFabricMats, squareTentDiagMat, squareWallMesh;
-  let mainSun, hemiMain;
+  let mainSun, hemiMain, fillSun;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 24;
