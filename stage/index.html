@@ -80,7 +80,7 @@
 
   <div class="slabel" id="sl0"><h2>Location</h2><p>Sandy site — an open ground for the festival</p></div>
   <div class="slabel" id="sl1"><h2>Structure</h2><p>Support poles rise — the suspension system takes form</p></div>
-  <div class="slabel" id="sl2"><h2>Stage</h2><p>The pneumatic canopy inflates above the space</p></div>
+  <div class="slabel" id="sl2"><h2>Stage</h2><p>Tensile membrane stretches across the anchor frame</p></div>
   <div class="slabel" id="sl3"><h2>Light</h2><p>Sunlight pierces through the fabric</p></div>
   <div class="slabel" id="sl4"><h2>Interior</h2><p>Step inside the ambient zone</p></div>
 
@@ -99,8 +99,6 @@
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  // Lock height once — prevents mobile browser chrome (address bar)
-  // from changing innerHeight mid-scroll and causing the canvas to jump
   let lockedH = innerHeight;
   document.body.style.height = (lockedH * 6) + 'px';
   renderer.setSize(innerWidth, lockedH);
@@ -108,7 +106,7 @@
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xe0d8cc);
-  scene.fog = new THREE.Fog(0xe0d8cc, 25, 80);
+  scene.fog = new THREE.Fog(0xe0d8cc, 28, 85);
 
   const camera = new THREE.PerspectiveCamera(42, innerWidth / lockedH, 0.1, 200);
 
@@ -119,10 +117,9 @@
   sun.castShadow = true;
   sun.shadow.mapSize.width  = 1024;
   sun.shadow.mapSize.height = 1024;
-  sun.shadow.camera.near = 1;
-  sun.shadow.camera.far  = 80;
-  sun.shadow.camera.left = -18;  sun.shadow.camera.right = 18;
-  sun.shadow.camera.top  = 18;   sun.shadow.camera.bottom = -18;
+  sun.shadow.camera.near = 1;  sun.shadow.camera.far  = 80;
+  sun.shadow.camera.left = -20; sun.shadow.camera.right = 20;
+  sun.shadow.camera.top  = 20;  sun.shadow.camera.bottom = -20;
   sun.shadow.bias = -0.001;
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0xfff4e8, 0.35);
@@ -130,46 +127,170 @@
   scene.add(fill);
 
   // ── Ground — sandy desert ─────────────────────────────────────────
-  const geoGround = new THREE.PlaneGeometry(80, 80);
-  const matGround = new THREE.MeshLambertMaterial({ color: 0xa08860 });
-  const meshGround = new THREE.Mesh(geoGround, matGround);
+  const meshGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(80, 80),
+    new THREE.MeshLambertMaterial({ color: 0xa08860 })
+  );
   meshGround.rotation.x = -Math.PI / 2;
   meshGround.position.y = -0.04;
   meshGround.receiveShadow = true;
   scene.add(meshGround);
 
-  const geoPlaza = new THREE.PlaneGeometry(22, 22);
-  const matPlaza = new THREE.MeshLambertMaterial({ color: 0xc0a878 });
-  const meshPlaza = new THREE.Mesh(geoPlaza, matPlaza);
+  const meshPlaza = new THREE.Mesh(
+    new THREE.PlaneGeometry(22, 22),
+    new THREE.MeshLambertMaterial({ color: 0xc0a878 })
+  );
   meshPlaza.rotation.x = -Math.PI / 2;
-  meshPlaza.position.y = 0;
   meshPlaza.receiveShadow = true;
   scene.add(meshPlaza);
 
-  // ── Canopy — Rotational Pneu — GPU shader ─────────────────────────
-  const VERT = /* glsl */`
-    uniform float u_time;
-    varying vec3 v_wpos;
-    varying vec3 v_wnorm;
+  // ══════════════════════════════════════════════════════════════════
+  //  TENSILE CANOPY SYSTEM
+  // ══════════════════════════════════════════════════════════════════
 
-    float disp(float x, float z, float t) {
-      float r  = length(vec2(x, z));
-      float br = sin(t * 0.28) * 0.07;
-      float w1 = sin(x * 0.38 + t * 0.85) * cos(z * 0.28 + t * 0.65) * 0.05;
-      float w2 = sin(r * 0.45 - t * 0.70) * 0.04;
-      return br + w1 + w2;
+  // ── Anchor + mast definitions ─────────────────────────────────────
+
+  function createAnchors() {
+    // Irregular perimeter, 8 points — also defines the footprint polygon
+    return [
+      new THREE.Vector3(-8.0, 3.8, -4.5),  // A0 far left-back
+      new THREE.Vector3(-7.2, 4.2,  1.2),  // A1 left-mid
+      new THREE.Vector3(-5.5, 3.6,  6.8),  // A2 left-front
+      new THREE.Vector3( 0.5, 4.0,  7.5),  // A3 front-centre
+      new THREE.Vector3( 5.8, 4.5,  5.5),  // A4 right-front
+      new THREE.Vector3( 6.5, 3.9, -0.5),  // A5 right-mid
+      new THREE.Vector3( 5.2, 4.1, -6.0),  // A6 right-back
+      new THREE.Vector3(-1.2, 3.7, -7.2),  // A7 back-centre
+    ];
+  }
+
+  function createMasts() {
+    return [
+      new THREE.Vector3(-2.2, 13.2, -1.8),  // M0 main mast   (highest)
+      new THREE.Vector3( 3.0,  9.8,  3.0),  // M1 secondary   (lower)
+    ];
+  }
+
+  // ── Point-in-polygon (XZ plane) ───────────────────────────────────
+  function pointInPolygon2D(x, z, poly) {
+    let inside = false;
+    const n = poly.length;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = poly[i].x, zi = poly[i].z;
+      const xj = poly[j].x, zj = poly[j].z;
+      if (((zi > z) !== (zj > z)) && x < (xj - xi) * (z - zi) / (zj - zi) + xi)
+        inside = !inside;
+    }
+    return inside;
+  }
+
+  // ── Surface generator ─────────────────────────────────────────────
+  // 1. Build N×N grid in XZ
+  // 2. IDW height initialisation (power-4 → sharp mast peaks)
+  // 3. Pin anchor-zone + mast vertices
+  // 4. Gauss-Seidel Laplacian relaxation → minimal-surface approximation
+  function generateTensileSurface(anchors, masts) {
+    const N    = 68;
+    const xMin = -9.6, xMax = 8.2;
+    const zMin = -8.6, zMax = 9.4;
+
+    const total  = N * N;
+    const pos    = new Float32Array(total * 3);
+    const pinned = new Uint8Array(total);   // 1=anchor-pinned, 2=mast-pinned
+    const inMesh = new Uint8Array(total);
+    const vi     = (i, j) => i * N + j;
+
+    // XZ positions + polygon mask
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = xMin + (xMax - xMin) * j / (N - 1);
+        const z = zMin + (zMax - zMin) * i / (N - 1);
+        const k = vi(i, j);
+        pos[k * 3]     = x;
+        pos[k * 3 + 2] = z;
+        inMesh[k] = pointInPolygon2D(x, z, anchors) ? 1 : 0;
+      }
     }
 
+    // IDW height initialisation (power 4)
+    const ctrl = [...anchors, ...masts];
+    for (let k = 0; k < total; k++) {
+      const x = pos[k * 3], z = pos[k * 3 + 2];
+      let sw = 0, swh = 0;
+      for (const p of ctrl) {
+        const d2 = (x - p.x) * (x - p.x) + (z - p.z) * (z - p.z) + 0.01;
+        const w  = 1.0 / (d2 * d2);
+        sw += w; swh += w * p.y;
+      }
+      pos[k * 3 + 1] = swh / sw;
+    }
+
+    // Pin vertices within threshold of anchors / masts
+    for (let k = 0; k < total; k++) {
+      const x = pos[k * 3], z = pos[k * 3 + 2];
+      for (const a of anchors) {
+        const d2 = (x - a.x) * (x - a.x) + (z - a.z) * (z - a.z);
+        if (d2 < 1.7 * 1.7) { pinned[k] = 1; break; }
+      }
+      for (const m of masts) {
+        const d2 = (x - m.x) * (x - m.x) + (z - m.z) * (z - m.z);
+        if (d2 < 0.65 * 0.65) {
+          pinned[k] = 2;
+          pos[k * 3 + 1] = m.y;
+        }
+      }
+    }
+
+    // Gauss-Seidel relaxation — converges to minimal (tensile) surface
+    for (let iter = 0; iter < 220; iter++) {
+      for (let i = 1; i < N - 1; i++) {
+        for (let j = 1; j < N - 1; j++) {
+          const k = vi(i, j);
+          if (pinned[k] || !inMesh[k]) continue;
+          pos[k * 3 + 1] = (
+            pos[vi(i - 1, j) * 3 + 1] + pos[vi(i + 1, j) * 3 + 1] +
+            pos[vi(i, j - 1) * 3 + 1] + pos[vi(i, j + 1) * 3 + 1]
+          ) * 0.25;
+        }
+      }
+    }
+
+    // Index buffer — only triangles fully inside polygon
+    const indices = [];
+    for (let i = 0; i < N - 1; i++) {
+      for (let j = 0; j < N - 1; j++) {
+        const a = vi(i,   j), b = vi(i,   j + 1);
+        const c = vi(i + 1, j), d = vi(i + 1, j + 1);
+        if (inMesh[a] && inMesh[b] && inMesh[c]) indices.push(a, c, b);
+        if (inMesh[b] && inMesh[c] && inMesh[d]) indices.push(b, c, d);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  // ── Fabric shader ─────────────────────────────────────────────────
+  // Subtle breathing animation proportional to height.
+  // Lighting: direct sun + sky dome + backlit translucency.
+  const VERT = /* glsl */`
+    uniform float u_time;
+    varying vec3  v_wpos;
+    varying vec3  v_wnorm;
+
     void main() {
-      float v   = clamp(length(position.xz) / 6.5, 0.0, 1.0);
-      float dy  = disp(position.x, position.z, u_time) * v;
-      vec3  pos = position + vec3(0.0, dy, 0.0);
-      float e   = 0.12;
-      float dyx = disp(position.x + e, position.z, u_time) * v;
-      float dyz = disp(position.x, position.z + e, u_time) * v;
-      vec3 tx   = normalize(vec3(e, dyx - dy, 0.0));
-      vec3 tz   = normalize(vec3(0.0, dyz - dy, e));
-      v_wnorm = normalize(mat3(modelMatrix) * normalize(cross(tz, tx)));
+      vec3 pos = position;
+      // Scale animation by normalised height above anchor line
+      float hf = clamp((pos.y - 4.0) / 9.5, 0.0, 1.0);
+      float fl = ( sin(pos.x * 0.44 + u_time * 0.80) *
+                   cos(pos.z * 0.37 + u_time * 0.63) * 0.06
+                 + sin((pos.x - pos.z) * 0.30 - u_time * 0.52) * 0.025
+                 ) * hf;
+      pos.y += fl;
+      v_wnorm = normalize(mat3(modelMatrix) * normal);
       v_wpos  = (modelMatrix * vec4(pos, 1.0)).xyz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
@@ -177,31 +298,24 @@
 
   const FRAG = /* glsl */`
     uniform float u_fade;
-    uniform vec3  cameraPosition;
     varying vec3  v_wpos;
     varying vec3  v_wnorm;
 
     void main() {
-      vec3 n       = normalize(v_wnorm);
-      vec3 sunDir  = normalize(vec3(14.0, 20.0, 8.0));
-      vec3 skyDir  = vec3(0.0, 1.0, 0.0);
+      vec3  n      = normalize(v_wnorm);
+      vec3  sunDir = normalize(vec3(14.0, 20.0, 8.0));
+      float sun    = max(dot(n,  sunDir), 0.0) * 0.78;
+      float sky    = 0.32 + max(dot(n, vec3(0.0, 1.0, 0.0)), 0.0) * 0.24;
+      float trans  = max(dot(-n, sunDir), 0.0) * 0.44; // backlit translucency
+      float lite   = sky + sun + trans;
+      vec3  col    = vec3(0.965, 0.941, 0.903) * lite;
 
-      float sun    = max(dot(n,  sunDir), 0.0) * 0.82;
-      float sky    = 0.36 + max(dot(n, skyDir), 0.0) * 0.20;
-      float trans  = max(dot(-n, sunDir), 0.0) * 0.38; // backlit translucency
-      float light  = sky + sun + trans;
+      float dist = length(v_wpos - cameraPosition);
+      float fog  = smoothstep(22.0, 72.0, dist);
+      col = mix(col, vec3(0.878, 0.847, 0.800), fog);
+      col = mix(vec3(0.878, 0.847, 0.800), col, u_fade);
 
-      vec3 color   = vec3(0.97, 0.95, 0.90) * light;
-
-      float dist   = length(v_wpos - cameraPosition);
-      float fog    = smoothstep(20.0, 70.0, dist);
-      color = mix(color, vec3(0.878, 0.847, 0.800), fog);
-
-      // Fade from scene background (sandy mist) to full fabric
-      vec3 bg = vec3(0.878, 0.847, 0.800);
-      color   = mix(bg, color, u_fade);
-
-      gl_FragColor = vec4(color, 1.0);
+      gl_FragColor = vec4(col, 1.0);
     }
   `;
 
@@ -211,123 +325,98 @@
     side: THREE.DoubleSide,
   });
 
-  // Conical tent: pointed apex, rim seats on pole tops
-  const RINGS = 48, SECTS = 64, BASE_R = 6.5;
-  const CANOPY_Y = 4.2; // rim height = pole top level
-  const CONE_H   = 8.8; // cone height above rim → world apex = CANOPY_Y + CONE_H
+  // ── Build canopy ──────────────────────────────────────────────────
+  const anchors = createAnchors();
+  const masts   = createMasts();
 
-  function pneuH(v, u) {
-    // apex (v=0) = CONE_H, rim (v=1) = 0
-    return CONE_H * Math.pow(1.0 - v, 0.80);
+  const canopyGeo  = generateTensileSurface(anchors, masts);
+  const canopyMesh = new THREE.Mesh(canopyGeo, canopyMat);
+  canopyMesh.castShadow = true;
+  scene.add(canopyMesh);
+
+  // ── Fabric walls — vertical panels between anchor points ──────────
+  const wallMat = new THREE.MeshLambertMaterial({
+    color: 0xf0ebe1, transparent: true, opacity: 0.52, side: THREE.DoubleSide,
+  });
+
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    const b = anchors[(i + 1) % anchors.length];
+    const dx  = b.x - a.x, dz = b.z - a.z;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    const avgH = (a.y + b.y) * 0.5;
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(len, avgH), wallMat);
+    wall.position.set((a.x + b.x) * 0.5, avgH * 0.5, (a.z + b.z) * 0.5);
+    wall.rotation.y = -Math.atan2(dz, dx);
+    scene.add(wall);
   }
-  function pneuR(v, u) {
-    return v * BASE_R; // circular footprint
-  }
 
-  const tentGroup = new THREE.Group();
-
-  (function buildPneu() {
-    const pos = [], uvs = [], idx = [];
-    pos.push(0, pneuH(0, 0), 0); uvs.push(0.5, 0.5);
-    for (let ri = 0; ri < RINGS; ri++) {
-      const v = (ri + 1) / RINGS;
-      for (let si = 0; si < SECTS; si++) {
-        const u = (si / SECTS) * Math.PI * 2;
-        pos.push(Math.cos(u) * pneuR(v, u), pneuH(v, u), Math.sin(u) * pneuR(v, u));
-        uvs.push(0.5 + Math.cos(u) * v * 0.5, 0.5 + Math.sin(u) * v * 0.5);
-      }
-    }
-    for (let s = 0; s < SECTS; s++) idx.push(0, 1 + s, 1 + (s + 1) % SECTS);
-    for (let r = 0; r < RINGS - 1; r++) {
-      const A = 1 + r * SECTS, B = 1 + (r + 1) * SECTS;
-      for (let s = 0; s < SECTS; s++) {
-        const a = A + s, b = A + (s + 1) % SECTS;
-        const c = B + s, d = B + (s + 1) % SECTS;
-        idx.push(a, c, b, b, c, d);
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
-    g.setIndex(idx);
-    tentGroup.add(new THREE.Mesh(g, canopyMat));
-  })();
-
-  tentGroup.position.y = CANOPY_Y;
-  tentGroup.traverse(function(c) { if (c.isMesh) c.castShadow = true; });
-  scene.add(tentGroup);
-
-  // ── Poles + suspension cables ─────────────────────────────────────
-  // 6 tall poles around the pneu perimeter
-  const N_POLES = 6;
-  const POLE_R  = 6.2;   // radius from centre (slightly inside tent rim)
-  const POLE_H  = CANOPY_Y; // pole tops align with tent rim
-  const poleMat = new THREE.MeshPhongMaterial({ color: 0x6e6a62, shininess: 60, specular: 0x181810 });
-
+  // ── Structural poles ──────────────────────────────────────────────
+  const poleMat    = new THREE.MeshPhongMaterial({ color: 0x6e6a62, shininess: 55, specular: 0x181810 });
   const polesGroup = new THREE.Group();
 
-  for (let i = 0; i < N_POLES; i++) {
-    const u = (i / N_POLES) * Math.PI * 2;
-    const px = Math.cos(u) * POLE_R, pz = Math.sin(u) * POLE_R;
-    const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.09, POLE_H, 6),
-      poleMat
+  // Short anchor poles
+  anchors.forEach(a => {
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.065, 0.10, a.y, 6),
+      poleMat.clone()
     );
-    pole.position.set(px, POLE_H / 2, pz);
-    polesGroup.add(pole);
-  }
+    m.position.set(a.x, a.y * 0.5, a.z);
+    polesGroup.add(m);
+  });
 
-  // Start invisible — fade in with scroll
-  polesGroup.traverse(c => { if (c.material) { c.material = c.material.clone(); c.material.transparent = true; c.material.opacity = 0; } });
+  // Tall mast poles
+  masts.forEach(m => {
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.075, 0.14, m.y, 8),
+      poleMat.clone()
+    );
+    mesh.position.set(m.x, m.y * 0.5, m.z);
+    polesGroup.add(mesh);
+  });
+
+  polesGroup.traverse(c => {
+    if (c.isMesh) { c.material.transparent = true; c.material.opacity = 0; }
+  });
   scene.add(polesGroup);
 
   // ── Interior furniture ────────────────────────────────────────────
   function addFurniture(geo, mat, x, y, z) {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
-    m.castShadow    = true;
-    m.receiveShadow = true;
+    m.castShadow = m.receiveShadow = true;
     scene.add(m);
     return m;
   }
-  const mTable   = new THREE.MeshLambertMaterial({ color: 0xb8a070 }); // warm wood
-  const mFabric  = new THREE.MeshLambertMaterial({ color: 0xf0ebe0 }); // white fabric
-  const mSpeaker = new THREE.MeshLambertMaterial({ color: 0x706050 }); // dark
+  const mTable   = new THREE.MeshLambertMaterial({ color: 0xb8a070 });
+  const mFabric  = new THREE.MeshLambertMaterial({ color: 0xf0ebe0 });
+  const mSpeaker = new THREE.MeshLambertMaterial({ color: 0x706050 });
 
-  // Centre DJ table (raised so shadow is visible below)
-  addFurniture(new THREE.BoxGeometry(3.5, 1.2, 2.0), mTable,   0,    0.6,  0);
-  // DJ console on table
-  addFurniture(new THREE.BoxGeometry(2.8, 0.5, 1.4), mSpeaker, 0,    1.45, 0);
-
-  // 4 loungers
-  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric, -3.2,  0.3,  1.5);
-  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,  3.2,  0.3,  1.5);
-  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric, -2.8,  0.3, -2.2);
-  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,  2.8,  0.3, -2.2);
-
-  // Pillows on loungers
+  addFurniture(new THREE.BoxGeometry(3.5, 1.2, 2.0), mTable,    0,   0.6,  0);
+  addFurniture(new THREE.BoxGeometry(2.8, 0.5, 1.4), mSpeaker,  0,   1.45, 0);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,  -3.2, 0.3,  1.5);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,   3.2, 0.3,  1.5);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,  -2.8, 0.3, -2.2);
+  addFurniture(new THREE.BoxGeometry(2.5, 0.6, 1.1), mFabric,   2.8, 0.3, -2.2);
   addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric, -4.2, 0.7,  1.5);
   addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric,  4.2, 0.7,  1.5);
   addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric, -4.0, 0.7, -2.2);
   addFurniture(new THREE.BoxGeometry(0.7, 0.45, 0.9), mFabric,  4.0, 0.7, -2.2);
-
-  // Column speakers
   addFurniture(new THREE.BoxGeometry(0.8, 2.0, 0.8), mSpeaker, -5.2, 1.0, -1.5);
   addFurniture(new THREE.BoxGeometry(0.8, 2.0, 0.8), mSpeaker,  5.2, 1.0,  1.5);
 
-
-  // ── Sun beams — warm golden cones ────────────────────────────────
-  // 4 beams through the fabric, slightly tilted toward sun
+  // ── Sun beams ─────────────────────────────────────────────────────
   const BEAM_DEFS = [
-    [-0.8,  0.4, 0.06, -0.04, 1.0, 0.0],
-    [ 1.0, -0.6,-0.05,  0.07, 0.85, 2.1],
-    [ 0.2,  1.2, 0.08,  0.02, 0.9, 3.8],
-    [-0.5, -1.0,-0.04, -0.06, 0.95, 1.4],
+    [-1.0,  0.5, 0.05, -0.04, 1.0,  0.0],
+    [ 1.2, -0.8,-0.04,  0.06, 0.85, 2.1],
+    [ 0.3,  1.0, 0.07,  0.03, 0.9,  3.8],
+    [-0.4, -0.9,-0.05, -0.05, 0.95, 1.4],
   ];
-  const BCOL = 0xffe8a0;
+  const BCOL   = 0xffe8a0;
+  const BEAM_Y = 7.0;
 
   const beams = BEAM_DEFS.map(([x, z, rx, rz, intens, phase]) => {
-    const g = new THREE.Group();
+    const g    = new THREE.Group();
     const hMat = new THREE.MeshBasicMaterial({
       color: BCOL, transparent: true, opacity: 0,
       side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
@@ -338,8 +427,7 @@
     });
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 3.0, 9, 16, 1, true), hMat));
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 1.8, 9, 16, 1, true), cMat));
-    // Beam from y=CANOPY_Y+3 (inside fabric dome) down to y=CANOPY_Y-9/2
-    g.position.set(x, CANOPY_Y - 0.5, z);
+    g.position.set(x, BEAM_Y - 0.5, z);
     g.rotation.set(rx, 0, rz);
     scene.add(g);
 
@@ -348,23 +436,22 @@
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
     const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 24), pMat);
-    pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.01, z);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(x, 0.01, z);
     scene.add(pool);
 
     return { g, cMat, hMat, pMat, phase, intens };
   });
 
-  // ── 5 scroll keyframes ────────────────────────────────────────────
-  // p * 4 → step 0–4, lerp between KF[s] and KF[s+1]
+  // ── Camera keyframes ──────────────────────────────────────────────
   const KF = [
-    { pos:[20, 28, 20], look:[0,  0,   0] }, // 0 — aerial empty
-    { pos:[11,  7, 11], look:[0,  1.5, 0] }, // 1 — structure: medium aerial, interior visible
-    { pos:[16,  7,  2], look:[0,  3.5, 0] }, // 2 — side: tent silhouette + floor furniture
-    { pos:[10,  3.5, 0], look:[0, 2.5, 0] }, // 3 — low side: beams + furniture in frame
-    { pos:[ 5,  3,  5], look:[0,  1.0, 0] }, // 4 — inside corner, looking at furniture
+    { pos:[22, 30, 22], look:[0,  3,   0] }, // 0 — aerial
+    { pos:[12,  9, 12], look:[0,  5,   0] }, // 1 — structure
+    { pos:[17,  9,  2], look:[0,  6,   0] }, // 2 — canopy side
+    { pos:[10,  4,  0], look:[0,  2.5, 0] }, // 3 — low / beams
+    { pos:[ 5,  3,  5], look:[0,  1.0, 0] }, // 4 — inside
   ];
 
-  // Label windows [inAt, outAt]
   const LWIN = [
     [0.02, 0.18],
     [0.25, 0.42],
@@ -379,12 +466,11 @@
   const hint   = document.getElementById('hint');
 
   // ── Helpers ───────────────────────────────────────────────────────
-  const lerp = (a,b,t) => a + (b - a) * t;
-  const ss   = t => { t = Math.max(0, Math.min(1, t)); return t*t*(3-2*t); }
-  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
-  const posA = new THREE.Vector3(), posB = new THREE.Vector3();
-  const lkA  = new THREE.Vector3(), lkB  = new THREE.Vector3();
-  const lkT  = new THREE.Vector3();
+  const ss    = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const posA  = new THREE.Vector3(), posB = new THREE.Vector3();
+  const lkA   = new THREE.Vector3(), lkB  = new THREE.Vector3();
+  const lkT   = new THREE.Vector3();
 
   // ── State ─────────────────────────────────────────────────────────
   let clk = 0, rawSP = 0, sp = 0;
@@ -402,21 +488,19 @@
     const s = clamp(Math.floor(step4), 0, 3);
     const t = ss(step4 - s);
 
-    // Camera
-    posA.set(...KF[s].pos);   posB.set(...KF[s+1].pos);
-    lkA.set(...KF[s].look);   lkB.set(...KF[s+1].look);
+    posA.set(...KF[s].pos);  posB.set(...KF[s + 1].pos);
+    lkA.set(...KF[s].look);  lkB.set(...KF[s + 1].look);
     camera.position.lerpVectors(posA, posB, t);
     camera.position.x += Math.sin(clk * 0.15) * 0.20;
     camera.position.y += Math.cos(clk * 0.11) * 0.12;
     lkT.lerpVectors(lkA, lkB, t);
     camera.lookAt(lkT);
 
-    // Poles: fade in p=0.18→0.26
+    // Poles: fade in p=0.18→0.28
     const pA = clamp((p - 0.18) / 0.10, 0, 1);
-    polesGroup.traverse(c => { if (c.material && 'opacity' in c.material) c.material.opacity = pA; });
+    polesGroup.traverse(c => { if (c.isMesh) c.material.opacity = pA; });
 
-
-    // Canopy: fade in p=0.25→0.35
+    // Canopy: fade in p=0.25→0.37
     canopyMat.uniforms.u_fade.value = clamp((p - 0.25) / 0.12, 0, 1);
 
     // Beams: appear p=0.68→0.80
@@ -428,13 +512,9 @@
       pMat.opacity = 0.32 * intens * bA * (0.78 + Math.sin(clk * 0.3 + phase) * 0.22);
     });
 
-    // Labels
     LWIN.forEach(([inAt, outAt], i) => labels[i].classList.toggle('on', p >= inAt && p <= outAt));
-
-    // Active dot
     const ad = clamp(Math.floor(p * 5), 0, 4);
     dots.forEach((d, i) => d.classList.toggle('on', i === ad));
-
     hint.classList.toggle('hide', p > 0.07);
   }
 
@@ -448,8 +528,6 @@
     sp  += (rawSP - sp) * 0.055;
 
     canopyMat.uniforms.u_time.value = clk;
-    tentGroup.rotation.y = clk * 0.008; // slow rotation of the pneu
-
     updateScene(sp);
     renderer.render(scene, camera);
 
@@ -458,13 +536,11 @@
 
   requestAnimationFrame(tick);
 
-  // Only respond to width changes (e.g. orientation flip).
-  // Height-only changes = mobile browser chrome hide/show → ignore.
   let _lastW = innerWidth;
   window.addEventListener('resize', () => {
     if (innerWidth === _lastW) return;
     _lastW = innerWidth;
-    lockedH = innerHeight; // re-lock after orientation change
+    lockedH = innerHeight;
     document.body.style.height = (lockedH * 6) + 'px';
     camera.aspect = innerWidth / lockedH;
     camera.updateProjectionMatrix();
