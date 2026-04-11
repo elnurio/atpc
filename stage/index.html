@@ -205,6 +205,7 @@
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
   let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
+  let mainSun, hemiMain;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 24;
@@ -252,10 +253,7 @@
 
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
-  /* Sheer fabric flies down during 0.4 → 0.6 scroll */
-  const FABRIC_SCROLL_START = 0.4;
-  const FABRIC_SCROLL_END = 0.6;
-  const FABRIC_FLY_OFFSET = 36 * TENT_SCALE;
+  /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
@@ -1025,8 +1023,9 @@
     { pos: [580, 285, 600], look: [0, 108, 0], canopyY: 295, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
     { pos: [700, 245, 140], look: [0, 115, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [600, 165, 520], look: [0, 72, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [520, 220, 520], look: [0, 78, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [240, 72, 300], look: [0, 58, -140], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
+    { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -1154,8 +1153,10 @@
 
     posA.set(...A.pos); posB.set(...B.pos);
     camera.position.lerpVectors(posA, posB, t);
-    camera.position.x += Math.sin(clk * 0.14) * 0.06;
-    camera.position.y += Math.cos(clk * 0.1) * 0.05;
+    const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
+    const wobbleAmt = 1 - 0.82 * interiorCamPhase;
+    camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
+    camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
 
     lkA.set(...A.look); lkB.set(...B.look);
     lkT.lerpVectors(lkA, lkB, t);
@@ -1166,31 +1167,26 @@
     canopyGroup.position.y = cy;
 
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
-      if (p < FABRIC_SCROLL_START) {
-        squareBedTentGroup.visible = false;
-      } else {
-        squareBedTentGroup.visible = true;
-        let dropY = 0;
-        let flyFade = 1;
-        if (p < FABRIC_SCROLL_END) {
-          const uBlend = clamp((p - FABRIC_SCROLL_START) / (FABRIC_SCROLL_END - FABRIC_SCROLL_START), 0, 1);
-          const ue = ss(uBlend);
-          dropY = lerp(FABRIC_FLY_OFFSET, 0, ue);
-          flyFade = clamp(uBlend / 0.22, 0, 1);
-        }
-        squareBedTentGroup.position.y = dropY;
-        const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
-        const roofSheer = 0.66;
-        const wallSheer = 0.54;
-        squareFabricMats.forEach((m, mi) => {
-          const sheer = mi === 0 ? roofSheer : wallSheer;
-          m.opacity = Math.min(1, baseOp * flyFade * sheer);
-          m.transparent = true;
-        });
-        if (squareTentDiagMat) {
-          squareTentDiagMat.opacity = 0.34 * baseOp * flyFade;
-        }
+      squareBedTentGroup.visible = true;
+      const settleFade = 1 - ss(clamp(p / 0.38, 0, 1));
+      squareBedTentGroup.position.y = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
+      const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
+      const roofSheer = 0.66;
+      const wallSheer = 0.54;
+      squareFabricMats.forEach((m, mi) => {
+        const sheer = mi === 0 ? roofSheer : wallSheer;
+        m.opacity = Math.min(1, baseOp * sheer);
+        m.transparent = true;
+      });
+      if (squareTentDiagMat) {
+        squareTentDiagMat.opacity = 0.34 * baseOp;
       }
+    }
+
+    if (mainSun && hemiMain) {
+      const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
+      mainSun.intensity = lerp(0.88, 0.58, uDim);
+      hemiMain.intensity = lerp(0.42, 0.34, uDim);
     }
 
     const mastS = lerp(A.mast, B.mast, t);
@@ -1300,10 +1296,11 @@
     setupMinimalSandWorld(renderer, scene);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.07));
-    scene.add(new THREE.HemisphereLight(0xf2f0ec, 0xd2c4b0, 0.42));
-    const sun = new THREE.DirectionalLight(0xfff4e8, 0.88);
-    sun.position.set(76, 144, 44);
-    scene.add(sun);
+    hemiMain = new THREE.HemisphereLight(0xf2f0ec, 0xd2c4b0, 0.42);
+    scene.add(hemiMain);
+    mainSun = new THREE.DirectionalLight(0xfff4e8, 0.88);
+    mainSun.position.set(76, 144, 44);
+    scene.add(mainSun);
     const fillSun = new THREE.DirectionalLight(0xe8ecf0, 0.12);
     fillSun.position.set(-36, 56, -28);
     scene.add(fillSun);
@@ -1478,26 +1475,44 @@
     registerInteriorRise(lowTable, 0, -0.06);
     interiorGroup.add(lowTable);
 
-    const futonGeo = new THREE.BoxGeometry(2.05 * L, 0.1 * L, 1.05 * L);
-    const futonL = new THREE.Mesh(futonGeo, futonMatBase);
-    futonL.position.set(
-      (-4.35 + rndRange(-0.2, 0.2)) * L * invS,
-      0.05 * L * invS,
-      (2.95 + rndRange(-0.28, 0.28)) * L * invS
-    );
-    futonL.rotation.y = 0.35 + rndRange(-0.12, 0.12);
-    registerInteriorRise(futonL, 1, 0.08, futonMatBase);
-    interiorGroup.add(futonL);
-
-    const futonR = new THREE.Mesh(futonGeo, futonMatBase);
-    futonR.position.set(
-      (4.35 + rndRange(-0.2, 0.2)) * L * invS,
-      0.05 * L * invS,
-      (-2.95 + rndRange(-0.28, 0.28)) * L * invS
-    );
-    futonR.rotation.y = Math.PI - 0.35 + rndRange(-0.12, 0.12);
-    registerInteriorRise(futonR, 2, -0.08, futonMatBase);
-    interiorGroup.add(futonR);
+    const futonPlaced = [];
+    const futonMinSep = 1.12 * L * invS;
+    const futonHubExcl = 0.78 * L * invS;
+    const futonMaxReach = 4.2 * L * invS;
+    function futonSpotFree(x, z) {
+      if (Math.hypot(x, z) < futonHubExcl) return false;
+      if (Math.abs(x) + Math.abs(z) > futonMaxReach * 1.02) return false;
+      for (let i = 0; i < futonPlaced.length; i++) {
+        const o = futonPlaced[i];
+        if (Math.hypot(o.x - x, o.z - z) < futonMinSep) return false;
+      }
+      return true;
+    }
+    const nFutons = 11;
+    for (let fi = 0; fi < nFutons; fi++) {
+      let x = 0;
+      let z = 0;
+      let placed = false;
+      for (let att = 0; att < 95 && !placed; att++) {
+        const ang = rnd() * Math.PI * 2 + fi * 0.73;
+        const rad = futonHubExcl + rnd() * (futonMaxReach - futonHubExcl);
+        const squash = 0.68 + rnd() * 0.48;
+        x = Math.cos(ang) * rad * squash + (rnd() - 0.5) * 0.62 * L * invS;
+        z = Math.sin(ang) * rad * (0.74 + rnd() * 0.52) + (rnd() - 0.5) * 0.62 * L * invS;
+        if (futonSpotFree(x, z)) placed = true;
+      }
+      if (!placed) continue;
+      futonPlaced.push({ x, z });
+      const fw = (1.65 + rnd() * 0.75) * L;
+      const fd = (0.88 + rnd() * 0.48) * L;
+      const fh = (0.075 + rnd() * 0.045) * L;
+      const futon = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, fd), futonMatBase);
+      futon.position.set(x, 0.5 * fh * invS, z);
+      futon.rotation.y = rnd() * Math.PI * 2 + fi * 0.19;
+      const twist = rndRange(-0.14, 0.14);
+      registerInteriorRise(futon, 1 + Math.floor(fi * 1.35 + rnd() * 4), twist, futonMatBase);
+      interiorGroup.add(futon);
+    }
 
     const cMul = 0.34;
     const cRadT = 0.36 * L * cMul;
@@ -1512,7 +1527,7 @@
       (3.95 + rndRange(-0.22, 0.22)) * L * invS
     );
     cushionA.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushionA, 3, 0.1);
+    registerInteriorRise(cushionA, 14, 0.1);
     interiorGroup.add(cushionA);
 
     const cushionB = new THREE.Mesh(cushionGeo, intMatBase);
@@ -1522,7 +1537,7 @@
       (-4.05 + rndRange(-0.22, 0.22)) * L * invS
     );
     cushionB.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushionB, 4, -0.1);
+    registerInteriorRise(cushionB, 16, -0.1);
     interiorGroup.add(cushionB);
     interiorGroup.visible = false;
     scene.add(interiorGroup);
