@@ -1173,9 +1173,8 @@
   const KF = [
     { pos: [620, 340, 560], look: [0, 125, 0], canopyY: 280, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
     { pos: [580, 285, 600], look: [0, 108, 0], canopyY: 295, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    /** Profile: плавное продолжение с Structure — без резкого «отъезда»; кадр купола через FOV + чуть выше look */
-    { pos: [588, 276, 548], look: [0, 138, 0], canopyY: 312, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [548, 248, 518], look: [4, 112, -10], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [700, 245, 140], look: [0, 115, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [600, 165, 520], look: [0, 72, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
     /** Interior: slightly left, closer in — slide from KF[4] via smoothstep, no FOV zoom */
     { pos: [178, 68, 238], look: [4, 52, -108], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
@@ -1313,8 +1312,6 @@
     const upliftBoost = s === 5 ? t : 0;
     const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
     let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
-    const wobbleGate = p < 4 / NSEG ? 0 : ss(clamp((p - 4 / NSEG) / 0.07, 0, 1));
-    wobbleAmt *= 0.4 * wobbleGate;
     camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
     camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
 
@@ -1322,18 +1319,7 @@
     lkT.lerpVectors(lkA, lkB, t);
     camera.lookAt(lkT);
 
-    const profileFovAdd = isMobile ? 7.5 : 11;
-    const pLo = ROOF_SCROLL_START;
-    const pHi = ROOF_SCROLL_END;
-    const spanPH = pHi - pLo;
-    const fovRamp = Math.min(0.026, spanPH * 0.24);
-    let pFov = 0;
-    if (p > pLo && p < pHi) {
-      if (p < pLo + fovRamp) pFov = ss((p - pLo) / fovRamp);
-      else if (p > pHi - fovRamp) pFov = ss((pHi - p) / fovRamp);
-      else pFov = 1;
-    }
-    camera.fov = cameraBaseFov + profileFovAdd * pFov;
+    camera.fov = cameraBaseFov;
     camera.updateProjectionMatrix();
 
     const cy = lerp(A.canopyY, B.canopyY, t);
