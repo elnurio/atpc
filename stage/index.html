@@ -516,7 +516,7 @@
     return { map, bumpMap };
   }
 
-  /** Пол внутри шатра: мат/настил, без травяного тона — закрывает весь ромб */
+  /** Пол внутри шатра: светло-голубой настил — закрывает весь ромб */
   function makeTentInteriorFloorTextures() {
     const w = 512;
     const h = 512;
@@ -524,23 +524,23 @@
     c.width = w;
     c.height = h;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#c4b69a';
+    ctx.fillStyle = '#B8D4E3';
     ctx.fillRect(0, 0, w, h);
     for (let y = 0; y < h; y += 3) {
-      ctx.strokeStyle = `rgba(92, 84, 72, ${0.055 + (y % 21 === 0 ? 0.04 : 0)})`;
+      ctx.strokeStyle = `rgba(130, 168, 196, ${0.05 + (y % 21 === 0 ? 0.035 : 0)})`;
       ctx.beginPath();
       ctx.moveTo(0, y + Math.sin(y * 0.07) * 2);
       ctx.lineTo(w, y + Math.cos(y * 0.05) * 1.2);
       ctx.stroke();
     }
     for (let x = 0; x < w; x += 5) {
-      ctx.strokeStyle = 'rgba(72, 66, 56, 0.048)';
+      ctx.strokeStyle = 'rgba(110, 152, 182, 0.042)';
       ctx.beginPath();
       ctx.moveTo(x + Math.sin(x * 0.11) * 2, 0);
       ctx.lineTo(x, h);
       ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(38, 32, 28, 0.035)';
+    ctx.fillStyle = 'rgba(90, 130, 158, 0.032)';
     for (let i = 0; i < 220; i++) {
       ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 5, 1);
     }
@@ -557,8 +557,8 @@
     for (let i = 0; i < d.length; i += 4) {
       const px = (i / 4) % 256;
       const py = (i / 4 / 256) | 0;
-      const n = 118 + Math.sin(px * 0.19) * 8 + Math.sin(py * 0.16) * 7 + (Math.random() - 0.5) * 12;
-      d[i] = d[i + 1] = d[i + 2] = Math.max(68, Math.min(168, n));
+      const n = 200 + Math.sin(px * 0.19) * 10 + Math.sin(py * 0.16) * 9 + (Math.random() - 0.5) * 14;
+      d[i] = d[i + 1] = d[i + 2] = Math.max(168, Math.min(238, n));
       d[i + 3] = 255;
     }
     bx.putImageData(id, 0, 0);
@@ -1360,16 +1360,16 @@
     tentFloorTex.map.anisotropy = bedding.map.anisotropy || 1;
     tentFloorTex.bumpMap.anisotropy = bedding.map.anisotropy || 1;
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xe3d6c4,
+      color: 0xb8d4e3,
       map: tentFloorTex.map,
       bumpMap: tentFloorTex.bumpMap,
       bumpScale: 0.048 * (TENT_SCALE / 4),
       roughness: 0.92,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.26,
-      emissive: new THREE.Color(0xd8cbb8),
-      emissiveIntensity: 0.022,
+      envMapIntensity: 0.28,
+      emissive: new THREE.Color(0xb8d4e3),
+      emissiveIntensity: 0.018,
       side: THREE.DoubleSide,
       transparent: false,
       opacity: 1,
@@ -1441,8 +1441,8 @@
      * Координаты согласованы с бывш. skyInteriorCorner от DIAMOND_R и KF5 по Y.
      */
     { pos: [79, 76, -82], look: [-46, 37, 29], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.42, rays: 0.34, shadow: 0.055, cable: 0.86, mast: 1, oculusOp: 0.82 },
-    /** SPACE (сегмент 6): отдельный бит — подъём/наклон к окуляру и небу */
-    { pos: [-41, 84, 25], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /** SPACE (сегмент 6): та же точка стояния, что после SKY — только наклон взгляда к окуляру */
+    { pos: [79, 76, -82], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
   const NSEG = 7;
@@ -1617,10 +1617,9 @@
       lkT.lerpVectors(lkA, lkB, lkEase);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** SPACE: наклон к окуляру (KF6→KF7) */
+      /** SPACE: без переноса — остаёмся в точке KF6, только поднимаем взгляд к куполу */
+      camera.position.copy(posA);
       const q = smootherstep(t);
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q * q);
-      camera.position.lerpVectors(posA, posB, posEase);
       const pitchDelay = 0.12;
       const tiltEase = smootherstep(
         smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1))
