@@ -1462,9 +1462,17 @@
   function lerp(a, b, t) { return a + (b - a) * t; }
   function ss(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  /** Perlin-smooth 0–1 for cinematic camera / sky reveal */
+  function smootherstep(t) {
+    t = clamp(t, 0, 1);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
 
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
+  const skyDollyDir = new THREE.Vector3();
+  const skyP1 = new THREE.Vector3();
+  const skyMid = new THREE.Vector3();
 
   let isMobile = false;
   let targetFPS = 60;
@@ -1578,16 +1586,39 @@
     const A = KF[s], B = KF[s + 1];
 
     posA.set(...A.pos); posB.set(...B.pos);
-    camera.position.lerpVectors(posA, posB, t);
-    const upliftBoost = s === 5 ? t : 0;
+    lkA.set(...A.look); lkB.set(...B.look);
+
+    let upliftBoost;
+    if (s === 5) {
+      const uScroll = t;
+      const uFlow = smootherstep(uScroll);
+
+      const uDolly = smootherstep(clamp(uFlow / 0.52, 0, 1));
+      const uLift = smootherstep(clamp((uFlow - 0.34) / 0.66, 0, 1));
+      const uLook = smootherstep(clamp((uFlow - 0.44) / 0.56, 0, 1));
+
+      skyDollyDir.subVectors(posA, lkA);
+      if (skyDollyDir.lengthSq() < 1e-6) skyDollyDir.set(0.4, 0.15, -0.2);
+      skyDollyDir.normalize();
+      skyP1.copy(posA).addScaledVector(skyDollyDir, 14);
+
+      skyMid.lerpVectors(posA, skyP1, uDolly);
+      camera.position.lerpVectors(skyMid, posB, uLift);
+
+      lkT.lerpVectors(lkA, lkB, uLook);
+      upliftBoost = uLook;
+    } else {
+      camera.position.lerpVectors(posA, posB, t);
+      lkT.lerpVectors(lkA, lkB, t);
+      upliftBoost = 0;
+    }
+
     const oculusOpKF = lerp(A.oculusOp ?? 0, B.oculusOp ?? 0, t);
     const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
     let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
     camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
     camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
 
-    lkA.set(...A.look); lkB.set(...B.look);
-    lkT.lerpVectors(lkA, lkB, t);
     camera.lookAt(lkT);
 
     camera.fov = cameraBaseFov + upliftBoost * 5.5;
@@ -2031,20 +2062,6 @@
       metalness: 0.03,
       envMapIntensity: 0.52,
     });
-    const deckMat = new THREE.MeshStandardMaterial({
-      color: 0x171513,
-      roughness: 0.42,
-      metalness: 0.12,
-      envMapIntensity: 0.35,
-    });
-    const cueMat = new THREE.MeshStandardMaterial({
-      color: 0x2f6bff,
-      roughness: 0.35,
-      metalness: 0.25,
-      emissive: 0x0a1a4a,
-      emissiveIntensity: 0.12,
-      envMapIntensity: 0.45,
-    });
     const legH = 0.36 * L * DJ_BOOTH_SCALE;
     const topTy = 0.1 * L * DJ_BOOTH_SCALE;
     const topW = 1.52 * L * DJ_BOOTH_SCALE;
@@ -2064,27 +2081,55 @@
     addLeg(-lx);
     addLeg(0);
     addLeg(lx);
-    const deckY = legH + topTy + 0.014 * L * DJ_BOOTH_SCALE;
-    const deckT = 0.026 * L * DJ_BOOTH_SCALE;
-    const deckZ = -0.04 * L * DJ_BOOTH_SCALE;
-    const deckL = new THREE.Mesh(new THREE.BoxGeometry(0.34 * L * DJ_BOOTH_SCALE, deckT, 0.38 * L * DJ_BOOTH_SCALE), deckMat);
-    deckL.position.set(-0.38 * L * DJ_BOOTH_SCALE, deckY, deckZ);
-    lowDjBooth.add(deckL);
-    const deckC = new THREE.Mesh(new THREE.BoxGeometry(0.33 * L * DJ_BOOTH_SCALE, deckT * 1.08, 0.4 * L * DJ_BOOTH_SCALE), deckMat);
-    deckC.position.set(0, deckY - 0.004 * L * DJ_BOOTH_SCALE, deckZ + 0.012 * L * DJ_BOOTH_SCALE);
-    lowDjBooth.add(deckC);
-    const deckR = new THREE.Mesh(new THREE.BoxGeometry(0.3 * L * DJ_BOOTH_SCALE, deckT, 0.38 * L * DJ_BOOTH_SCALE), deckMat);
-    deckR.position.set(0.37 * L * DJ_BOOTH_SCALE, deckY, deckZ);
-    lowDjBooth.add(deckR);
-    const cue = new THREE.Mesh(new THREE.CylinderGeometry(0.028 * L * DJ_BOOTH_SCALE, 0.028 * L * DJ_BOOTH_SCALE, 0.018 * L * DJ_BOOTH_SCALE, 14), cueMat);
-    cue.rotation.x = Math.PI / 2;
-    cue.position.set(0.06 * L * DJ_BOOTH_SCALE, deckY + 0.012 * L * DJ_BOOTH_SCALE, deckZ + 0.14 * L * DJ_BOOTH_SCALE);
-    lowDjBooth.add(cue);
-    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.022 * L * DJ_BOOTH_SCALE, 0.022 * L * DJ_BOOTH_SCALE, 0.55 * L * DJ_BOOTH_SCALE, 8), deckMat);
-    cable.position.set(0.34 * L * DJ_BOOTH_SCALE, legH * 0.35, 0.22 * L * DJ_BOOTH_SCALE);
-    cable.rotation.z = 0.52;
-    cable.rotation.x = 0.28;
-    lowDjBooth.add(cable);
+    /** Вид сверху: Technics SL-1200 ×2 + микшер (technics_dj_setup_top_view.svg) на столешнице */
+    const djSvgAsp = 680 / 520;
+    const availTopX = topW * 0.93;
+    const availTopZ = topD * 0.88;
+    let layW, layZ;
+    if (availTopX / availTopZ > djSvgAsp) {
+      layZ = availTopZ;
+      layW = layZ * djSvgAsp;
+    } else {
+      layW = availTopX;
+      layZ = layW / djSvgAsp;
+    }
+    const slabTopY = legH + topTy + 0.0028 * L * DJ_BOOTH_SCALE;
+    const djTopTexMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.72,
+      metalness: 0.035,
+      envMapIntensity: 0.56,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    const djTopPlane = new THREE.Mesh(new THREE.PlaneGeometry(layW, layZ), djTopTexMat);
+    djTopPlane.rotation.x = -Math.PI / 2;
+    djTopPlane.position.set(0, slabTopY, 0);
+    djTopPlane.name = 'djTechnicsTopLayout';
+    lowDjBooth.add(djTopPlane);
+    const djSvgUrl = new URL('technics_dj_setup_top_view.svg', import.meta.url).href;
+    new THREE.TextureLoader().load(
+      djSvgUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+        tex.needsUpdate = true;
+        const pl = lowDjBooth.getObjectByName('djTechnicsTopLayout');
+        if (pl && pl.material) {
+          pl.material.map = tex;
+          pl.material.needsUpdate = true;
+        }
+      },
+      undefined,
+      () => {
+        const pl = lowDjBooth.getObjectByName('djTechnicsTopLayout');
+        if (pl && pl.material) pl.material.color.setHex(0x1c1c1e);
+      }
+    );
     /* Центр бутика по вертикали как у прежнего стола; локально = мир / INTERIOR_SCALE */
     const boothFullH = legH + topTy;
     const tableCenterY = 0.095 * L * invS;
