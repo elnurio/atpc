@@ -2431,13 +2431,18 @@
       return geo;
     }
 
-    function makePillowGeo(W, H, D) {
+    /**
+     * Подушка-суперэллипсоид: меньшие показатели px/pz → пышнее «бочкообразный» объём,
+     * py побольше — менее сплюснута по вертикали, выпуклее сверху/снизу.
+     */
+    function makePillowGeo(W, H, D, pows = { px: 0.6, py: 0.45, pz: 0.6 }) {
       const positions = [];
       const normals = [];
       const uvs = [];
       const indices = [];
-      const ws = 16;
-      const hs = 10;
+      const ws = 18;
+      const hs = 12;
+      const { px, py, pz } = pows;
       for (let iy = 0; iy <= hs; iy++) {
         const v = iy / hs;
         for (let ix = 0; ix <= ws; ix++) {
@@ -2448,9 +2453,9 @@
           const sy = Math.cos(phi);
           const sz = Math.sin(phi) * Math.sin(theta);
           positions.push(
-            Math.sign(sx) * Math.pow(Math.abs(sx), 0.6) * W / 2,
-            Math.sign(sy) * Math.pow(Math.abs(sy), 0.45) * H / 2,
-            Math.sign(sz) * Math.pow(Math.abs(sz), 0.6) * D / 2
+            Math.sign(sx) * Math.pow(Math.abs(sx), px) * W / 2,
+            Math.sign(sy) * Math.pow(Math.abs(sy), py) * H / 2,
+            Math.sign(sz) * Math.pow(Math.abs(sz), pz) * D / 2
           );
           normals.push(sx, sy, sz);
           uvs.push(u, 1 - v);
@@ -2644,9 +2649,9 @@
     const futonColors = [0xa8c8d8, 0xb2ccdc, 0xbdd5df, 0x96bccf, 0xc8e2ee];
     const futonMats = futonColors.map((c) => new THREE.MeshStandardMaterial({ ...futonMatOpts, color: c }));
     const pillowMats = [
-      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xddedf5 }),
-      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe4f0f8 }),
-      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xd8eaf2 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe5e7e9 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe5e7e9 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe5e7e9 }),
     ];
     const quiltMat = new THREE.MeshStandardMaterial({
       ...futonMatOpts,
@@ -2655,19 +2660,21 @@
       transparent: true,
       depthWrite: false,
     });
-    /** Отдельные напольные подушки: бежево-серый, спокойная ткань */
+    /** Отдельные напольные подушки + единый тон с подушками на футонах */
     const floorCushionMat = new THREE.MeshStandardMaterial({
       ...futonMatOpts,
-      color: 0xc4bbb0,
-      emissive: 0x2a2622,
-      emissiveIntensity: 0.035,
+      color: 0xe5e7e9,
+      emissive: 0x2a2b2e,
+      emissiveIntensity: 0.028,
     });
 
     const mattGeo = makeRoundedBox(2.0 * M2I, FUTON_H_M * M2I, 3.2 * M2I);
-    const pillGeoSm = makePillowGeo(0.82 * M2I, 0.22 * M2I, 0.56 * M2I);
-    const pillGeoWide = makePillowGeo(1.72 * M2I, 0.22 * M2I, 0.56 * M2I);
-    /** Крупнее базового чертежа — читаемость с дистанции в фазе Light */
-    const floorCushionGeo = makePillowGeo(1.14 * M2I, 0.28 * M2I, 1.14 * M2I);
+    const pillPlump = { px: 0.52, py: 0.56, pz: 0.52 };
+    const pillGeoSm = makePillowGeo(0.86 * M2I, 0.34 * M2I, 0.6 * M2I, pillPlump);
+    const pillGeoWide = makePillowGeo(1.76 * M2I, 0.32 * M2I, 0.6 * M2I, pillPlump);
+    /** Напольные: выше и пышнее, без «блина» */
+    const floorPlump = { px: 0.5, py: 0.58, pz: 0.5 };
+    const floorCushionGeo = makePillowGeo(1.22 * M2I, 0.48 * M2I, 1.22 * M2I, floorPlump);
 
     function makeFutonAssembly(xm, zm, rotY, mi, pillows, delaySteps, twist = 0) {
       const group = new THREE.Group();
@@ -2696,7 +2703,7 @@
         group.add(q);
       });
 
-      const pillowTopY = (FUTON_H_M + 0.11) * M2I;
+      const pillowTopY = (FUTON_H_M + 0.13) * M2I;
       const pm = pillowMats[mi % pillowMats.length].clone();
       if (pillows === 'two') {
         [-0.52 * M2I, 0.52 * M2I].forEach((px) => {
@@ -2724,7 +2731,7 @@
     function addFloorCushion(xLoc, zLoc, delaySteps, twist = 0, rotY = 0) {
       const mesh = new THREE.Mesh(floorCushionGeo, floorCushionMat);
       mesh.name = 'floorCushion';
-      mesh.position.set(xLoc, intFloorY + 0.15 * M2I, zLoc);
+      mesh.position.set(xLoc, intFloorY + 0.24 * M2I, zLoc);
       mesh.rotation.y = rotY;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
