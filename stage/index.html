@@ -1394,23 +1394,34 @@
       interiorGroup.scale.setScalar(scG);
 
       const riseSpan = 0.52;
-      interiorGroup.children.forEach((mesh) => {
-        const ud = mesh.userData;
+      function applyInteriorOpacity(root, ti, futonFade) {
+        const op = clamp(ti * 1.08 * futonFade, 0, 1);
+        root.traverse((obj) => {
+          if (obj.isMesh && obj.material && obj.material.opacity !== undefined) {
+            obj.material.opacity = op;
+            obj.material.transparent = obj.material.opacity < 0.995;
+          }
+        });
+      }
+      interiorGroup.children.forEach((node) => {
+        const ud = node.userData;
         if (!ud.interiorBase) return;
         const t0 = clamp((u - ud.interiorDelay) / riseSpan, 0, 1);
         const ti = interiorRiseEase(t0);
         const { bx, by, bz } = ud.interiorBase;
-        mesh.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
+        node.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
         const scM = 0.18 + 0.82 * ti;
-        mesh.scale.setScalar(scM);
-        if (mesh.material && mesh.material.opacity !== undefined) {
-          const futonFade = 1 - 0.4 * upliftBoost;
-          mesh.material.opacity = clamp(ti * 1.08 * futonFade, 0, 1);
-          mesh.material.transparent = mesh.material.opacity < 0.995;
+        node.scale.setScalar(scM);
+        const futonFade = 1 - 0.4 * upliftBoost;
+        if (node.isMesh && node.material && node.material.opacity !== undefined) {
+          node.material.opacity = clamp(ti * 1.08 * futonFade, 0, 1);
+          node.material.transparent = node.material.opacity < 0.995;
+        } else {
+          applyInteriorOpacity(node, ti, futonFade);
         }
         const baseRy = ud.interiorRotY ?? 0;
         const tw = ud.interiorTwist ?? 0;
-        mesh.rotation.y = baseRy + tw * (1 - ti);
+        node.rotation.y = baseRy + tw * (1 - ti);
       });
     }
   }
@@ -1617,6 +1628,18 @@
       if (twist) mesh.userData.interiorTwist = twist;
       mesh.scale.setScalar(0.18);
     }
+    function registerInteriorRiseGroup(group, delaySteps, twist = 0) {
+      group.traverse((obj) => {
+        if (obj.isMesh && obj.material && obj.material.clone) {
+          obj.material = obj.material.clone();
+        }
+      });
+      group.userData.interiorBase = { bx: group.position.x, by: group.position.y, bz: group.position.z };
+      group.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
+      group.userData.interiorRotY = group.rotation.y;
+      if (twist) group.userData.interiorTwist = twist;
+      group.scale.setScalar(0.18);
+    }
     let rngState = 20260410;
     function rnd() {
       rngState = (rngState * 1664525 + 1013904223) >>> 0;
@@ -1626,16 +1649,84 @@
       return a + rnd() * (b - a);
     }
 
-    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.15 * L, 0.19 * L, 0.72 * L), intMatBase);
-    /* Под пятном луча на полу (как pool / oculus в XZ); локально = мир / INTERIOR_SCALE */
-    lowTable.position.set(
+    /* Low DJ bench — proportions from low_dj_planning_design_sheet (wide monolithic top, three legs, decks) */
+    const benchTopMat = new THREE.MeshStandardMaterial({
+      color: 0xf3ead9,
+      roughness: 0.82,
+      metalness: 0.02,
+      envMapIntensity: 0.55,
+    });
+    const benchLegMat = new THREE.MeshStandardMaterial({
+      color: 0xe7dac1,
+      roughness: 0.8,
+      metalness: 0.03,
+      envMapIntensity: 0.52,
+    });
+    const deckMat = new THREE.MeshStandardMaterial({
+      color: 0x171513,
+      roughness: 0.42,
+      metalness: 0.12,
+      envMapIntensity: 0.35,
+    });
+    const cueMat = new THREE.MeshStandardMaterial({
+      color: 0x2f6bff,
+      roughness: 0.35,
+      metalness: 0.25,
+      emissive: 0x0a1a4a,
+      emissiveIntensity: 0.12,
+      envMapIntensity: 0.45,
+    });
+    const legH = 0.36 * L;
+    const topTy = 0.1 * L;
+    const topW = 1.52 * L;
+    const topD = 0.58 * L;
+    const legW = 0.2 * L;
+    const legD = 0.44 * L;
+    const lx = 0.41 * L;
+    const lowDjBooth = new THREE.Group();
+    const topSlab = new THREE.Mesh(new THREE.BoxGeometry(topW, topTy, topD), benchTopMat);
+    topSlab.position.y = legH + 0.5 * topTy;
+    lowDjBooth.add(topSlab);
+    function addLeg(x) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(legW, legH, legD), benchLegMat);
+      leg.position.set(x, 0.5 * legH, 0);
+      lowDjBooth.add(leg);
+    }
+    addLeg(-lx);
+    addLeg(0);
+    addLeg(lx);
+    const deckY = legH + topTy + 0.014 * L;
+    const deckT = 0.026 * L;
+    const deckZ = -0.04 * L;
+    const deckL = new THREE.Mesh(new THREE.BoxGeometry(0.34 * L, deckT, 0.38 * L), deckMat);
+    deckL.position.set(-0.38 * L, deckY, deckZ);
+    lowDjBooth.add(deckL);
+    const deckC = new THREE.Mesh(new THREE.BoxGeometry(0.33 * L, deckT * 1.08, 0.4 * L), deckMat);
+    deckC.position.set(0, deckY - 0.004 * L, deckZ + 0.012 * L);
+    lowDjBooth.add(deckC);
+    const deckR = new THREE.Mesh(new THREE.BoxGeometry(0.3 * L, deckT, 0.38 * L), deckMat);
+    deckR.position.set(0.37 * L, deckY, deckZ);
+    lowDjBooth.add(deckR);
+    const cue = new THREE.Mesh(new THREE.CylinderGeometry(0.028 * L, 0.028 * L, 0.018 * L, 14), cueMat);
+    cue.rotation.x = Math.PI / 2;
+    cue.position.set(0.06 * L, deckY + 0.012 * L, deckZ + 0.14 * L);
+    lowDjBooth.add(cue);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.022 * L, 0.022 * L, 0.55 * L, 8), deckMat);
+    cable.position.set(0.34 * L, legH * 0.35, 0.22 * L);
+    cable.rotation.z = 0.52;
+    cable.rotation.x = 0.28;
+    lowDjBooth.add(cable);
+    /* Центр бутика по вертикали как у прежнего стола; локально = мир / INTERIOR_SCALE */
+    const boothFullH = legH + topTy;
+    const tableCenterY = 0.095 * L * invS;
+    lowDjBooth.position.set(
       OCULUS_CENTER_X / INTERIOR_SCALE,
-      0.095 * L * invS,
+      tableCenterY - 0.5 * boothFullH,
       OCULUS_CENTER_Z / INTERIOR_SCALE
     );
-    lowTable.rotation.y = Math.atan2(OCULUS_CENTER_X, OCULUS_CENTER_Z) + rndRange(-0.12, 0.12);
-    registerInteriorRise(lowTable, 0, -0.06);
-    interiorGroup.add(lowTable);
+    lowDjBooth.rotation.y = Math.atan2(OCULUS_CENTER_X, OCULUS_CENTER_Z) + rndRange(-0.1, 0.1);
+    registerInteriorRiseGroup(lowDjBooth, 0, -0.06);
+    interiorGroup.add(lowDjBooth);
 
     const futonPlaced = [];
     const mPerWorldUnit = 24 / (2 * DIAMOND_R);
