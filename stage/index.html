@@ -633,6 +633,12 @@
     const dt = options.dt ?? 0.26;
     const damping = options.damping ?? 0.997;
     const gY = options.gravityY ?? -0.016 * TENT_SCALE;
+    /** Dimensionless convex lift vs flat IDW (tensioned inflated canopy) */
+    const convexBulgeAmp = options.convexBulgeAmp ?? 0;
+    /** Low undulation between peaks / perimeter (subtle height variation) */
+    const undulationAmp = options.undulationAmp ?? 0;
+    /** Per-iteration upward bias on interior (keeps volume under gravity) */
+    const inflateK = options.inflateK ?? 0;
     const uEps = 2.1 / Math.max(nu, nv);
     const anchorY = anchorPoints[0].y;
 
@@ -689,11 +695,20 @@
         const ii = idx(i, j);
         const { x, z } = diamondUvToXz(u, v, R);
         const y0 = idwY(x, z);
+        const man = Math.abs(u - 0.5) + Math.abs(v - 0.5);
+        const centerLift = Math.pow(Math.max(0, 1 - man * 1.02), 1.42);
+        const convexY = convexBulgeAmp * TENT_SCALE * centerLift;
+        const und =
+          undulationAmp * TENT_SCALE * centerLift *
+          Math.sin(u * Math.PI * 2 * 2.05 + 0.31) *
+          Math.sin(v * Math.PI * 2 * 1.68 - 0.22);
         const b = ii * 3;
         pos[b] = x;
         pos[b + 1] = y0
-          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.0055 * TENT_SCALE
-          + Math.cos(v * 5.8 - u * 1.7) * 0.0045 * TENT_SCALE;
+          + convexY
+          + und
+          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.0082 * TENT_SCALE
+          + Math.cos(v * 5.8 - u * 1.7) * 0.0068 * TENT_SCALE;
         pos[b + 2] = z;
 
         let kind = 0;
@@ -782,6 +797,19 @@
       for (let vi = 0; vi < count; vi++) {
         if (pinned[vi]) continue;
         acc[vi * 3 + 1] += gY;
+      }
+
+      if (inflateK > 0) {
+        for (let vi = 0; vi < count; vi++) {
+          if (pinned[vi]) continue;
+          const i = vi % (nu + 1);
+          const j = (vi / (nu + 1)) | 0;
+          const uu = i / nu;
+          const vv = j / nv;
+          const manI = Math.abs(uu - 0.5) + Math.abs(vv - 0.5);
+          const wt = Math.pow(Math.max(0, 1 - manI * 1.05), 1.28);
+          acc[vi * 3 + 1] += inflateK * TENT_SCALE * wt;
+        }
       }
 
       for (let vi = 0; vi < count; vi++) {
@@ -1209,10 +1237,13 @@
     const tensile = generateTensileSurface(anchorPoints, mastData, {
       nu: 78,
       nv: 78,
-      iterations: 188,
-      gravityY: -0.0042 * TENT_SCALE,
-      kStructural: 1.14,
-      kShear: 0.46,
+      iterations: 218,
+      gravityY: -0.0029 * TENT_SCALE,
+      kStructural: 1.02,
+      kShear: 0.41,
+      convexBulgeAmp: 0.062,
+      undulationAmp: 0.0082,
+      inflateK: 0.0058,
     });
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
@@ -1406,10 +1437,10 @@
     { pos: [700, 245, 140], look: [0, 115, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [600, 165, 520], look: [0, 72, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
     { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    /** Interior (конец фазы): камера уже внутри ромба по XZ, взгляд по объёму, не снаружи шатра */
-    { pos: [46, 70, 72], look: [-28, 112, -58], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
-    /** Sky: тот же внутренний объём — чуть выше/к окуляру, стены по периферии кадра */
-    { pos: [42, 84, 68], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /** Interior (финал): внутри ромба, кадр на low DJ booth (OCULUS_CENTER), взгляд на стол/пульты */
+    { pos: [-43, 73, 27], look: [-74, 15, 46], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    /** Sky: тот же объём — чуть выше, взгляд к окуляру; XZ остаются внутри шатра */
+    { pos: [-41, 84, 25], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
   ];
 
   const NSEG = 6;
