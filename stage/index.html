@@ -166,7 +166,7 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Open coastal ground — square bed-tent, four corner piles, sheer walls</p>
+    <p>Minimal sand field — square bed-tent, four corner piles, sheer walls</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
@@ -198,10 +198,6 @@
   <script type="module">
   import * as THREE from 'three';
   import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-  import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-  import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
-
-  const HDR_URL = 'https://threejs.org/examples/textures/equirectangular/blouberg_sunrise_2_1k.hdr';
 
   let scene, camera, renderer;
   let canopyGroup, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
@@ -212,8 +208,6 @@
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 4;
-  const GP_HEIGHT = 16;
-  const GP_RADIUS = 120 * TENT_SCALE;
 
   const SQ_N = 4;
   const N_MASTS = SQ_N;
@@ -266,6 +260,77 @@
     t = clamp(t, 0, 1);
     const s = t * t * (3 - 2 * t);
     return Math.min(1, s + Math.sin(s * Math.PI) * 0.08);
+  }
+
+  /** Soft sand grain for ground plane (minimal, no photo texture) */
+  function makeSandPlaneTexture() {
+    const w = 512;
+    const h = 512;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 18;
+      const v = 205 + n;
+      d[i] = v + (Math.random() - 0.5) * 8;
+      d[i + 1] = v - 12 + (Math.random() - 0.5) * 8;
+      d[i + 2] = v - 28 + (Math.random() - 0.5) * 6;
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    for (let k = 0; k < 1200; k++) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      ctx.fillRect(x, y, 1.2, 1.2);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    return tex;
+  }
+
+  function setupMinimalSandWorld(renderer, scene) {
+    scene.background = new THREE.Color(0xeae3d8);
+    const fogCol = 0xe6dfd4;
+    scene.fog = new THREE.Fog(fogCol, 85 * TENT_SCALE, 820 * TENT_SCALE);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envScene = new THREE.Scene();
+    envScene.add(new THREE.AmbientLight(0xfff6ec, 0.62));
+    const ed = new THREE.DirectionalLight(0xfff2e0, 0.95);
+    ed.position.set(2.2, 3.5, 1.4);
+    envScene.add(ed);
+    envScene.add(new THREE.Mesh(
+      new THREE.SphereGeometry(90, 36, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xf2ece4,
+        roughness: 1,
+        metalness: 0,
+        side: THREE.BackSide,
+      })
+    ));
+    scene.environment = pmrem.fromScene(envScene, 0).texture;
+    pmrem.dispose();
+
+    const sandMap = makeSandPlaneTexture();
+    sandMap.wrapS = sandMap.wrapT = THREE.RepeatWrapping;
+    sandMap.repeat.set(56, 56);
+    const sandMat = new THREE.MeshStandardMaterial({
+      color: 0xd4c4a8,
+      map: sandMap,
+      roughness: 0.93,
+      metalness: 0,
+      envMapIntensity: 0.28,
+    });
+    const sand = new THREE.Mesh(new THREE.PlaneGeometry(3400, 3400, 1, 1), sandMat);
+    sand.rotation.x = -Math.PI / 2;
+    sand.position.y = -0.04;
+    scene.add(sand);
   }
 
   /** Procedural cotton / percale sheet look (diffuse + bump) */
@@ -669,38 +734,29 @@
     }
   }
 
-  async function init() {
+  function init() {
     applyDeviceProfile();
 
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.02;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 4000);
 
-    const envMap = await new Promise((resolve, reject) => {
-      new RGBELoader().load(HDR_URL, resolve, undefined, reject);
-    });
-    envMap.mapping = THREE.EquirectangularReflectionMapping;
+    setupMinimalSandWorld(renderer, scene);
 
-    const skybox = new GroundedSkybox(envMap, GP_HEIGHT, GP_RADIUS, 112);
-    skybox.position.y = GP_HEIGHT - 0.01;
-    scene.add(skybox);
-    scene.environment = envMap;
-    scene.background = null;
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.06));
-    scene.add(new THREE.HemisphereLight(0xc8e0f0, 0xc4b898, 0.4));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 0.95);
-    sun.position.set(22, 48, 14);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.07));
+    scene.add(new THREE.HemisphereLight(0xf2f0ec, 0xd2c4b0, 0.42));
+    const sun = new THREE.DirectionalLight(0xfff4e8, 0.88);
+    sun.position.set(38, 72, 22);
     scene.add(sun);
-    const fillSun = new THREE.DirectionalLight(0xd8e8ff, 0.22);
-    fillSun.position.set(-12, 18, -8);
+    const fillSun = new THREE.DirectionalLight(0xe8ecf0, 0.12);
+    fillSun.position.set(-18, 28, -14);
     scene.add(fillSun);
 
     canopyGroup = new THREE.Group();
@@ -709,7 +765,7 @@
     const bedding = makeBeddingFabricTextures();
     const maxAni = Math.min(16, renderer.capabilities.getMaxAnisotropy());
     bedding.map.anisotropy = maxAni;
-    const sqTent = createSquareBedTent(bedding, envMap);
+    const sqTent = createSquareBedTent(bedding, scene.environment);
     squareBedTentGroup = sqTent.group;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
@@ -731,7 +787,7 @@
       color: 0x9a9590,
       roughness: 0.55,
       metalness: 0.35,
-      envMapIntensity: 1.0,
+      envMapIntensity: 0.72,
     };
     mastGroup = new THREE.Group();
     const postRadT = mastRadTop[0];
@@ -950,12 +1006,14 @@
     requestAnimationFrame(tick);
   }
 
-  init().catch((err) => {
+  try {
+    init();
+  } catch (err) {
     console.error(err);
     const dot = document.getElementById('loader-dot');
     if (dot) dot.remove();
-    loader.textContent = 'HDR / WebGL failed to load. Use HTTPS or check network.';
-  });
+    loader.textContent = 'WebGL failed to start. Try another browser or GPU.';
+  }
   </script>
 </body>
 </html>
