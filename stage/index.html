@@ -7,11 +7,11 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { background: #0a0a0c; }
+    html { background: #1a1f1c; }
     body {
       height: 480vh;
       min-height: 480vh;
-      background: #0a0a0c;
+      background: #1a1f1c;
     }
 
     canvas {
@@ -26,7 +26,7 @@
 
     #loader {
       position: fixed; inset: 0; z-index: 100;
-      background: #0a0a0c;
+      background: #1a1f1c;
       display: flex; align-items: center; justify-content: center;
       transition: opacity 0.9s ease;
     }
@@ -269,8 +269,8 @@
     return Math.min(1, s + Math.sin(s * Math.PI) * 0.08);
   }
 
-  /** Soft sand grain for ground plane (minimal, no photo texture) */
-  function makeSandPlaneTexture() {
+  /** Forest clearing: soft daylight, ground, no empty-field read */
+  function makeForestGroundTexture() {
     const w = 512;
     const h = 512;
     const c = document.createElement('canvas');
@@ -280,42 +280,89 @@
     const img = ctx.createImageData(w, h);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
-      const n = (Math.random() - 0.5) * 18;
-      const v = 205 + n;
-      d[i] = v + (Math.random() - 0.5) * 8;
-      d[i + 1] = v - 12 + (Math.random() - 0.5) * 8;
-      d[i + 2] = v - 28 + (Math.random() - 0.5) * 6;
+      const px = (i / 4) % w;
+      const py = (i / 4 / w) | 0;
+      const n = (Math.sin(px * 0.08) + Math.sin(py * 0.07)) * 6;
+      const v = 118 + n + (Math.random() - 0.5) * 14;
+      d[i] = clamp(v - 8, 60, 200);
+      d[i + 1] = clamp(v + 18, 80, 220);
+      d[i + 2] = clamp(v - 22, 50, 160);
       d[i + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    for (let k = 0; k < 1200; k++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      ctx.fillRect(x, y, 1.2, 1.2);
-    }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
     return tex;
   }
 
-  function setupMinimalSandWorld(renderer, scene) {
-    scene.background = new THREE.Color(0xeae3d8);
-    const fogCol = 0xe6dfd4;
-    scene.fog = new THREE.Fog(fogCol, 85 * TENT_SCALE, 820 * TENT_SCALE);
+  function buildForestTreeRing() {
+    const grp = new THREE.Group();
+    const n = 136;
+    const ts = TENT_SCALE / 16;
+    const trunkGeo = new THREE.CylinderGeometry(0.36 * ts, 0.52 * ts, 10.5 * ts, 5, 1);
+    trunkGeo.translate(0, 5.25 * ts, 0);
+    const crownGeo = new THREE.DodecahedronGeometry(4.4 * ts, 0);
+    crownGeo.translate(0, 13.2 * ts, 0);
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x3a352c,
+      roughness: 0.94,
+      metalness: 0,
+      envMapIntensity: 0.16,
+    });
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0x2d4236,
+      roughness: 0.93,
+      metalness: 0,
+      envMapIntensity: 0.2,
+      flatShading: true,
+    });
+    const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, n);
+    const crowns = new THREE.InstancedMesh(crownGeo, crownMat, n);
+    const dummy = new THREE.Object3D();
+    const minR = DIAMOND_R * 1.36 + 22;
+    const maxR = 920;
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = minR + Math.random() * (maxR - minR);
+      const x = Math.cos(ang) * rad;
+      const z = Math.sin(ang) * rad;
+      const sc = 0.72 + Math.random() * 1.05;
+      dummy.position.set(x, 0, z);
+      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.rotation.x = (Math.random() - 0.5) * 0.06;
+      dummy.rotation.z = (Math.random() - 0.5) * 0.05;
+      dummy.scale.setScalar(sc);
+      dummy.updateMatrix();
+      trunks.setMatrixAt(i, dummy.matrix);
+      crowns.setMatrixAt(i, dummy.matrix);
+    }
+    trunks.instanceMatrix.needsUpdate = true;
+    crowns.instanceMatrix.needsUpdate = true;
+    trunks.castShadow = false;
+    crowns.castShadow = false;
+    grp.add(trunks, crowns);
+    return grp;
+  }
+
+  function setupForestClearingWorld(renderer, scene) {
+    scene.background = new THREE.Color(0xd4ddd4);
+    const fogCol = 0xc5d1c8;
+    scene.fog = new THREE.Fog(fogCol, 95 * TENT_SCALE, 780 * TENT_SCALE);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new THREE.Scene();
-    envScene.add(new THREE.AmbientLight(0xfff6ec, 0.62));
-    const ed = new THREE.DirectionalLight(0xfff2e0, 0.95);
-    ed.position.set(2.2, 3.5, 1.4);
+    envScene.add(new THREE.AmbientLight(0xeef4ea, 0.55));
+    const ed = new THREE.DirectionalLight(0xfff5e6, 0.72);
+    ed.position.set(2.4, 4.2, 1.2);
     envScene.add(ed);
+    envScene.add(new THREE.HemisphereLight(0xe8f0e8, 0x7a8f78, 0.35));
     envScene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(180, 36, 18),
+      new THREE.SphereGeometry(200, 32, 16),
       new THREE.MeshStandardMaterial({
-        color: 0xf2ece4,
+        color: 0xe2ebe4,
         roughness: 1,
         metalness: 0,
         side: THREE.BackSide,
@@ -324,20 +371,21 @@
     scene.environment = pmrem.fromScene(envScene, 0).texture;
     pmrem.dispose();
 
-    const sandMap = makeSandPlaneTexture();
-    sandMap.wrapS = sandMap.wrapT = THREE.RepeatWrapping;
-    sandMap.repeat.set(56, 56);
-    const sandMat = new THREE.MeshStandardMaterial({
-      color: 0xd4c4a8,
-      map: sandMap,
-      roughness: 0.93,
+    const groundMap = makeForestGroundTexture();
+    groundMap.repeat.set(48, 48);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x8f9a86,
+      map: groundMap,
+      roughness: 0.96,
       metalness: 0,
-      envMapIntensity: 0.28,
+      envMapIntensity: 0.22,
     });
-    const sand = new THREE.Mesh(new THREE.PlaneGeometry(6800, 6800, 1, 1), sandMat);
-    sand.rotation.x = -Math.PI / 2;
-    sand.position.y = -0.04;
-    scene.add(sand);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(7200, 7200, 1, 1), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.06;
+    scene.add(ground);
+
+    scene.add(buildForestTreeRing());
   }
 
   /** Procedural cotton / percale sheet look (diffuse + bump) */
@@ -761,7 +809,7 @@
           let z = top.z + (bot.z - top.z) * t;
           const hl = Math.hypot(x, z) + 1e-6;
           const sWave = Math.sin((u / nU) * Math.PI * 2 * 3.1 + v * 0.35);
-          const bulge = Math.sin(Math.PI * t) * (0.092 + 0.05 * sWave) * TENT_SCALE;
+          const bulge = Math.sin(Math.PI * t) * (0.104 + 0.056 * sWave) * TENT_SCALE;
           x += (x / hl) * bulge;
           z += (z / hl) * bulge;
           y += Math.sin(Math.PI * t) * 0.038 * TENT_SCALE * Math.cos((u / nU) * Math.PI * 4 + 0.7);
@@ -958,8 +1006,9 @@
 
     const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
     const wallMem = generateWallMembrane(tensile.ceilingRing, wallAnchors, {
-      nV: 26,
-      iterations: 155,
+      nV: 28,
+      iterations: 168,
+      outwardBias: 0.013 * TENT_SCALE,
     });
 
     const roofBumpRep = 3.2;
@@ -967,24 +1016,36 @@
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
     rBump.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
     const roofMat = new THREE.MeshStandardMaterial({
-      color: 0xf5f0e6,
+      color: 0xede6d8,
       map: bedding.map,
       bumpMap: rBump,
-      bumpScale: 0.018 * (TENT_SCALE / 4),
-      roughness: 0.88,
+      bumpScale: 0.016 * (TENT_SCALE / 4),
+      roughness: 0.93,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.42,
-      emissive: new THREE.Color(0x2a2418),
-      emissiveIntensity: 0.028,
+      envMapIntensity: 0.32,
+      emissive: new THREE.Color(0xf4efe5),
+      emissiveIntensity: 0.035,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.62,
+      opacity: 0.58,
       depthWrite: false,
     });
 
     const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
     g.add(roofMesh);
+
+    const roofVeilGeo = tensile.geometry.clone();
+    const roofVeilMat = roofMat.clone();
+    roofVeilMat.opacity = 0.34;
+    roofVeilMat.emissiveIntensity = 0.048;
+    roofVeilMat.envMapIntensity = 0.26;
+    roofVeilMat.depthWrite = false;
+    const roofVeilMesh = new THREE.Mesh(roofVeilGeo, roofVeilMat);
+    roofVeilMesh.position.y = 4.15 * TENT_SCALE;
+    roofVeilMesh.scale.set(1.042, 1, 1.042);
+    roofVeilMesh.rotation.y = 0.011;
+    g.add(roofVeilMesh);
 
     const wallBumpRep = 4.2;
     const wBump = bedding.bumpMap.clone();
@@ -993,25 +1054,69 @@
     const wallMap = bedding.map.clone();
     wallMap.repeat.set(5.5, 4.2);
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0xf3eee4,
+      color: 0xe8e0d4,
       map: wallMap,
       bumpMap: wBump,
-      bumpScale: 0.02 * (TENT_SCALE / 4),
-      roughness: 0.9,
+      bumpScale: 0.021 * (TENT_SCALE / 4),
+      roughness: 0.94,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.38,
-      emissive: new THREE.Color(0x221c14),
-      emissiveIntensity: 0.022,
+      envMapIntensity: 0.3,
+      emissive: new THREE.Color(0xeee8dc),
+      emissiveIntensity: 0.026,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.48,
       depthWrite: false,
     });
     const wallMesh = new THREE.Mesh(wallMem.geometry, wallMat);
     g.add(wallMesh);
 
-    const fabricMaterials = [roofMat, wallMat];
+    const fR = DIAMOND_R * 0.996;
+    const floorShape = new THREE.Shape();
+    floorShape.moveTo(0, -fR);
+    floorShape.lineTo(fR, 0);
+    floorShape.lineTo(0, fR);
+    floorShape.lineTo(-fR, 0);
+    floorShape.closePath();
+    const floorGeo = new THREE.ShapeGeometry(floorShape, 36);
+    floorGeo.rotateX(-Math.PI / 2);
+    const fPos = floorGeo.attributes.position;
+    const foldAmp = 0.11 * TENT_SCALE;
+    for (let i = 0; i < fPos.count; i++) {
+      const x = fPos.getX(i);
+      const y = fPos.getY(i);
+      const z = fPos.getZ(i);
+      const w = Math.sin(x * 0.0092 + z * 0.0076) * Math.cos(z * 0.011 - x * 0.004);
+      fPos.setY(i, y + foldAmp * w);
+    }
+    fPos.needsUpdate = true;
+    floorGeo.computeVertexNormals();
+    const floorTex = bedding.map.clone();
+    floorTex.repeat.set(6.2, 6.2);
+    const fBump = bedding.bumpMap.clone();
+    fBump.repeat.set(7, 7);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xe5dccf,
+      map: floorTex,
+      bumpMap: fBump,
+      bumpScale: 0.024 * (TENT_SCALE / 4),
+      roughness: 0.95,
+      metalness: 0,
+      envMap,
+      envMapIntensity: 0.24,
+      emissive: new THREE.Color(0xddd5c8),
+      emissiveIntensity: 0.018,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+    });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.position.y = 0.1 * TENT_SCALE;
+    g.add(floorMesh);
+
+    const fabricMaterials = [roofMat, roofVeilMat, wallMat, floorMat];
 
     return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: null };
   }
@@ -1171,10 +1276,9 @@
       const settleFade = 1 - ss(clamp(p / 0.38, 0, 1));
       squareBedTentGroup.position.y = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
       const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
-      const roofSheer = 0.66;
-      const wallSheer = 0.54;
+      const fabricSheer = [0.64, 0.36, 0.5, 0.46];
       squareFabricMats.forEach((m, mi) => {
-        const sheer = mi === 0 ? roofSheer : wallSheer;
+        const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
         m.opacity = Math.min(1, baseOp * sheer);
         m.transparent = true;
       });
@@ -1185,8 +1289,8 @@
 
     if (mainSun && hemiMain) {
       const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
-      mainSun.intensity = lerp(0.88, 0.58, uDim);
-      hemiMain.intensity = lerp(0.42, 0.34, uDim);
+      mainSun.intensity = lerp(0.68, 0.48, uDim);
+      hemiMain.intensity = lerp(0.48, 0.38, uDim);
     }
 
     const mastS = lerp(A.mast, B.mast, t);
@@ -1286,23 +1390,23 @@
     renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    renderer.toneMappingExposure = 0.96;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 14000);
 
-    setupMinimalSandWorld(renderer, scene);
+    setupForestClearingWorld(renderer, scene);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.07));
-    hemiMain = new THREE.HemisphereLight(0xf2f0ec, 0xd2c4b0, 0.42);
+    scene.add(new THREE.AmbientLight(0xeef2ea, 0.09));
+    hemiMain = new THREE.HemisphereLight(0xeef2ea, 0xa8b8a5, 0.48);
     scene.add(hemiMain);
-    mainSun = new THREE.DirectionalLight(0xfff4e8, 0.88);
-    mainSun.position.set(76, 144, 44);
+    mainSun = new THREE.DirectionalLight(0xfff6e8, 0.68);
+    mainSun.position.set(58, 132, 52);
     scene.add(mainSun);
-    const fillSun = new THREE.DirectionalLight(0xe8ecf0, 0.12);
-    fillSun.position.set(-36, 56, -28);
+    const fillSun = new THREE.DirectionalLight(0xd8eadc, 0.16);
+    fillSun.position.set(-42, 62, -32);
     scene.add(fillSun);
 
     canopyGroup = new THREE.Group();
@@ -1330,10 +1434,10 @@
     scene.add(oculus);
 
     const mastStd = {
-      color: 0x9a9590,
-      roughness: 0.55,
-      metalness: 0.35,
-      envMapIntensity: 0.72,
+      color: 0x4a4744,
+      roughness: 0.62,
+      metalness: 0.22,
+      envMapIntensity: 0.38,
     };
     mastGroup = new THREE.Group();
     const postRadT = mastRadTop[0];
@@ -1446,10 +1550,10 @@
       opacity: 0,
     });
     const futonMatBase = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.88,
+      color: 0xf5f1ea,
+      roughness: 0.9,
       metalness: 0,
-      envMapIntensity: 0.5,
+      envMapIntensity: 0.42,
       transparent: true,
       opacity: 0,
     });
@@ -1476,9 +1580,9 @@
     interiorGroup.add(lowTable);
 
     const futonPlaced = [];
-    const futonMinSep = 1.12 * L * invS;
-    const futonHubExcl = 0.78 * L * invS;
-    const futonMaxReach = 4.2 * L * invS;
+    const futonMinSep = 1.52 * L * invS;
+    const futonHubExcl = 0.62 * L * invS;
+    const futonMaxReach = 4.55 * L * invS;
     function futonSpotFree(x, z) {
       if (Math.hypot(x, z) < futonHubExcl) return false;
       if (Math.abs(x) + Math.abs(z) > futonMaxReach * 1.02) return false;
@@ -1488,12 +1592,12 @@
       }
       return true;
     }
-    const nFutons = 11;
+    const nFutons = 21;
     for (let fi = 0; fi < nFutons; fi++) {
       let x = 0;
       let z = 0;
       let placed = false;
-      for (let att = 0; att < 95 && !placed; att++) {
+      for (let att = 0; att < 140 && !placed; att++) {
         const ang = rnd() * Math.PI * 2 + fi * 0.73;
         const rad = futonHubExcl + rnd() * (futonMaxReach - futonHubExcl);
         const squash = 0.68 + rnd() * 0.48;
