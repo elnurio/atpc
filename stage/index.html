@@ -203,8 +203,7 @@
 
   const HDR_URL = 'https://threejs.org/examples/textures/equirectangular/blouberg_sunrise_2_1k.hdr';
 
-  /* Taller projection pushes distant ground/houses down; sky map is cropped separately. */
-  const GP_HEIGHT = 22;
+  const GP_HEIGHT = 16;
   const GP_RADIUS = 240;
 
   let scene, camera, renderer;
@@ -214,40 +213,41 @@
   let radialCables;
   let interiorGroup;
 
-  /* Scale study from tent-japanese-concept.pdf: 30–40 m span, main mast 12 m, sub-masts, ø80 cm oculus, 8–10 anchors, asymmetric hub */
-  const T_OUTER = 10.08;
-  const T_H = 8.12;
+  /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
+  const TENT_SCALE = 2;
+  const T_OUTER = 10.08 * TENT_SCALE;
+  const T_H = 8.12 * TENT_SCALE;
   const N_FOLD = 8;
   const N_MASTS = 8;
-  const MAST_MAIN_H = 12;
-  const MAST_SUB2_H = 9.1;
-  const MAST_SUB_H = 7.5;
+  const MAST_MAIN_H = 12 * TENT_SCALE;
+  const MAST_SUB2_H = 9.1 * TENT_SCALE;
+  const MAST_SUB_H = 7.5 * TENT_SCALE;
   const mastHeights = [MAST_MAIN_H, MAST_SUB2_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H, MAST_SUB_H];
-  const mastRadTop = [0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03];
-  const mastRadBot = [0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03];
-  function mastTopY(i) { return mastHeights[i] - 0.05; }
+  const mastRadTop = [0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03].map((r) => r * TENT_SCALE);
+  const mastRadBot = [0.05, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03].map((r) => r * TENT_SCALE);
+  function mastTopY(i) { return mastHeights[i] - 0.05 * TENT_SCALE; }
   const MAST_TOP_MAX = mastTopY(0);
 
-  const OCULUS_MAJOR = 0.34;
-  const OCULUS_TUBE = 0.038;
+  const OCULUS_MAJOR = 0.34 * TENT_SCALE;
+  const OCULUS_TUBE = 0.038 * TENT_SCALE;
   const OCULUS_APERTURE_R = OCULUS_MAJOR - OCULUS_TUBE;
-  const OCULUS_Y_LOCAL = T_H - 0.1;
-  const HUB_OFS_X = 1.95;
-  const HUB_OFS_Z = 0.52;
+  const OCULUS_Y_LOCAL = T_H - 0.1 * TENT_SCALE;
+  const HUB_OFS_X = 1.95 * TENT_SCALE;
+  const HUB_OFS_Z = 0.52 * TENT_SCALE;
 
-  const RAY_LEN_SKY = 72;
-  const RAY_LEN_BELOW = 22;
-  const RAY_R_SKY = 2.35;
+  const RAY_LEN_SKY = 72 * TENT_SCALE;
+  const RAY_LEN_BELOW = 22 * TENT_SCALE;
+  const RAY_R_SKY = 2.35 * TENT_SCALE;
   const RAY_R_IN_BASE = OCULUS_APERTURE_R * 0.99;
-  const RAY_R_IN_FLOOR = 0.44;
+  const RAY_R_IN_FLOOR = 0.44 * TENT_SCALE;
 
   function tentH(v, u) {
     const vn = Math.max(0, Math.min(1, v));
     const hub = T_H * Math.pow(1.0 - vn, 0.72);
     const w = Math.max(0, 0.5 * (1.0 + Math.cos(N_FOLD * u)));
-    const sagBetweenCables = -1.28 * vn * vn * Math.pow(w, 1.42);
-    const radialPleat = 0.36 * vn * (1.0 - vn) * Math.sin(N_FOLD * 2 * u + vn * 2.9);
-    const fineRipple = 0.16 * vn * Math.sin(N_FOLD * 3 * u + vn * 10.0);
+    const sagBetweenCables = -1.28 * TENT_SCALE * vn * vn * Math.pow(w, 1.42);
+    const radialPleat = 0.36 * TENT_SCALE * vn * (1.0 - vn) * Math.sin(N_FOLD * 2 * u + vn * 2.9);
+    const fineRipple = 0.16 * TENT_SCALE * vn * Math.sin(N_FOLD * 3 * u + vn * 10.0);
     return hub + sagBetweenCables + radialPleat + fineRipple;
   }
 
@@ -258,18 +258,18 @@
     return vn * T_OUTER * ridge * (1 + 0.06 * Math.sin(N_FOLD * 2 * u + vn * Math.PI));
   }
 
-  const MAST_R = 11.12;
-  const RIM_R = 9.88;
-  const RIM_Y_LOCAL = 0.08;
+  const MAST_R = 11.12 * TENT_SCALE;
+  const RIM_R = 9.88 * TENT_SCALE;
+  const RIM_Y_LOCAL = 0.08 * TENT_SCALE;
 
-  const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46;
+  const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
   const FABRIC_N = 8;
   const FABRIC_INNER_R = OCULUS_APERTURE_R * 0.96;
   /* Membrane only from Profile onward: flies down from above during 0.4 → 0.6 scroll */
   const FABRIC_SCROLL_START = 0.4;
   const FABRIC_SCROLL_END = 0.6;
-  const FABRIC_FLY_OFFSET = 36;
+  const FABRIC_FLY_OFFSET = 36 * TENT_SCALE;
   /* Interior props fade in as you approach Beams / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
@@ -358,8 +358,8 @@
   function createCableFabricGeometry() {
     const N = FABRIC_N;
     const ang0 = Math.PI / 16;
-    const yRim = 30 + RIM_Y_LOCAL;
-    const yIn = 30 + OCULUS_Y_LOCAL;
+    const yRim = 30 * TENT_SCALE + RIM_Y_LOCAL;
+    const yIn = 30 * TENT_SCALE + OCULUS_Y_LOCAL;
     const pos = [];
     const uvs = [];
     for (let i = 0; i < N; i++) {
@@ -419,14 +419,14 @@
     fabricGeo.computeVertexNormals();
   }
 
-  /* Camera stays back: ~45–60 m from axis — full ring of masts + canopy in frame */
+  /* Camera scaled with TENT_SCALE — same framing vs larger ring */
   const KF = [
-    { pos: [48, 32, 42], look: [0, 10, 0], canopyY: 33, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
-    { pos: [44, 26, 46], look: [0, 8.5, 0], canopyY: 35, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
-    { pos: [54, 22, 8], look: [0, 9, 0], canopyY: 38.5, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
-    { pos: [46, 14, 40], look: [0, 5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [40, 20, 40], look: [0, 5.5, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [16.5, 3.35, 21], look: [0, 4.6, -6.5], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [96, 64, 84], look: [0, 20, 0], canopyY: 66, tFade: 0.55, beam: 0, rays: 0, shadow: 0, cable: 0.08, mast: 0, oculusOp: 0 },
+    { pos: [88, 52, 92], look: [0, 17, 0], canopyY: 70, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
+    { pos: [108, 44, 16], look: [0, 18, 0], canopyY: 77, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
+    { pos: [92, 28, 80], look: [0, 10, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
+    { pos: [80, 40, 80], look: [0, 11, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    { pos: [33, 6.7, 42], look: [0, 9.2, -13], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
   ];
 
   const NSEG = 5;
@@ -599,7 +599,7 @@
     poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
 
     const oculusWorldY = canopyGroup.position.y + OCULUS_Y_LOCAL;
-    bGrp.position.set(HUB_OFS_X, oculusWorldY + 1.4, HUB_OFS_Z);
+    bGrp.position.set(HUB_OFS_X, oculusWorldY + 1.4 * TENT_SCALE, HUB_OFS_Z);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
     rayGrp.position.set(0, 0, 0);
@@ -692,15 +692,7 @@
     });
     envMap.mapping = THREE.EquirectangularReflectionMapping;
 
-    const skyMap = envMap.clone();
-    skyMap.mapping = THREE.EquirectangularReflectionMapping;
-    skyMap.wrapS = THREE.RepeatWrapping;
-    skyMap.wrapT = THREE.ClampToEdgeWrapping;
-    skyMap.repeat.set(1, 0.52);
-    skyMap.offset.set(0, 0.29);
-    skyMap.needsUpdate = true;
-
-    const skybox = new GroundedSkybox(skyMap, GP_HEIGHT, GP_RADIUS, 112);
+    const skybox = new GroundedSkybox(envMap, GP_HEIGHT, GP_RADIUS, 112);
     skybox.position.y = GP_HEIGHT - 0.01;
     scene.add(skybox);
     scene.environment = envMap;
@@ -768,16 +760,16 @@
 
       const topY = mastTopY(i);
       const cap = new THREE.Mesh(
-        new THREE.BoxGeometry(0.34, 0.1, 0.46),
+        new THREE.BoxGeometry(0.34 * TENT_SCALE, 0.1 * TENT_SCALE, 0.46 * TENT_SCALE),
         new THREE.MeshStandardMaterial({ ...mastStd, metalness: 0.5 })
       );
-      cap.position.set(Math.cos(ang) * (MAST_R - 0.02), topY, Math.sin(ang) * (MAST_R - 0.02));
+      cap.position.set(Math.cos(ang) * (MAST_R - 0.02 * TENT_SCALE), topY, Math.sin(ang) * (MAST_R - 0.02 * TENT_SCALE));
       cap.lookAt(0, topY, 0);
       mastGroup.add(cap);
     }
     scene.add(mastGroup);
     scene.add(fabricMesh);
-    updateCableFabricHeights(33);
+    updateCableFabricHeights(33 * TENT_SCALE);
 
     cableMat = new THREE.LineBasicMaterial({
       color: 0x3a3835,
@@ -790,7 +782,7 @@
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
     scene.add(cableLines);
 
-    const hubCY = T_H - 0.28;
+    const hubCY = T_H - 0.28 * TENT_SCALE;
     const radialVerts = [];
     for (let i = 0; i < N_FOLD; i++) {
       const u = (i / N_FOLD) * Math.PI * 2 + Math.PI / 16;
@@ -811,13 +803,13 @@
       opacity: 0,
       envMapIntensity: 0.9,
     });
-    hubRing = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_APERTURE_R * 0.9, 0.016, 10, 40), hubRingMat);
-    hubRing.position.set(HUB_OFS_X, T_H - 0.08, HUB_OFS_Z);
+    hubRing = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_APERTURE_R * 0.9, 0.016 * TENT_SCALE, 10, 40), hubRingMat);
+    hubRing.position.set(HUB_OFS_X, T_H - 0.08 * TENT_SCALE, HUB_OFS_Z);
     hubRing.rotation.x = Math.PI / 2;
     canopyGroup.add(hubRing);
 
     shadowDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(14.6, 52),
+      new THREE.CircleGeometry(14.6 * TENT_SCALE, 52),
       new THREE.MeshBasicMaterial({
         color: 0x1a1510,
         transparent: true,
@@ -840,7 +832,7 @@
       depthWrite: false,
     });
     bGrp.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 1.2, 2.05, 11, 26, 1, true),
+      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 1.2, 2.05 * TENT_SCALE, 11 * TENT_SCALE, 26, 1, true),
       bHaloMat
     ));
     bCoreMat = new THREE.MeshBasicMaterial({
@@ -852,7 +844,7 @@
       depthWrite: false,
     });
     bGrp.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 0.62, 1.35, 11, 22, 1, true),
+      new THREE.CylinderGeometry(OCULUS_APERTURE_R * 0.62, 1.35 * TENT_SCALE, 11 * TENT_SCALE, 22, 1, true),
       bCoreMat
     ));
     bGrp.position.y = 0;
