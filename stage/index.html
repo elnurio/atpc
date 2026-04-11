@@ -15,7 +15,7 @@
     }
 
     canvas {
-      position: fixed;
+      position: fixed;3д о
       top: 0;
       left: 0;
       width: 100%;
@@ -211,6 +211,7 @@
   let hubRing, hubRingMat, oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let radialCables;
+  let interiorGroup;
 
   /* Scale study from tent-japanese-concept.pdf: 30–40 m span, main mast 12 m, sub-masts, ø80 cm oculus, 8–10 anchors, asymmetric hub */
   const T_OUTER = 10.08;
@@ -268,6 +269,9 @@
   const FABRIC_SCROLL_START = 0.4;
   const FABRIC_SCROLL_END = 0.6;
   const FABRIC_FLY_OFFSET = 36;
+  /* Interior props fade in as you approach Beams / Interior (scroll 0 → 1) */
+  const INTERIOR_PROPS_START = 0.58;
+  const INTERIOR_PROPS_FULL = 0.82;
 
   function createCableFabricGeometry() {
     const N = FABRIC_N;
@@ -540,6 +544,13 @@
     dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
 
     hint.classList.toggle('hide', p > 0.06);
+
+    if (interiorGroup) {
+      const u = clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START), 0, 1);
+      interiorGroup.visible = u > 0.015;
+      const sc = 0.82 + 0.18 * ss(u);
+      interiorGroup.scale.setScalar(sc);
+    }
   }
 
   function tick(now) {
@@ -743,6 +754,31 @@
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.035;
     scene.add(pool);
+
+    interiorGroup = new THREE.Group();
+    const intMat = new THREE.MeshStandardMaterial({
+      color: 0x9a8f86,
+      roughness: 0.78,
+      metalness: 0.04,
+      envMapIntensity: 0.65,
+    });
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + 0.4;
+      const rr = 2.2 + (i % 3) * 1.05;
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.55, 0.32, 14), intMat);
+      c.position.set(Math.cos(ang) * rr, 0.18, Math.sin(ang) * rr);
+      c.castShadow = false;
+      interiorGroup.add(c);
+    }
+    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.65), intMat);
+    lowTable.position.set(-1.2, 0.14, 1.4);
+    interiorGroup.add(lowTable);
+    const djDeck = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.16, 1.15), intMat);
+    djDeck.position.set(3.1, 0.1, 0.35);
+    djDeck.rotation.y = -0.2;
+    interiorGroup.add(djDeck);
+    interiorGroup.visible = false;
+    scene.add(interiorGroup);
 
     rayGrp = new THREE.Group();
     const raySegs = 28;
