@@ -177,7 +177,7 @@
     <p>Sheer bed-linen canopy — flat roof, diagonal ties, hem lifted above the sand</p>
   </div>
   <div class="slabel" id="sl3">
-    <h2>Beams</h2>
+    <h2>Light</h2>
     <p>Amber shaft through the ring — projection from the crown</p>
   </div>
   <div class="slabel" id="sl4">
@@ -249,7 +249,7 @@
   const FABRIC_SCROLL_START = 0.4;
   const FABRIC_SCROLL_END = 0.6;
   const FABRIC_FLY_OFFSET = 36 * TENT_SCALE;
-  /* Interior props fade in as you approach Beams / Interior (scroll 0 → 1) */
+  /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
   const INTERIOR_SCALE = 5;
@@ -589,21 +589,21 @@
       wallRoot.rotation.y = wd.ry;
       g.add(wallRoot);
 
-      let u = -span * 0.46;
-      const uEnd = span * 0.46;
+      let u = -span * 0.485;
+      const uEnd = span * 0.485;
       let si = 0;
       while (u < uEnd) {
-        /* Wider panels + larger gaps → fewer vertical slits per wall */
-        const gap = (stripRnd(rnd, 0.55, 1.95) + stripRnd(rnd, 0.12, 0.72)) * TENT_SCALE;
+        /* Very wide hanging panels; gaps sized so a few massive strips fit per wall */
+        const gap = (stripRnd(rnd, 0.72, 2.35) + stripRnd(rnd, 0.18, 0.95)) * TENT_SCALE;
         u += gap;
-        const stripW = stripRnd(rnd, 1.35, 3.15) * TENT_SCALE;
+        const stripW = stripRnd(rnd, 2.15, 4.65) * TENT_SCALE;
         if (u + stripW > uEnd) break;
         const hFull = wallTop - wallBottom;
         const roofKiss = 0.025 * TENT_SCALE;
         const hStrip = hFull + roofKiss;
         const yCenter = wallBottom + hStrip * 0.5;
         const uCenter = u + stripW * 0.5;
-        const segsW = Math.max(5, Math.min(18, Math.floor(8 + stripW * 0.11)));
+        const segsW = Math.max(6, Math.min(22, Math.floor(10 + stripW * 0.085)));
         const segsH = Math.max(14, Math.min(32, Math.floor(14 + hFull * 0.42)));
 
         const geo = new THREE.PlaneGeometry(stripW, hStrip, segsW, segsH);
