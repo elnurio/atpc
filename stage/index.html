@@ -262,6 +262,8 @@
   const INTERIOR_LAYOUT = 4;
   const INTERIOR_BURY_Y = 2.55 * INTERIOR_LAYOUT;
   const INTERIOR_STAGGER = 0.052;
+  /** Минимальный дополнительный зазор между лежаками (центр–центр), м; переводится в локаль интерьера */
+  const FUTON_MIN_SPACING_M = 0.05;
 
   function interiorRiseEase(t) {
     t = clamp(t, 0, 1);
@@ -301,11 +303,15 @@
   function buildForestTreeRing() {
     const grp = new THREE.Group();
     const n = 136;
-    const ts = TENT_SCALE / 16;
-    const trunkGeo = new THREE.CylinderGeometry(0.36 * ts, 0.52 * ts, 10.5 * ts, 5, 1);
-    trunkGeo.translate(0, 5.25 * ts, 0);
-    const crownGeo = new THREE.DodecahedronGeometry(4.4 * ts, 0);
-    crownGeo.translate(0, 13.2 * ts, 0);
+    /** Высота уровня купола (SQ_ROOF_Y): ствол + крона */
+    const trunkH = 0.49 * MAST_MAIN_H;
+    const crownR = 0.33 * MAST_MAIN_H;
+    const trunkRBot = 0.48 * TENT_SCALE;
+    const trunkRTop = 0.32 * TENT_SCALE;
+    const trunkGeo = new THREE.CylinderGeometry(trunkRTop, trunkRBot, trunkH, 6, 1);
+    trunkGeo.translate(0, trunkH * 0.5, 0);
+    const crownGeo = new THREE.DodecahedronGeometry(crownR, 0);
+    crownGeo.translate(0, trunkH + crownR * 0.48, 0);
     const trunkMat = new THREE.MeshStandardMaterial({
       color: 0x3a352c,
       roughness: 0.94,
@@ -329,7 +335,7 @@
       const rad = minR + Math.random() * (maxR - minR);
       const x = Math.cos(ang) * rad;
       const z = Math.sin(ang) * rad;
-      const sc = 0.72 + Math.random() * 1.05;
+      const sc = 0.86 + Math.random() * 0.22;
       dummy.position.set(x, 0, z);
       dummy.rotation.y = Math.random() * Math.PI * 2;
       dummy.rotation.x = (Math.random() - 0.5) * 0.06;
@@ -1575,14 +1581,22 @@
     }
 
     const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.15 * L, 0.19 * L, 0.72 * L), intMatBase);
-    lowTable.position.set(0, 0.095 * L * invS, 0);
+    /* Под пятном луча на полу (как pool / oculus в XZ); локально = мир / INTERIOR_SCALE */
+    lowTable.position.set(
+      OCULUS_CENTER_X / INTERIOR_SCALE,
+      0.095 * L * invS,
+      OCULUS_CENTER_Z / INTERIOR_SCALE
+    );
+    lowTable.rotation.y = Math.atan2(OCULUS_CENTER_X, OCULUS_CENTER_Z) + rndRange(-0.12, 0.12);
     registerInteriorRise(lowTable, 0, -0.06);
     interiorGroup.add(lowTable);
 
     const futonPlaced = [];
-    const futonMinSep = 1.52 * L * invS;
+    const mPerWorldUnit = 24 / (2 * DIAMOND_R);
+    const futonMinGapLocal = FUTON_MIN_SPACING_M / mPerWorldUnit / INTERIOR_SCALE;
+    const futonMinSep = 1.52 * L * invS + futonMinGapLocal;
     const futonHubExcl = 0.62 * L * invS;
-    const futonMaxReach = 4.55 * L * invS;
+    const futonMaxReach = 4.85 * L * invS;
     function futonSpotFree(x, z) {
       if (Math.hypot(x, z) < futonHubExcl) return false;
       if (Math.abs(x) + Math.abs(z) > futonMaxReach * 1.02) return false;
@@ -1597,7 +1611,7 @@
       let x = 0;
       let z = 0;
       let placed = false;
-      for (let att = 0; att < 140 && !placed; att++) {
+      for (let att = 0; att < 190 && !placed; att++) {
         const ang = rnd() * Math.PI * 2 + fi * 0.73;
         const rad = futonHubExcl + rnd() * (futonMaxReach - futonHubExcl);
         const squash = 0.68 + rnd() * 0.48;
