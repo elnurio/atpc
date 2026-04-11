@@ -144,7 +144,7 @@
     }
 
     void main() {
-      float v   = clamp(length(position.xz) / 5.5, 0.0, 1.0);
+      float v   = clamp(length(position.xz) / 6.5, 0.0, 1.0);
       float dy  = disp(position.x, position.z, u_time) * v;
       vec3  pos = position + vec3(0.0, dy, 0.0);
       float e   = 0.12;
@@ -194,20 +194,17 @@
     side: THREE.DoubleSide,
   });
 
-  // Rotational Pneu shape: bilateral mushroom / manta-ray
-  const RINGS = 40, SECTS = 60, BASE_R = 4.5;
-  const CANOPY_Y = 4.4; // settled height above ground
+  // Conical tent: pointed apex, rim seats on pole tops
+  const RINGS = 48, SECTS = 64, BASE_R = 6.5;
+  const CANOPY_Y = 4.2; // rim height = pole top level
+  const CONE_H   = 8.8; // cone height above rim → world apex = CANOPY_Y + CONE_H
 
   function pneuH(v, u) {
-    const wing = Math.cos(2 * u);
-    let h = v <= 0.5
-      ? 2.6 + (v / 0.5) * (1 - v / 0.5) * 10.5
-      : 2.6 - Math.pow((v - 0.5) / 0.5, 2) * 5.5;
-    if (v > 0.5) h += wing * (v - 0.5);
-    return h;
+    // apex (v=0) = CONE_H, rim (v=1) = 0
+    return CONE_H * Math.pow(1.0 - v, 0.80);
   }
   function pneuR(v, u) {
-    return v * BASE_R * (1 + 0.35 * Math.cos(2 * u));
+    return v * BASE_R; // circular footprint
   }
 
   const tentGroup = new THREE.Group();
@@ -245,37 +242,21 @@
   // ── Poles + suspension cables ─────────────────────────────────────
   // 6 tall poles around the pneu perimeter
   const N_POLES = 6;
-  const POLE_R  = 6.2;   // radius from centre
-  const POLE_H  = 9.5;   // pole height
+  const POLE_R  = 6.2;   // radius from centre (slightly inside tent rim)
+  const POLE_H  = CANOPY_Y; // pole tops align with tent rim
   const poleMat = new THREE.MeshPhongMaterial({ color: 0x6e6a62, shininess: 60, specular: 0x181810 });
-  const cableMat = new THREE.LineBasicMaterial({ color: 0x888070 });
 
   const polesGroup = new THREE.Group();
 
   for (let i = 0; i < N_POLES; i++) {
     const u = (i / N_POLES) * Math.PI * 2;
     const px = Math.cos(u) * POLE_R, pz = Math.sin(u) * POLE_R;
-
-    // Pole
     const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07, 0.09, POLE_H, 6),
+      new THREE.CylinderGeometry(0.06, 0.09, POLE_H, 6),
       poleMat
     );
     pole.position.set(px, POLE_H / 2, pz);
     polesGroup.add(pole);
-
-    // Cable from pole top to canopy attachment (v≈0.78 in world space)
-    const v  = 0.78;
-    const localR = pneuR(v, u);
-    const localH = pneuH(v, u) + CANOPY_Y; // world y when settled
-    const cx = Math.cos(u) * localR;
-    const cz = Math.sin(u) * localR;
-
-    const cableGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(px, POLE_H, pz),
-      new THREE.Vector3(cx, localH, cz),
-    ]);
-    polesGroup.add(new THREE.Line(cableGeo, cableMat));
   }
 
   // Start invisible — fade in with scroll
@@ -323,11 +304,11 @@
   // ── 5 scroll keyframes ────────────────────────────────────────────
   // p * 4 → step 0–4, lerp between KF[s] and KF[s+1]
   const KF = [
-    { pos:[20, 28, 20], look:[0, 0,   0] }, // 0 — aerial empty
-    { pos:[16, 22, 16], look:[0, 5,   0] }, // 1 — aerial + structure
-    { pos:[16,  8,  2], look:[0, 6.5, 0] }, // 2 — side view (stage silhouette)
-    { pos:[12,  4,  0], look:[0, 6.0, 0] }, // 3 — side view + beams
-    { pos:[ 1,  2,  4], look:[0, 6.5, 0] }, // 4 — inside, looking up
+    { pos:[20, 28, 20], look:[0, 0,    0] }, // 0 — aerial empty
+    { pos:[16, 22, 16], look:[0, 7,    0] }, // 1 — aerial + structure
+    { pos:[16, 10,  2], look:[0, 8.0,  0] }, // 2 — side view (tent silhouette)
+    { pos:[12,  5,  0], look:[0, 8.5,  0] }, // 3 — side view + beams
+    { pos:[ 1,  2,  4], look:[0, 10.0, 0] }, // 4 — inside, looking up at apex
   ];
 
   // Label windows [inAt, outAt]
