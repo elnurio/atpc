@@ -284,7 +284,9 @@
   /** Короткий ход «установки» купола (не большое падение — финал = штатная геометрия натяжения) */
   const ROOF_DESCEND_Y = 0.26 * TENT_SCALE;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
-  /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
+  /* Стол DJ — с фазы Light (индекс сегмента 3 при NSEG=7); остальной интерьер позже */
+  const INTERIOR_TABLE_START_SEG = 3;
+  /* Остальные пропсы интерьера (лежаки и т.д.) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
   const INTERIOR_SCALE = 5;
@@ -1467,6 +1469,10 @@
     t = clamp(t, 0, 1);
     return t * t * t * (t * (t * 6 - 15) + 10);
   }
+  /** Очень мягкий ход по доле сегмента 0–1 — для SKY / SPACE */
+  function skySpaceScrollEase(lin) {
+    return smootherstep(smootherstep(smootherstep(clamp(lin, 0, 1))));
+  }
 
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
@@ -1474,7 +1480,7 @@
   let isMobile = false;
   let targetFPS = 60;
   let cameraBaseFov = 48;
-  let scrollEase = 0.038;
+  let scrollEase = 0.024;
   let phaseLockMs = 1100;
   let maxScrollDownPx = 38;
 
@@ -1486,7 +1492,7 @@
     isMobile = detectMobileProfile();
     targetFPS = isMobile ? 45 : 60;
     cameraBaseFov = isMobile ? 58 : 48;
-    scrollEase = isMobile ? 0.07 : 0.038;
+    scrollEase = isMobile ? 0.045 : 0.024;
     phaseLockMs = isMobile ? 760 : 1100;
     maxScrollDownPx = isMobile ? 86 : 38;
 
@@ -1608,23 +1614,23 @@
 
     let upliftBoost;
     if (s === 5) {
-      /** SKY: только перестановка в объёме (KF5→KF6); без наклона к крыше и без upliftBoost. */
-      const uScroll = t;
-      const q = smootherstep(uScroll);
+      /** SKY: перестановка; тройное сглаживание + косинус по p — медленнее к началу/концу сегмента. */
+      const lin = step - s;
+      const q = skySpaceScrollEase(lin);
       const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
       camera.position.lerpVectors(posA, posB, posEase);
       const lkEase = smootherstep(smootherstep(q));
       lkT.lerpVectors(lkA, lkB, lkEase);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** SPACE: отдельный бит — плавный подъём/наклон к окуляру (KF6→KF7). */
-      const uScroll = t;
-      const q = smootherstep(uScroll);
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q * q);
+      /** SPACE: наклон к окуляру — тот же мягкий ход скролла, позиция почти без рывка. */
+      const lin = step - s;
+      const q = skySpaceScrollEase(lin);
+      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
       camera.position.lerpVectors(posA, posB, posEase);
-      const pitchDelay = 0.08;
+      const pitchDelay = 0.12;
       const tiltEase = smootherstep(
-        smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1))
+        smootherstep(smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1)))
       );
       lkT.lerpVectors(lkA, lkB, tiltEase);
       upliftBoost = tiltEase;
@@ -1791,9 +1797,20 @@
     hint.classList.toggle('hide', p > 0.06);
 
     if (interiorGroup) {
-      const u = clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START), 0, 1);
-      interiorGroup.visible = u > 0.006;
-      const scG = (0.9 + 0.1 * ss(u)) * INTERIOR_SCALE;
+      const tableScroll0 = INTERIOR_TABLE_START_SEG / NSEG;
+      const uTable = clamp(
+        (p - tableScroll0) / (INTERIOR_PROPS_FULL - tableScroll0),
+        0,
+        1
+      );
+      const uProps = clamp(
+        (p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START),
+        0,
+        1
+      );
+      const uGroup = Math.max(uTable, uProps);
+      interiorGroup.visible = uGroup > 0.006;
+      const scG = (0.9 + 0.1 * ss(uGroup)) * INTERIOR_SCALE;
       interiorGroup.scale.setScalar(scG);
 
       const riseSpan = 0.52;
@@ -1809,7 +1826,8 @@
       interiorGroup.children.forEach((node) => {
         const ud = node.userData;
         if (!ud.interiorBase) return;
-        const t0 = clamp((u - ud.interiorDelay) / riseSpan, 0, 1);
+        const uNode = node.name === 'lowDjBooth' ? uTable : uProps;
+        const t0 = clamp((uNode - ud.interiorDelay) / riseSpan, 0, 1);
         const ti = interiorRiseEase(t0);
         const { bx, by, bz } = ud.interiorBase;
         node.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
@@ -2130,6 +2148,7 @@
     const legD = 0.44 * L * DJ_BOOTH_SCALE;
     const lx = 0.41 * L * DJ_BOOTH_SCALE;
     const lowDjBooth = new THREE.Group();
+    lowDjBooth.name = 'lowDjBooth';
     const topSlab = new THREE.Mesh(new THREE.BoxGeometry(topW, topTy, topD), benchTopMat);
     topSlab.position.y = legH + 0.5 * topTy;
     lowDjBooth.add(topSlab);
