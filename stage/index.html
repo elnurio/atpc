@@ -1471,7 +1471,12 @@
   }
   /** Очень мягкий ход по доле сегмента 0–1 — для SKY / SPACE */
   function skySpaceScrollEase(lin) {
-    return smootherstep(smootherstep(smootherstep(clamp(lin, 0, 1))));
+    let x = clamp(lin, 0, 1);
+    x = smootherstep(x);
+    x = smootherstep(x);
+    x = smootherstep(x);
+    x = smootherstep(x);
+    return x;
   }
 
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
@@ -1480,9 +1485,12 @@
   let isMobile = false;
   let targetFPS = 60;
   let cameraBaseFov = 48;
-  let scrollEase = 0.024;
+  /** Первый порядок: догон rawSP */
+  let scrollEase = 0.009;
+  /** Второй порядок: «инерция» камеры / сцены (сильно снижает рывки) */
+  let scrollDisplayEase = 0.072;
   let phaseLockMs = 1100;
-  let maxScrollDownPx = 38;
+  let maxScrollDownPx = 22;
 
   function detectMobileProfile() {
     return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
@@ -1492,9 +1500,10 @@
     isMobile = detectMobileProfile();
     targetFPS = isMobile ? 45 : 60;
     cameraBaseFov = isMobile ? 58 : 48;
-    scrollEase = isMobile ? 0.045 : 0.024;
+    scrollEase = isMobile ? 0.024 : 0.009;
+    scrollDisplayEase = isMobile ? 0.058 : 0.078;
     phaseLockMs = isMobile ? 760 : 1100;
-    maxScrollDownPx = isMobile ? 86 : 38;
+    maxScrollDownPx = isMobile ? 48 : 22;
 
     if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     if (camera) {
@@ -1503,7 +1512,7 @@
     }
   }
 
-  let clk = 0, rawSP = 0, sp = 0;
+  let clk = 0, rawSP = 0, sp = 0, spDisplay = 0;
   let lastFrame = 0, firstFrame = true;
 
   let scrollAllowedEnd = 1 / NSEG;
@@ -1606,7 +1615,8 @@
   function updateScene(p) {
     const step = p * NSEG;
     const s = clamp(Math.floor(step), 0, NSEG - 1);
-    const t = ss(step - s);
+    const linSeg = clamp(step - s, 0, 1);
+    const t = smootherstep(smootherstep(ss(linSeg)));
     const A = KF[s], B = KF[s + 1];
 
     posA.set(...A.pos); posB.set(...B.pos);
@@ -1614,23 +1624,23 @@
 
     let upliftBoost;
     if (s === 5) {
-      /** SKY: перестановка; тройное сглаживание + косинус по p — медленнее к началу/концу сегмента. */
-      const lin = step - s;
-      const q = skySpaceScrollEase(lin);
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
+      /** SKY: перестановка; 4× smootherstep + растянутый косинус по позиции */
+      const q = skySpaceScrollEase(linSeg);
+      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * smootherstep(q));
       camera.position.lerpVectors(posA, posB, posEase);
-      const lkEase = smootherstep(smootherstep(q));
+      const lkEase = smootherstep(smootherstep(smootherstep(q)));
       lkT.lerpVectors(lkA, lkB, lkEase);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** SPACE: наклон к окуляру — тот же мягкий ход скролла, позиция почти без рывка. */
-      const lin = step - s;
-      const q = skySpaceScrollEase(lin);
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
+      /** SPACE: наклон — ещё один smooth на косинусе позиции, поздний мягкий pitch */
+      const q = skySpaceScrollEase(linSeg);
+      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * smootherstep(smootherstep(q)));
       camera.position.lerpVectors(posA, posB, posEase);
-      const pitchDelay = 0.12;
+      const pitchDelay = 0.18;
       const tiltEase = smootherstep(
-        smootherstep(smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1)))
+        smootherstep(
+          smootherstep(smootherstep(clamp((q - pitchDelay) / (1 - pitchDelay), 0, 1)))
+        )
       );
       lkT.lerpVectors(lkA, lkB, tiltEase);
       upliftBoost = tiltEase;
@@ -1856,8 +1866,9 @@
     applyScrollPhaseControl();
     syncRawScrollProgress();
     sp += (rawSP - sp) * scrollEase;
+    spDisplay += (sp - spDisplay) * scrollDisplayEase;
 
-    updateScene(sp);
+    updateScene(spDisplay);
     renderer.render(scene, camera);
 
     if (firstFrame) {
