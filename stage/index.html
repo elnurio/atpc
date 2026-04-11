@@ -205,6 +205,7 @@
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
   let interiorGroup;
   let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
+  let squareWallWindUniforms;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 4;
@@ -403,6 +404,43 @@
     return { map, bumpMap };
   }
 
+  /** Vertex wind ripple for vertical fabric (local plane XY, normal Z). */
+  function attachWallWindShader(material, wallH) {
+    const halfH = wallH * 0.5;
+    const uniforms = {
+      uTime: { value: 0 },
+      uWindAmp: { value: 0.19 + 0.034 * TENT_SCALE },
+      uWallHalfH: { value: halfH },
+    };
+    material.userData.windUniforms = uniforms;
+    material.customProgramCacheKey = () => '_bedtent_wind_v1';
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uTime;
+        uniform float uWindAmp;
+        uniform float uWallHalfH;
+        attribute float windPhase;`
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          float t = uTime + windPhase;
+          float hMask = smoothstep(-uWallHalfH - 0.02, uWallHalfH * 0.3, transformed.y);
+          hMask = 0.1 + 0.9 * hMask;
+          float w1 = sin(t * 1.28 + transformed.x * 0.095 + transformed.y * 0.072) * uWindAmp;
+          float w2 = sin(t * 2.15 - transformed.x * 0.16 + transformed.y * 0.11) * uWindAmp * 0.58;
+          float w3 = sin(t * 3.05 + transformed.x * 0.055 + sin(transformed.y * 0.12 + t * 0.7) * 1.8) * uWindAmp * 0.35;
+          float w = (w1 + w2 + w3) * hMask;
+          transformed += normalize(normal) * w;
+        }`
+      );
+    };
+  }
+
   function createSquareBedTent(bedding, envMap) {
     const mkMat = (mapRepX, mapRepY) => {
       const map = bedding.map.clone();
@@ -436,6 +474,9 @@
     const wallRepW = Math.max(2.8, span * 0.22);
     const wallRepH = Math.max(2.2, wallH * 0.18);
     const wallMat = mkMat(wallRepW, wallRepH);
+    wallMat.roughness = 0.62;
+    wallMat.bumpScale = 0.024 * (TENT_SCALE / 4);
+    attachWallWindShader(wallMat, wallH);
     const fabricMaterials = [roofMat, wallMat];
 
     const roof = new THREE.Mesh(new THREE.PlaneGeometry(span, span, 14, 14), roofMat);
@@ -449,12 +490,16 @@
       { x: 0, z: SQ_HALF, ry: Math.PI },
       { x: -SQ_HALF, z: 0, ry: -Math.PI / 2 },
     ];
-    for (const wd of wallDefs) {
-      const wall = new THREE.Mesh(new THREE.PlaneGeometry(span, wallH, 18, 10), wallMat);
+    wallDefs.forEach((wd, wi) => {
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(span, wallH, 40, 24), wallMat);
+      const n = wall.geometry.attributes.position.count;
+      const phases = new Float32Array(n);
+      phases.fill(wi * Math.PI * 0.5 + 0.17 * Math.sin(wi * 1.7));
+      wall.geometry.setAttribute('windPhase', new THREE.BufferAttribute(phases, 1));
       wall.position.set(wd.x, yMid, wd.z);
       wall.rotation.y = wd.ry;
       g.add(wall);
-    }
+    });
 
     const yDiag = SQ_ROOF_Y + 0.035 * TENT_SCALE;
     const e = SQ_HALF * 0.996;
@@ -470,7 +515,7 @@
     });
     g.add(new THREE.LineSegments(diagGeo, diagMat));
 
-    return { group: g, fabricMaterials, diagMat };
+    return { group: g, fabricMaterials, diagMat, wallWindUniforms: wallMat.userData.windUniforms };
   }
 
   /* Camera scaled with TENT_SCALE — same framing vs larger ring */
@@ -618,6 +663,10 @@
     const cy = lerp(A.canopyY, B.canopyY, t);
     const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
+
+    if (squareWallWindUniforms) {
+      squareWallWindUniforms.uTime.value = clk * 2.05;
+    }
 
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
       if (p < FABRIC_SCROLL_START) {
@@ -769,6 +818,7 @@
     squareBedTentGroup = sqTent.group;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
+    squareWallWindUniforms = sqTent.wallWindUniforms;
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
