@@ -286,7 +286,7 @@
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Стол DJ — фаза Light (sl3): появляется от начала сегмента 3 и к концу Light уже полностью */
   const INTERIOR_TABLE_LIGHT_SEG = 3;
-  /* Остальные пропсы интерьера (лежаки и т.д.) */
+  /* Свет/атмосфера после появления мебели (лежаки теперь с фазой Light — см. uTable) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
   const INTERIOR_SCALE = 5;
@@ -1609,22 +1609,18 @@
     lkA.set(...A.look); lkB.set(...B.look);
 
     let upliftBoost;
+    /** Линейная доля сегмента по скроллу — равномерная скорость (без ss/cos/двойного smootherstep). */
+    const uLin = clamp(step - s, 0, 1);
     if (s === 5) {
-      /** SKY: перестановка в объёме (KF5→KF6) */
-      const q = smootherstep(t);
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
-      camera.position.lerpVectors(posA, posB, posEase);
-      const lkEase = smootherstep(smootherstep(q));
-      lkT.lerpVectors(lkA, lkB, lkEase);
+      /** Предпоследний сегмент: перенос + look — тот же приём, что на финале (uLin), без «рваного» нарастания */
+      camera.position.lerpVectors(posA, posB, uLin);
+      lkT.lerpVectors(lkA, lkB, uLin);
       upliftBoost = 0;
     } else if (s === 6) {
-      /** SPACE: те же кривые, что SKY — smootherstep(t), cos по позиции (здесь KF6.pos = KF7.pos, фактически без переноса), двойной smootherstep на look + FOV */
-      const q = smootherstep(t);
-      const posEase = 0.5 - 0.5 * Math.cos(Math.PI * q);
-      camera.position.lerpVectors(posA, posB, posEase);
-      const lkEase = smootherstep(smootherstep(q));
-      lkT.lerpVectors(lkA, lkB, lkEase);
-      upliftBoost = lkEase;
+      /** Последний сегмент: как раньше «хорошо» — только наклон взгляда и FOV линейно по uLin; позиция KF6=KF7 */
+      camera.position.lerpVectors(posA, posB, uLin);
+      lkT.lerpVectors(lkA, lkB, uLin);
+      upliftBoost = uLin;
     } else {
       camera.position.lerpVectors(posA, posB, t);
       lkT.lerpVectors(lkA, lkB, t);
@@ -1820,7 +1816,10 @@
       interiorGroup.children.forEach((node) => {
         const ud = node.userData;
         if (!ud.interiorBase) return;
-        const uNode = node.name === 'lowDjBooth' ? uTable : uProps;
+        const uNode =
+          node.name === 'lowDjBooth' || node.userData.interiorReveal === 'table'
+            ? uTable
+            : uProps;
         const t0 = clamp((uNode - ud.interiorDelay) / riseSpan, 0, 1);
         const ti = interiorRiseEase(t0);
         const { bx, by, bz } = ud.interiorBase;
@@ -2046,18 +2045,27 @@
       opacity: 0,
     });
     const futonMatBase = new THREE.MeshStandardMaterial({
-      color: 0xf5f1ea,
-      roughness: 0.9,
+      color: 0xfdfcfa,
+      roughness: 0.94,
       metalness: 0,
-      envMapIntensity: 0.42,
+      envMapIntensity: 0.36,
       transparent: true,
       opacity: 0,
     });
-    function registerInteriorRise(mesh, delaySteps, twist = 0, mat = intMatBase) {
+    const pillowMatBase = new THREE.MeshStandardMaterial({
+      color: 0xfaf9f7,
+      roughness: 0.93,
+      metalness: 0,
+      envMapIntensity: 0.34,
+      transparent: true,
+      opacity: 0,
+    });
+    function registerInteriorRise(mesh, delaySteps, twist = 0, mat = intMatBase, reveal = 'props') {
       mesh.material = mat.clone();
       mesh.userData.interiorBase = { bx: mesh.position.x, by: mesh.position.y, bz: mesh.position.z };
       mesh.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
       mesh.userData.interiorRotY = mesh.rotation.y;
+      mesh.userData.interiorReveal = reveal;
       if (twist) mesh.userData.interiorTwist = twist;
       mesh.scale.setScalar(0.18);
     }
@@ -2279,12 +2287,12 @@
       let z = Math.sin(ang) * rad * ez;
       x += (rnd() - 0.5) * 0.26 * L * invS;
       z += (rnd() - 0.5) * 0.26 * L * invS;
-      if (rnd() < 0.14) {
+      if (rnd() < 0.28) {
         const edge = futonMaxReach * (0.58 + rnd() * 0.38);
         const sx = rnd() < 0.5 ? 1 : -1;
         const sz = rnd() < 0.5 ? 1 : -1;
-        x = sx * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.18 * L * invS;
-        z = sz * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.18 * L * invS;
+        x = sx * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.22 * L * invS;
+        z = sz * (edge * (0.35 + rnd() * 0.55)) + (rnd() - 0.5) * 0.22 * L * invS;
       }
       return { x, z };
     }
@@ -2299,14 +2307,14 @@
       return a;
     }
 
-    const nFutonsTarget = 21;
+    const nFutonsTarget = 34;
     const maxAttemptsPer = 520;
     const futonOrder = shuffleIndices(nFutonsTarget);
     for (let k = 0; k < futonOrder.length; k++) {
       const fi = futonOrder[k];
-      const fw = (1.55 + rnd() * 0.72) * L;
-      const fd = (0.82 + rnd() * 0.52) * L;
-      const fh = (0.075 + rnd() * 0.045) * L;
+      const fw = (1.48 + rnd() * 0.78) * L;
+      const fd = (0.78 + rnd() * 0.56) * L;
+      const fh = (0.068 + rnd() * 0.048) * L;
       const halfDiag = futonHalfDiag(fw, fd);
       let placed = false;
       let x = 0;
@@ -2323,35 +2331,57 @@
       futon.position.set(x, 0.5 * fh * invS, z);
       futon.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.38, 0.38);
       const twist = rndRange(-0.16, 0.16);
-      registerInteriorRise(futon, 1 + Math.floor(fi * 1.35 + rnd() * 4), twist, futonMatBase);
+      registerInteriorRise(futon, 1 + Math.floor(fi * 1.2 + rnd() * 4), twist, futonMatBase, 'table');
       interiorGroup.add(futon);
     }
 
-    const cMul = 0.34;
-    const cRadT = 0.36 * L * cMul;
-    const cRadB = 0.42 * L * cMul;
-    const cHt = 0.2 * L * cMul;
-    const cY = 0.5 * cHt * invS;
-    const cushionGeo = new THREE.CylinderGeometry(cRadT, cRadB, cHt, 12);
-    const cushionA = new THREE.Mesh(cushionGeo, intMatBase);
-    cushionA.position.set(
-      (-4.55 + rndRange(-0.18, 0.18)) * L * invS,
-      cY,
-      (3.95 + rndRange(-0.22, 0.22)) * L * invS
-    );
-    cushionA.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushionA, 14, 0.1);
-    interiorGroup.add(cushionA);
+    const pillowPlaced = [];
+    const pillowBreath = futonBreathLocal * 0.42;
+    function pillowPlacementValid(x, z, pr) {
+      if (Math.hypot(x, z) < futonHubExcl + pr * 0.95) return false;
+      if (Math.abs(x) + Math.abs(z) + pr * 1.35 > futonMaxReach * 0.97) return false;
+      if (Math.hypot(x - djLocalX, z - djLocalZ) < djExclR + pr + futonBreathLocal * 0.55) return false;
+      for (let i = 0; i < futonPlaced.length; i++) {
+        const o = futonPlaced[i];
+        const need = o.halfDiag + pr + futonBreathLocal * 0.78;
+        if (Math.hypot(o.x - x, o.z - z) < need - 1e-6) return false;
+      }
+      for (let j = 0; j < pillowPlaced.length; j++) {
+        const q = pillowPlaced[j];
+        if (Math.hypot(q.x - x, q.z - z) < q.r + pr + pillowBreath) return false;
+      }
+      return true;
+    }
 
-    const cushionB = new THREE.Mesh(cushionGeo, intMatBase);
-    cushionB.position.set(
-      (4.5 + rndRange(-0.18, 0.18)) * L * invS,
-      cY,
-      (-4.05 + rndRange(-0.22, 0.22)) * L * invS
-    );
-    cushionB.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushionB, 16, -0.1);
-    interiorGroup.add(cushionB);
+    const nPillowsTarget = 26;
+    const pillowOrder = shuffleIndices(nPillowsTarget);
+    for (let k = 0; k < pillowOrder.length; k++) {
+      const pi = pillowOrder[k];
+      const rt = (0.1 + rnd() * 0.11) * L;
+      const rb = rt * (1.02 + rnd() * 0.08);
+      const ph = (0.052 + rnd() * 0.05) * L;
+      const pr = Math.max(rt, rb) + pillowBreath * 0.4;
+      let placed = false;
+      let x = 0;
+      let z = 0;
+      for (let att = 0; att < maxAttemptsPer && !placed; att++) {
+        const s = sampleFutonXZ(pi + 41, att + pi * 3);
+        x = s.x;
+        z = s.z;
+        if (pillowPlacementValid(x, z, pr)) placed = true;
+      }
+      if (!placed) continue;
+      pillowPlaced.push({ x, z, r: pr });
+      const pGeo = new THREE.CylinderGeometry(rt, rb, ph, 14);
+      const pillow = new THREE.Mesh(pGeo, pillowMatBase);
+      pillow.position.set(x, 0.5 * ph * invS, z);
+      pillow.rotation.y = rnd() * Math.PI * 2 + rndRange(-0.55, 0.55);
+      pillow.rotation.x = rndRange(-0.04, 0.04);
+      pillow.rotation.z = rndRange(-0.04, 0.04);
+      const twist = rndRange(-0.12, 0.12);
+      registerInteriorRise(pillow, 2 + Math.floor(pi * 1.1 + rnd() * 5), twist, pillowMatBase, 'table');
+      interiorGroup.add(pillow);
+    }
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
