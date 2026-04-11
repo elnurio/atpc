@@ -34,29 +34,56 @@
       opacity: 0;
     }
 
+    /**
+     * Финал Assembly: поверх WebGL — только белый слой + iframe; без карточки, тени и подложек.
+     * Полноэкранный чертёж после кроссфейда.
+     */
     #assemblyShell {
       position: fixed;
       inset: 0;
       z-index: 14;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: max(12px, env(safe-area-inset-top, 0px)) 16px 20px;
-      background: rgba(248, 249, 251, 0);
+      margin: 0;
+      padding: 0;
+      display: block;
+      background: #ffffff;
       opacity: 0;
       pointer-events: none;
-      transition: background 0.15s ease;
     }
     #assemblyShell.on { pointer-events: auto; }
     #assemblyIFrame {
-      width: min(1120px, 96vw);
-      height: min(88vh, 920px);
-      max-height: calc(100vh - 48px);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
       border: none;
-      border-radius: 6px;
-      box-shadow: 0 28px 100px rgba(18, 22, 28, 0.07);
-      background: #f4efe5;
+      border-radius: 0;
+      box-shadow: none;
+      background: #ffffff;
       opacity: 0;
+    }
+
+    /** Конец перехода: чистая страница чертежа, без хрома сцены */
+    html.atpc-drawing-end,
+    body.atpc-drawing-end {
+      background: #ffffff !important;
+      min-height: 100vh;
+      height: auto;
+    }
+    body.atpc-drawing-end #whiteBloom {
+      opacity: 0 !important;
+      visibility: hidden;
+    }
+    body.atpc-drawing-end #dots,
+    body.atpc-drawing-end .slabel,
+    body.atpc-drawing-end #hint {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    body.atpc-drawing-end #back {
+      opacity: 0;
+      pointer-events: none;
     }
 
     #loader {
@@ -273,6 +300,7 @@
   let whiteBloomEl;
   let assemblyShellEl;
   let assemblyIFrameEl;
+  let stageCanvasEl;
   /** Narrow key light through roof oculus (Sky phase) */
   let oculusSpot;
 
@@ -1600,6 +1628,9 @@
   ];
 
   const NSEG = 8;
+  /** Assembly: после полёта в белый — кроссфейд (доля сегмента uLin 0→1) */
+  const ASSEMBLY_PAGE_CROSS_START = 0.5;
+  const ASSEMBLY_PAGE_CROSS_LEN = 0.38;
   const ROOF_SCROLL_START = ROOF_PROFILE_SEG / NSEG;
   const ROOF_SCROLL_END = (ROOF_PROFILE_SEG + 1) / NSEG;
   const LWIN = [];
@@ -1768,8 +1799,13 @@
     let upliftBoost;
     /** Линейная доля сегмента по скроллу — равномерная скорость (без ss/cos/двойного smootherstep). */
     const uLin = clamp(step - s, 0, 1);
-    /** Фаза Assembly: плавный вход в белый объём + HTML чертёж (сегмент 7). */
+    /** Фаза Assembly: полёт в белый объём (3D); чертёж — отдельным кроссфейдом drawingPageT */
     const blueprintT = s === 7 ? smootherstep(uLin) : 0;
+    const drawingPageT =
+      s === 7
+        ? ss(clamp((uLin - ASSEMBLY_PAGE_CROSS_START) / ASSEMBLY_PAGE_CROSS_LEN, 0, 1))
+        : 0;
+    const sceneWhiteMix = s === 7 ? blueprintT * (1 - 0.94 * drawingPageT) : 0;
 
     if (s === 5) {
       /** Предпоследний сегмент: перенос + look — тот же приём, что на финале (uLin), без «рваного» нарастания */
@@ -1810,26 +1846,35 @@
     camera.updateProjectionMatrix();
 
     if (sceneBgOrig && scene.background && scene.background.isColor) {
-      scene.background.copy(sceneBgOrig).lerp(BLUEPRINT_WHITE, blueprintT);
+      scene.background.copy(sceneBgOrig).lerp(BLUEPRINT_WHITE, sceneWhiteMix);
     }
     if (scene.fog && fogColorOrig) {
-      scene.fog.color.copy(fogColorOrig).lerp(BLUEPRINT_WHITE, blueprintT * 0.94);
-      scene.fog.near = lerp(sceneFogNearOrig, 85, blueprintT);
-      scene.fog.far = lerp(sceneFogFarOrig, 5200, blueprintT);
+      scene.fog.color.copy(fogColorOrig).lerp(BLUEPRINT_WHITE, sceneWhiteMix * 0.94);
+      scene.fog.near = lerp(sceneFogNearOrig, 85, sceneWhiteMix);
+      scene.fog.far = lerp(sceneFogFarOrig, 5200, sceneWhiteMix);
     }
     if (blueprintGlow) {
-      blueprintGlow.intensity = 1.85 * blueprintT;
+      blueprintGlow.intensity = 1.85 * blueprintT * (1 - 0.85 * drawingPageT);
       blueprintGlow.position.set(22, 168, 412);
     }
-    const bloomA = Math.min(1, blueprintT * 1.05) * 0.9;
+    const bloomA =
+      s === 7 ? Math.min(1, 1.06 * blueprintT) * 0.92 * (1 - drawingPageT) : 0;
     if (whiteBloomEl) whiteBloomEl.style.opacity = String(bloomA);
-    if (assemblyShellEl && assemblyIFrameEl) {
-      assemblyShellEl.style.opacity = String(blueprintT);
-      assemblyShellEl.style.background =
-        blueprintT > 0.02 ? `rgba(250, 251, 253, ${0.12 + 0.88 * blueprintT})` : 'transparent';
-      assemblyShellEl.classList.toggle('on', blueprintT > 0.18);
-      const iframeReveal = clamp((blueprintT - 0.28) / 0.58, 0, 1);
-      assemblyIFrameEl.style.opacity = String(ss(iframeReveal));
+    if (assemblyShellEl && assemblyIFrameEl && stageCanvasEl) {
+      assemblyShellEl.style.opacity = drawingPageT > 0.002 ? String(drawingPageT) : '0';
+      assemblyShellEl.style.background = '#ffffff';
+      const iframeReveal =
+        drawingPageT < 0.07 ? 0 : ss(clamp((drawingPageT - 0.07) / 0.86, 0, 1));
+      assemblyIFrameEl.style.opacity = String(iframeReveal);
+      assemblyShellEl.classList.toggle('on', drawingPageT > 0.055);
+      stageCanvasEl.style.opacity = String(1 - drawingPageT);
+      stageCanvasEl.style.pointerEvents = drawingPageT > 0.96 ? 'none' : 'auto';
+      const drawingEnd = s === 7 && drawingPageT > 0.93;
+      document.body.classList.toggle('atpc-drawing-end', drawingEnd);
+      document.documentElement.classList.toggle('atpc-drawing-end', drawingEnd);
+    } else if (stageCanvasEl) {
+      stageCanvasEl.style.opacity = '1';
+      stageCanvasEl.style.pointerEvents = 'auto';
     }
 
     const cy = lerp(A.canopyY, B.canopyY, t);
@@ -2129,7 +2174,8 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.96;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    document.body.insertBefore(renderer.domElement, document.body.firstChild);
+    stageCanvasEl = renderer.domElement;
+    document.body.insertBefore(stageCanvasEl, document.body.firstChild);
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 14000);
