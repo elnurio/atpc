@@ -109,7 +109,7 @@
     #back {
       position: fixed; top: 36px; left: 40px; z-index: 30;
       color: rgba(240, 235, 220, 0.45);
-      font: 300 10px/1 'Helvetica Neue', sans-serif;
+      font: 300 10px/1 Helvetica, Arial, sans-serif;
       letter-spacing: .25em; text-transform: uppercase; text-decoration: none;
       transition: color .4s;
     }
@@ -125,12 +125,12 @@
     .slabel.on { opacity: 1; transform: translateX(-50%) translateY(0); }
     .slabel h2 {
       color: rgba(245, 240, 230, 0.9);
-      font: 200 clamp(22px, 4.2vw, 52px)/1 'Helvetica Neue', sans-serif;
+      font: 200 clamp(22px, 4.2vw, 52px)/1 Helvetica, Arial, sans-serif;
       letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
     }
     .slabel p {
       color: rgba(220, 210, 195, 0.45);
-      font: 300 10px/1.6 'Helvetica Neue', sans-serif;
+      font: 300 10px/1.6 Helvetica, Arial, sans-serif;
       letter-spacing: .22em; text-transform: uppercase;
     }
 
@@ -143,7 +143,7 @@
     #hint.hide { opacity: 0; }
     #hint span {
       color: rgba(220, 210, 195, 0.35);
-      font: 300 9px/1 'Helvetica Neue', sans-serif;
+      font: 300 9px/1 Helvetica, Arial, sans-serif;
       letter-spacing: .3em; text-transform: uppercase;
     }
     #hint-line {
@@ -304,8 +304,8 @@
   let tentFloorMesh;
   /** Группа PA-колонок DJ: подъём снизу (фаза Light) */
   let djSpeakersRiseGroup = null;
-  /** Текстуры/материалы monitor speaker (ленивая инициализация) */
-  let monitorSpkTexturesCache = null;
+  /** Текстуры/материалы concrete monolith speaker (ленивая инициализация) */
+  let concreteMonolithSpkCache = null;
   let mainSun, hemiMain, fillSun;
   let sceneAmbient;
   let sceneBgOrig;
@@ -673,136 +673,94 @@
     return bumpMap;
   }
 
-  function makeBurlWoodTex() {
+  function makeBrutalistSmoothConcreteTex() {
     const c = document.createElement('canvas');
     c.width = 512;
-    c.height = 512;
+    c.height = 1024;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#5a2e0e';
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 180; i++) {
+    ctx.fillStyle = '#c8c4bc';
+    ctx.fillRect(0, 0, 512, 1024);
+    for (let i = 0; i < 8000; i++) {
       const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const r = 8 + Math.random() * 40;
+      const y = Math.random() * 1024;
+      const s = 1 + Math.random() * 4;
+      const col = ~~(140 + Math.random() * 60);
+      ctx.fillStyle = `rgba(${col},${col - 4},${col - 8},${0.04 + Math.random() * 0.12})`;
+      ctx.fillRect(x, y, s, s);
+    }
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 1024;
+      const r = 10 + Math.random() * 45;
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(
-        0,
-        `rgba(${20 + ~~(Math.random() * 30)},${10 + ~~(Math.random() * 20)},5,${0.3 + Math.random() * 0.5})`
-      );
-      g.addColorStop(1, 'rgba(90,46,14,0)');
+      g.addColorStop(0, `rgba(80,78,74,${0.04 + Math.random() * 0.1})`);
+      g.addColorStop(1, 'rgba(80,78,74,0)');
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = g;
       ctx.fill();
     }
-    for (let i = 0; i < 60; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const l = 20 + Math.random() * 80;
-      const a = Math.random() * Math.PI;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(a);
-      const sg = ctx.createLinearGradient(0, 0, l, 0);
-      sg.addColorStop(0, 'rgba(180,90,20,0)');
-      sg.addColorStop(0.5, `rgba(160,70,15,${0.15 + Math.random() * 0.25})`);
-      sg.addColorStop(1, 'rgba(180,90,20,0)');
-      ctx.fillStyle = sg;
-      ctx.fillRect(0, -1.5, l, 3);
-      ctx.restore();
-    }
-    for (let i = 0; i < 80; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const r = 4 + Math.random() * 18;
+    for (let i = 0; i < 6; i++) {
+      ctx.strokeStyle = `rgba(100,96,90,${0.06 + Math.random() * 0.08})`;
+      ctx.lineWidth = 0.5 + Math.random() * 1.5;
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${120 + ~~(Math.random() * 60)},${50 + ~~(Math.random() * 30)},${10 + ~~(Math.random() * 15)},${0.12 + Math.random() * 0.22})`;
-      ctx.fill();
-    }
-    return new THREE.CanvasTexture(c);
-  }
-
-  function makeConcreteTex() {
-    const c = document.createElement('canvas');
-    c.width = 256;
-    c.height = 256;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#b8ae9c';
-    ctx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 2000; i++) {
-      const x = Math.random() * 256;
-      const y = Math.random() * 256;
-      const col = ~~(140 + Math.random() * 40);
-      ctx.fillStyle = `rgba(${col},${col - 8},${col - 16},${0.04 + Math.random() * 0.08})`;
-      ctx.fillRect(x, y, 1 + Math.random() * 3, 1 + Math.random() * 3);
-    }
-    for (let i = 0; i < 8; i++) {
-      ctx.strokeStyle = `rgba(80,70,60,${0.06 + Math.random() * 0.1})`;
-      ctx.lineWidth = 0.5 + Math.random();
-      ctx.beginPath();
-      let cx = Math.random() * 256;
-      let cy = Math.random() * 256;
-      ctx.moveTo(cx, cy);
-      for (let j = 0; j < 5; j++) {
-        cx += -20 + Math.random() * 40;
-        cy += -20 + Math.random() * 40;
-        ctx.lineTo(cx, cy);
-      }
+      ctx.moveTo(Math.random() * 512, 0);
+      ctx.lineTo(Math.random() * 512, 1024);
       ctx.stroke();
     }
     return new THREE.CanvasTexture(c);
   }
 
-  function makeBrushedMetalTex() {
+  function makeRoughConcTex() {
     const c = document.createElement('canvas');
     c.width = 256;
-    c.height = 256;
+    c.height = 512;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#909090';
-    ctx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 256; i++) {
-      const alpha = 0.02 + Math.random() * 0.06;
-      const col = ~~(130 + Math.random() * 80);
-      ctx.fillStyle = `rgba(${col},${col},${col},${alpha})`;
-      ctx.fillRect(0, i, 256, 1);
+    ctx.fillStyle = '#484440';
+    ctx.fillRect(0, 0, 256, 512);
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * 256;
+      const y = Math.random() * 512;
+      const s = 1 + Math.random() * 5;
+      const col = ~~(40 + Math.random() * 80);
+      ctx.fillStyle = `rgba(${col},${col - 4},${col - 6},${0.06 + Math.random() * 0.2})`;
+      ctx.fillRect(x, y, s, s);
     }
-    const sg = ctx.createLinearGradient(0, 0, 256, 256);
-    sg.addColorStop(0, 'rgba(255,255,255,0.18)');
-    sg.addColorStop(0.4, 'rgba(200,200,200,0.05)');
-    sg.addColorStop(0.7, 'rgba(255,255,255,0.12)');
-    sg.addColorStop(1, 'rgba(180,180,180,0.08)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 200; i++) {
+      const x = Math.random() * 256;
+      const y = Math.random() * 512;
+      const r = 2 + Math.random() * 8;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${130 + ~~(Math.random() * 80)},${125 + ~~(Math.random() * 60)},${110 + ~~(Math.random() * 50)},${0.3 + Math.random() * 0.5})`;
+      ctx.fill();
+    }
     return new THREE.CanvasTexture(c);
   }
 
-  function getMonitorSpkTextures() {
-    if (monitorSpkTexturesCache) return monitorSpkTexturesCache;
-    const burlTex = makeBurlWoodTex();
-    burlTex.wrapS = burlTex.wrapT = THREE.RepeatWrapping;
-    burlTex.repeat.set(1.5, 1.5);
-    burlTex.colorSpace = THREE.SRGBColorSpace;
-    const concTex = makeConcreteTex();
+  function getConcreteMonolithSpkTextures() {
+    if (concreteMonolithSpkCache) return concreteMonolithSpkCache;
+    const concTex = makeBrutalistSmoothConcreteTex();
+    concTex.wrapS = concTex.wrapT = THREE.RepeatWrapping;
+    concTex.repeat.set(1, 1);
     concTex.colorSpace = THREE.SRGBColorSpace;
-    const metalTex = makeBrushedMetalTex();
-    metalTex.colorSpace = THREE.SRGBColorSpace;
-    monitorSpkTexturesCache = {
-      burlMat: new THREE.MeshLambertMaterial({ map: burlTex }),
-      concM: new THREE.MeshLambertMaterial({ map: concTex }),
-      hornMetM: new THREE.MeshLambertMaterial({ map: metalTex, color: 0xcccccc }),
-      hornShdM: new THREE.MeshLambertMaterial({ color: 0x555555 }),
-      rivetM: new THREE.MeshLambertMaterial({ color: 0x909090 }),
-      wRingM: new THREE.MeshLambertMaterial({ color: 0x5a5a5a }),
-      wConeM: new THREE.MeshLambertMaterial({ color: 0x111111 }),
-      wSurrM: new THREE.MeshLambertMaterial({ color: 0x1c1c1c }),
-      dustM: new THREE.MeshLambertMaterial({ color: 0x0d0d0d }),
-      blackM: new THREE.MeshLambertMaterial({ color: 0x0e0e0e }),
-      driverM: new THREE.MeshLambertMaterial({ color: 0x333333 }),
-      ampM: new THREE.MeshLambertMaterial({ color: 0x2a2a2a }),
-      logoM: new THREE.MeshLambertMaterial({ color: 0x777777 }),
+    const roughTex = makeRoughConcTex();
+    roughTex.wrapS = roughTex.wrapT = THREE.RepeatWrapping;
+    roughTex.colorSpace = THREE.SRGBColorSpace;
+    concreteMonolithSpkCache = {
+      concSmoothM: new THREE.MeshLambertMaterial({ map: concTex }),
+      concRoughM: new THREE.MeshLambertMaterial({ map: roughTex, color: 0x888880 }),
+      wooferRingM: new THREE.MeshLambertMaterial({ color: 0x282828 }),
+      wooferConeM: new THREE.MeshLambertMaterial({ color: 0x0d0d0d }),
+      wooferSurrM: new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+      dustCapM: new THREE.MeshLambertMaterial({ color: 0x080808 }),
+      cableM: new THREE.MeshLambertMaterial({ color: 0x111111 }),
+      innerExposedM: new THREE.MeshLambertMaterial({ color: 0x383430, map: roughTex }),
+      crackLineM: new THREE.MeshLambertMaterial({ color: 0x222220 }),
+      roughRingM: new THREE.MeshLambertMaterial({ color: 0x5a5852, map: roughTex }),
+      topDetailM: new THREE.MeshLambertMaterial({ color: 0xb8b4ac, map: concTex }),
     };
-    return monitorSpkTexturesCache;
+    return concreteMonolithSpkCache;
   }
 
   /**
@@ -1913,8 +1871,6 @@
   function syncRawScrollProgress() {
     const max = scrollPageMax();
     rawSP = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
-    /** Финал чертежа: держим p=1, иначе при сбое max/scroll сцена не откатывается к началу */
-    if (document.documentElement.classList.contains('atpc-drawing-end')) rawSP = 1;
   }
 
   function applyScrollPhaseControl() {
@@ -1946,6 +1902,12 @@
         scrollPhaseLock = false;
       }, phaseLockMs);
       y = capPx;
+    }
+
+    /** Вся дорожка открыта: не даём уехать ниже max (только назад к ранним сценам) */
+    if (scrollAllowedEnd >= 1 - 1e-6 && y > max + 0.5) {
+      window.scrollTo(0, max);
+      y = max;
     }
 
     lastScrollY = y;
@@ -3162,213 +3124,138 @@
     }
 
     /**
-     * Custom monitor speaker — бетонный постамент, шпон, металлический рупор; parent.add; азимут в updateScene.
+     * Concrete brutalist monolith — parent.add; азимут в updateScene (фронт с динамиками — локальный +Z).
      */
-    function makeMonitorSpeaker(parent, x, y, z) {
-      const M = getMonitorSpkTextures();
+    function makeConcreteMonolithSpeaker(parent, x, y, z) {
+      const M = getConcreteMonolithSpkTextures();
       const {
-        burlMat,
-        concM,
-        hornMetM,
-        hornShdM,
-        rivetM,
-        wRingM,
-        wConeM,
-        wSurrM,
-        dustM,
-        blackM,
-        driverM,
-        ampM,
-        logoM,
+        concSmoothM,
+        concRoughM,
+        wooferRingM,
+        wooferConeM,
+        wooferSurrM,
+        dustCapM,
+        cableM,
+        innerExposedM,
+        crackLineM,
+        roughRingM,
+        topDetailM,
       } = M;
       const g = new THREE.Group();
+      const CW = 0.52;
+      const CH = 1.35;
+      const CD = 0.38;
 
-      const BW = 1.2;
-      const BH = 1.1;
-      const BD = 0.82;
-      const PW = 1.28;
-      const PH = 0.38;
-      const PD = 0.9;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(CW, CH, CD), concSmoothM);
+      body.position.set(0, CH / 2, 0);
+      body.castShadow = true;
+      body.receiveShadow = true;
+      g.add(body);
 
-      const plinth = new THREE.Mesh(new THREE.BoxGeometry(PW, PH, PD), concM);
-      plinth.position.set(0, PH / 2, 0);
-      plinth.castShadow = true;
-      plinth.receiveShadow = true;
-      g.add(plinth);
+      const crackZone = new THREE.Mesh(new THREE.BoxGeometry(0.06, CH * 0.85, CD * 0.18), concRoughM);
+      crackZone.position.set(CW / 2 - 0.01, CH * 0.52, 0);
+      crackZone.rotation.y = 0.15;
+      g.add(crackZone);
 
-      [[PW / 2, 0], [-PW / 2, 0]].forEach(([px]) => {
-        const s = new THREE.Mesh(new THREE.BoxGeometry(0.016, PH, PD + 0.008), rivetM);
-        s.position.set(px, PH / 2, 0);
-        g.add(s);
+      const crackFragments = [
+        { x: CW / 2 + 0.018, y: CH * 0.78, z: 0.02, rx: 0.2, ry: 0.3, s: [0.055, 0.12, 0.08] },
+        { x: CW / 2 + 0.028, y: CH * 0.65, z: -0.04, rx: -0.1, ry: -0.2, s: [0.08, 0.09, 0.12] },
+        { x: CW / 2 + 0.012, y: CH * 0.52, z: 0.06, rx: 0.3, ry: 0.15, s: [0.045, 0.14, 0.07] },
+        { x: CW / 2 + 0.035, y: CH * 0.42, z: -0.02, rx: -0.2, ry: 0.25, s: [0.07, 0.08, 0.1] },
+        { x: CW / 2 + 0.022, y: CH * 0.3, z: 0.03, rx: 0.15, ry: -0.18, s: [0.06, 0.11, 0.09] },
+        { x: CW / 2 + 0.015, y: CH * 0.22, z: -0.05, rx: 0.25, ry: 0.1, s: [0.05, 0.07, 0.08] },
+        { x: CW / 2 - 0.015, y: CH * 0.7, z: 0.08, rx: -0.1, ry: 0.2, s: [0.04, 0.18, 0.06] },
+        { x: CW / 2 + 0.008, y: CH * 0.58, z: -0.07, rx: 0.1, ry: -0.1, s: [0.05, 0.09, 0.05] },
+      ];
+      crackFragments.forEach((f) => {
+        const frag = new THREE.Mesh(new THREE.BoxGeometry(f.s[0], f.s[1], f.s[2]), concRoughM);
+        frag.position.set(f.x, f.y, f.z);
+        frag.rotation.set(f.rx, f.ry, f.rx * 0.5);
+        frag.castShadow = true;
+        g.add(frag);
       });
 
-      const cabY = PH;
-      const cab = new THREE.Mesh(
-        new THREE.BoxGeometry(BW, BH, BD),
-        [burlMat, burlMat, burlMat, burlMat, burlMat, burlMat]
-      );
-      cab.position.set(0, cabY + BH / 2, 0);
-      cab.castShadow = true;
-      cab.receiveShadow = true;
-      g.add(cab);
+      const innerExposed = new THREE.Mesh(new THREE.BoxGeometry(0.04, CH * 0.72, CD * 0.55), innerExposedM);
+      innerExposed.position.set(CW / 2 - 0.005, CH * 0.5, 0);
+      innerExposed.rotation.y = -0.05;
+      g.add(innerExposed);
 
-      const fz = BD / 2;
-      const rGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.013, 8);
-      for (let i = 0; i < 8; i++) {
-        [cabY + BH - 0.04, cabY + 0.04].forEach((ry) => {
-          const rv = new THREE.Mesh(rGeo, rivetM);
-          rv.rotation.x = Math.PI / 2;
-          rv.position.set(-BW / 2 + 0.04 + (i * (BW - 0.08)) / 7, ry, fz + 0.006);
-          g.add(rv);
-        });
-      }
-      for (let i = 0; i < 5; i++) {
-        [-BW / 2 + 0.03, BW / 2 - 0.03].forEach((ex) => {
-          const rv = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.013, 8), rivetM);
-          rv.rotation.z = Math.PI / 2;
-          rv.position.set(ex + (ex > 0 ? 0.006 : -0.006), cabY + 0.12 + (i * (BH - 0.24)) / 4, 0);
-          g.add(rv);
-        });
-      }
+      const crackLine = new THREE.Mesh(new THREE.BoxGeometry(0.012, CH * 0.82, 0.012), crackLineM);
+      crackLine.position.set(CW / 2 - 0.024, CH * 0.52, 0);
+      crackLine.rotation.y = 0.08;
+      g.add(crackLine);
 
-      const vent = new THREE.Mesh(new THREE.BoxGeometry(BW * 0.65, 0.052, 0.014), blackM);
-      vent.position.set(0, cabY + 0.062, fz + 0.007);
-      g.add(vent);
+      const fz = CD / 2;
+      const wooferPositions = [
+        { y: CH * 0.76, r: 0.095 },
+        { y: CH * 0.5, r: 0.115 },
+        { y: CH * 0.24, r: 0.105 },
+      ];
+      wooferPositions.forEach(({ y, r }) => {
+        const wx = -CW * 0.06;
 
-      function makeWoofer(wx, wy) {
-        const R = 0.215;
-        const ring = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.02, R + 0.02, 0.022, 48), wRingM);
+        const roughRing = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.032, r + 0.032, 0.025, 32), roughRingM);
+        roughRing.rotation.x = Math.PI / 2;
+        roughRing.position.set(wx, y, fz + 0.005);
+        g.add(roughRing);
+
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.018, 36), wooferRingM);
         ring.rotation.x = Math.PI / 2;
-        ring.position.set(wx, wy, fz + 0.005);
+        ring.position.set(wx, y, fz + 0.01);
         g.add(ring);
 
-        const surr = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.028, 48), wSurrM);
+        const surr = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.022, 36), wooferSurrM);
         surr.rotation.x = Math.PI / 2;
-        surr.position.set(wx, wy, fz + 0.01);
+        surr.position.set(wx, y, fz + 0.014);
         g.add(surr);
 
-        const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.042, R - 0.012, 0.095, 48), wConeM);
+        const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.025, r - 0.01, 0.06, 36), wooferConeM);
         cone.rotation.x = -Math.PI / 2;
-        cone.position.set(wx, wy, fz + 0.016);
+        cone.position.set(wx, y, fz + 0.018);
         g.add(cone);
 
         const dome = new THREE.Mesh(
-          new THREE.SphereGeometry(0.04, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-          dustM
+          new THREE.SphereGeometry(0.024, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2),
+          dustCapM
         );
         dome.rotation.x = Math.PI / 2;
-        dome.position.set(wx, wy, fz + 0.072);
+        dome.position.set(wx, y, fz + 0.046);
         g.add(dome);
 
-        for (let i = 0; i < 12; i++) {
-          const a = (i / 12) * Math.PI * 2;
-          const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.014, 6), rivetM);
-          bolt.rotation.x = Math.PI / 2;
-          bolt.position.set(wx + (R + 0.01) * Math.cos(a), wy + (R + 0.01) * Math.sin(a), fz + 0.016);
-          g.add(bolt);
+        for (let i = 0; i < 5; i++) {
+          const angle = (i / 5) * Math.PI * 2 + Math.random() * 0.5;
+          const dist = r + 0.025 + Math.random() * 0.025;
+          const chip = new THREE.Mesh(
+            new THREE.BoxGeometry(0.02 + Math.random() * 0.035, 0.015 + Math.random() * 0.025, 0.012),
+            concRoughM
+          );
+          chip.position.set(
+            wx + Math.cos(angle) * dist,
+            y + Math.sin(angle) * dist,
+            fz + 0.012 + Math.random() * 0.01
+          );
+          chip.rotation.set(Math.random() * 0.4, Math.random() * 0.4, angle);
+          g.add(chip);
         }
-      }
-
-      makeWoofer(-BW * 0.265, cabY + BH * 0.5);
-      makeWoofer(BW * 0.265, cabY + BH * 0.5);
-
-      const hornY = cabY + BH;
-      const HW = BW;
-      const HH = 0.38;
-      const HD = BD * 0.82;
-      const hornZ = -BD / 2 + HD / 2;
-
-      const hTop = new THREE.Mesh(new THREE.BoxGeometry(HW, 0.022, HD), hornMetM);
-      hTop.position.set(0, hornY + HH, hornZ);
-      hTop.castShadow = true;
-      g.add(hTop);
-
-      const hBot = new THREE.Mesh(new THREE.BoxGeometry(HW, 0.022, HD), hornMetM);
-      hBot.position.set(0, hornY, hornZ);
-      g.add(hBot);
-
-      const hLeft = new THREE.Mesh(new THREE.BoxGeometry(0.022, HH, HD), hornMetM);
-      hLeft.position.set(-HW / 2, hornY + HH / 2, hornZ);
-      hLeft.castShadow = true;
-      g.add(hLeft);
-
-      const hRight = new THREE.Mesh(new THREE.BoxGeometry(0.022, HH, HD), hornMetM);
-      hRight.position.set(HW / 2, hornY + HH / 2, hornZ);
-      hRight.castShadow = true;
-      g.add(hRight);
-
-      const hBack = new THREE.Mesh(new THREE.BoxGeometry(HW, HH, 0.022), hornMetM);
-      hBack.position.set(0, hornY + HH / 2, hornZ - HD / 2);
-      g.add(hBack);
-
-      const throatW = 0.12;
-      const mouthW = HW - 0.05;
-      const throatH = HH * 0.55;
-      const mouthH = HH * 0.88;
-      const throatZ = hornZ - HD / 2 + 0.05;
-      const mouthZ = hornZ + HD / 2;
-
-      const segs = 8;
-      for (let i = 0; i < segs; i++) {
-        const t = (i + 0.5) / segs;
-        const wm = throatW + (mouthW - throatW) * t;
-        const hm = throatH + (mouthH - throatH) * t;
-        const zm = throatZ + (mouthZ - throatZ) * t;
-        const segD = (mouthZ - throatZ) / segs;
-
-        const topIn = new THREE.Mesh(new THREE.BoxGeometry(wm, 0.016, segD), hornMetM);
-        topIn.position.set(0, hornY + hm, zm);
-        g.add(topIn);
-        const botIn = new THREE.Mesh(new THREE.BoxGeometry(wm, 0.016, segD), hornMetM);
-        botIn.position.set(0, hornY + HH - hm, zm);
-        g.add(botIn);
-      }
-
-      const throat = new THREE.Mesh(new THREE.BoxGeometry(throatW * 0.8, throatH * 0.7, 0.01), hornShdM);
-      throat.position.set(0, hornY + HH / 2, throatZ + 0.02);
-      g.add(throat);
-
-      const driver = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.06, 20), driverM);
-      driver.rotation.x = Math.PI / 2;
-      driver.position.set(0, hornY + HH / 2, throatZ + 0.04);
-      g.add(driver);
-
-      const hRivGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.016, 8);
-      [
-        [HW / 2 - 0.04, hornY + 0.03],
-        [-HW / 2 + 0.04, hornY + 0.03],
-        [HW / 2 - 0.04, hornY + HH - 0.03],
-        [-HW / 2 + 0.04, hornY + HH - 0.03],
-      ].forEach(([rx, ry]) => {
-        const rv = new THREE.Mesh(hRivGeo, rivetM);
-        rv.rotation.x = Math.PI / 2;
-        rv.position.set(rx, ry, mouthZ + 0.01);
-        g.add(rv);
       });
-      for (let i = 1; i < 5; i++) {
-        [hornY, hornY + HH].forEach((ry) => {
-          const rv = new THREE.Mesh(hRivGeo, rivetM);
-          rv.rotation.x = ry === hornY ? Math.PI / 2 : -Math.PI / 2;
-          rv.position.set(-HW / 2 + (HW * i) / 5, ry + (ry === hornY ? 0.011 : -0.011), hornZ);
-          g.add(rv);
-        });
-      }
-      for (let i = 0; i < 3; i++) {
-        [-HW / 2, HW / 2].forEach((ex) => {
-          const rv = new THREE.Mesh(hRivGeo, rivetM);
-          rv.rotation.z = Math.PI / 2;
-          rv.position.set(ex + (ex > 0 ? 0.011 : -0.011), hornY + 0.06 + (i * (HH - 0.12)) / 2, hornZ);
-          g.add(rv);
-        });
-      }
 
-      const logo = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.018, 0.008), logoM);
-      logo.position.set(0, hornY + 0.022, mouthZ - 0.2);
-      g.add(logo);
+      const cablePts = [
+        new THREE.Vector3(-CW * 0.06, 0.04, fz),
+        new THREE.Vector3(-CW * 0.06, 0.02, fz + 0.05),
+        new THREE.Vector3(-CW * 0.14, 0.01, fz + 0.12),
+        new THREE.Vector3(-CW * 0.28, 0.008, fz + 0.18),
+        new THREE.Vector3(-CW * 0.55, 0.006, fz + 0.22),
+        new THREE.Vector3(-CW * 0.8, 0.005, fz + 0.25),
+      ];
+      const cable = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cablePts), 20, 0.009, 8, false),
+        cableM
+      );
+      g.add(cable);
 
-      const amp = new THREE.Mesh(new THREE.BoxGeometry(0.055, HH * 0.75, 0.06), ampM);
-      amp.position.set(HW / 2 - 0.02, hornY + HH / 2, hornZ + HD / 2 - 0.05);
-      g.add(amp);
+      const topDetail = new THREE.Mesh(new THREE.BoxGeometry(CW + 0.004, 0.018, CD + 0.004), topDetailM);
+      topDetail.position.set(0, CH, 0);
+      g.add(topDetail);
 
       g.position.set(x, y, z);
       parent.add(g);
@@ -3420,8 +3307,8 @@
     makeEcler(djGearRoot, 0, 0, 0);
 
     /**
-     * Monitor speaker: масштаб с пультами (gearScale) × SPK_MUL — геометрия ~1.2 m корпус.
-     * Подъём снизу — группа djSpeakersRise, позиция.y в updateScene по uTable.
+     * Бетонный монолит: масштаб gearScale × SPK_MUL (корпус ~0.52×1.35 m в чертеже).
+     * Подъём снизу — djSpeakersRise, позиция.y в updateScene по uTable.
      */
     const SPK_MUL = 5.45;
     /** Полуразмас по X от центра стола (ед. чертежа × gearScale); больше — шире стойка */
@@ -3440,7 +3327,7 @@
       const anchor = new THREE.Group();
       djSpkRise.add(anchor);
       anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, SPK_ANCHOR_Z);
-      const spk = makeMonitorSpeaker(anchor, 0, 0, 0);
+      const spk = makeConcreteMonolithSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
       /** Азимут к зрителю фиксируется при первом uTable>0; фронт — локальный +Z */
     });
@@ -3734,6 +3621,10 @@
       const capPx = scrollAllowedEnd * max;
       const y = window.scrollY;
       if (e.deltaY > 0 && scrollPhaseLock && y >= capPx - 6) {
+        e.preventDefault();
+      }
+      /** Финал / презентация: вниз за предел страницы нельзя, вверх — как в остальных фазах */
+      if (scrollAllowedEnd >= 1 - 1e-6 && e.deltaY > 0 && y >= max - 0.5) {
         e.preventDefault();
       }
     }, { passive: false });
