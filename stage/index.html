@@ -228,7 +228,7 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Minimal sand — fabric micro-city: oak floor rising into place, tensile walls, floating ceiling fields</p>
+    <p>Minimal sand — fabric micro-city: light wood floor settles from above, tensile walls, floating ceiling fields</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
@@ -292,7 +292,7 @@
   let interiorGroup;
   let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh, squareTentStakeMesh;
   let hangingInteriorFabricGroup;
-  /** Ромбовый пол шатра (дуб); подъём снизу только в конце сегмента Site */
+  /** Ромбовый пол шатра (светлое дерево); падение сверху в Site с середины сегмента до конца */
   let tentFloorMesh;
   let mainSun, hemiMain, fillSun;
   let sceneAmbient;
@@ -634,7 +634,7 @@
   }
 
   /**
-   * Пол: процедурный дуб — тёплые доски, волокна вдоль, поперечные «лучи» дуба, тёмные швы.
+   * Пол: светлое дерево (ясень / светлый дуб) — доски, мягкие волокна, едва заметные лучи, светлые швы.
    */
   function makeTentInteriorFloorTextures() {
     const w = 512;
@@ -648,15 +648,15 @@
     for (let pi = 0; pi < nPlanks; pi++) {
       const py = pi * plankH;
       const stagger = (pi % 2) * 23;
-      const baseR = 118 + (pi * 11) % 18 + Math.sin(pi * 2.1) * 6;
-      const baseG = 88 + (pi * 5) % 14 + Math.sin(pi * 1.4) * 5;
-      const baseB = 62 + (pi * 7) % 12;
+      const baseR = 218 + (pi * 9) % 22 + Math.sin(pi * 2.1) * 5;
+      const baseG = 198 + (pi * 6) % 18 + Math.sin(pi * 1.4) * 4;
+      const baseB = 172 + (pi * 5) % 16;
       ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
       ctx.fillRect(0, py, w, plankH);
-      ctx.strokeStyle = 'rgba(45, 32, 22, 0.14)';
+      ctx.strokeStyle = 'rgba(120, 98, 78, 0.1)';
       ctx.lineWidth = 1;
       for (let x = -stagger; x < w + stagger; x += 2) {
-        const wv = Math.sin(x * 0.021 + pi * 0.8) * 0.5 + Math.sin(x * 0.008 + py * 0.01) * 0.35;
+        const wv = Math.sin(x * 0.021 + pi * 0.8) * 0.45 + Math.sin(x * 0.008 + py * 0.01) * 0.3;
         const gy = py + plankH * (0.2 + ((x * 0.017 + pi * 0.3) % 1) * 0.62) + wv;
         ctx.beginPath();
         ctx.moveTo(x, gy);
@@ -666,20 +666,20 @@
       for (let rx = stagger; rx < w + stagger; rx += 6 + (pi * 3) % 5) {
         const bx0 = (rx + pi * 19) % (w - 4);
         const len = 2 + (rx % 4);
-        ctx.fillStyle = `rgba(210, 185, 155, ${0.07 + (rx % 7) * 0.012})`;
+        ctx.fillStyle = `rgba(255, 248, 235, ${0.09 + (rx % 7) * 0.014})`;
         for (let k = 0; k < 5; k++) {
           ctx.fillRect(bx0 + k * 5, py + 2 + (k % 2) * (plankH * 0.35), 0.8, len);
         }
       }
-      ctx.fillStyle = 'rgba(28, 20, 14, 0.72)';
+      ctx.fillStyle = 'rgba(140, 118, 95, 0.45)';
       ctx.fillRect(0, py + plankH - 2, w, 2);
-      ctx.fillStyle = 'rgba(255, 235, 210, 0.06)';
+      ctx.fillStyle = 'rgba(255, 255, 252, 0.12)';
       ctx.fillRect(0, py + 1, w, 1);
     }
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 55; i++) {
       const x = Math.random() * w;
       const y = Math.random() * h;
-      ctx.fillStyle = `rgba(30, 20, 12, ${0.02 + Math.random() * 0.05})`;
+      ctx.fillStyle = `rgba(100, 82, 62, ${0.015 + Math.random() * 0.035})`;
       ctx.fillRect(x, y, 1 + Math.random() * 4, 0.6 + Math.random() * 1);
     }
     const map = new THREE.CanvasTexture(c);
@@ -697,12 +697,12 @@
       const py = (i / 4 / 256) | 0;
       const plank = ((py / 256) * nPlanks) | 0;
       const grain =
-        95
-        + Math.sin(px * 0.09 + plank * 0.4) * 18
-        + Math.sin(py * 0.11) * 12
-        + Math.sin(px * 0.35) * 6 * Math.sin(py * 0.08)
-        + (Math.random() - 0.5) * 10;
-      const v = Math.max(55, Math.min(165, grain));
+        175
+        + Math.sin(px * 0.09 + plank * 0.4) * 22
+        + Math.sin(py * 0.11) * 14
+        + Math.sin(px * 0.35) * 8 * Math.sin(py * 0.08)
+        + (Math.random() - 0.5) * 9;
+      const v = Math.max(130, Math.min(228, grain));
       d[i] = d[i + 1] = d[i + 2] = v;
       d[i + 3] = 255;
     }
@@ -1506,16 +1506,16 @@
     tentFloorTex.map.anisotropy = bedding.map.anisotropy || 1;
     tentFloorTex.bumpMap.anisotropy = bedding.map.anisotropy || 1;
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x8f6f52,
+      color: 0xe8dcc8,
       map: tentFloorTex.map,
       bumpMap: tentFloorTex.bumpMap,
-      bumpScale: 0.055 * (TENT_SCALE / 4),
-      roughness: 0.86,
-      metalness: 0.02,
+      bumpScale: 0.05 * (TENT_SCALE / 4),
+      roughness: 0.82,
+      metalness: 0.01,
       envMap,
-      envMapIntensity: 0.26,
-      emissive: new THREE.Color(0x2a1c12),
-      emissiveIntensity: 0.028,
+      envMapIntensity: 0.32,
+      emissive: new THREE.Color(0xf5ebe0),
+      emissiveIntensity: 0.018,
       side: THREE.DoubleSide,
       transparent: false,
       opacity: 1,
@@ -1530,7 +1530,7 @@
     floorMesh.position.y = floorBaseY;
     floorMesh.renderOrder = 1;
     floorMesh.userData.floorBaseY = floorBaseY;
-    floorMesh.userData.floorSiteLift = 0.62 * TENT_SCALE;
+    floorMesh.userData.floorDropFromSky = 1.85 * TENT_SCALE;
     g.add(floorMesh);
 
     const stakeEvery = Math.max(1, Math.floor(wallAnchors.length / 32));
@@ -1719,9 +1719,9 @@
   ];
 
   const NSEG = 8;
-  /** Пол дуба: только в последней доле сегмента Site (конец KF0→KF1), до этого скрыт */
-  const SITE_FLOOR_EMERGE_START = 0.87;
-  const SITE_FLOOR_EMERGE_LEN = 0.13;
+  /** Пол Site: анимация с середины первого сегмента (0.5) до конца (1.0) кадра Site */
+  const SITE_FLOOR_ANIM_START = 0.5;
+  const SITE_FLOOR_ANIM_LEN = 0.5;
   /** Assembly: после полёта в белый — кроссфейд (доля сегмента uLin 0→1) */
   const ASSEMBLY_PAGE_CROSS_START = 0.5;
   const ASSEMBLY_PAGE_CROSS_LEN = 0.38;
@@ -2056,26 +2056,31 @@
       const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
       const wallReveal = ss(clamp((p - WALLS_SCROLL_START) / (WALLS_SCROLL_END - WALLS_SCROLL_START), 0, 1));
       const SITE_SEG = 0;
-      let floorSiteReveal = 1;
+      let floorAnimT = 1;
       if (s === SITE_SEG) {
         const siteU = clamp(p * NSEG, 0, 1);
-        if (siteU < SITE_FLOOR_EMERGE_START) {
-          floorSiteReveal = 0;
+        if (siteU < SITE_FLOOR_ANIM_START) {
+          floorAnimT = 0;
         } else {
-          floorSiteReveal = ss(
-            clamp((siteU - SITE_FLOOR_EMERGE_START) / Math.max(1e-6, SITE_FLOOR_EMERGE_LEN), 0, 1)
+          floorAnimT = clamp(
+            (siteU - SITE_FLOOR_ANIM_START) / Math.max(1e-6, SITE_FLOOR_ANIM_LEN),
+            0,
+            1
           );
         }
       }
       if (tentFloorMesh && tentFloorMesh.userData.floorBaseY != null) {
         const fby = tentFloorMesh.userData.floorBaseY;
-        const lift = tentFloorMesh.userData.floorSiteLift ?? 0.55 * TENT_SCALE;
-        const fr = s > SITE_SEG ? 1 : floorSiteReveal;
-        tentFloorMesh.visible = fr > 0.001;
-        if (tentFloorMesh.visible) {
-          const riseEase = fr * fr * (3 - 2 * fr);
-          tentFloorMesh.position.y = fby - (1 - riseEase) * lift;
-          const sc = 0.88 + 0.12 * riseEase;
+        const drop =
+          tentFloorMesh.userData.floorDropFromSky ?? 1.75 * TENT_SCALE;
+        const fr = s > SITE_SEG ? 1 : floorAnimT;
+        const showFloor = s > SITE_SEG || (s === SITE_SEG && fr > 1e-6);
+        tentFloorMesh.visible = showFloor;
+        if (showFloor) {
+          /** Падение с неба → штатная высота: плавный smootherstep по скроллу сегмента Site */
+          const landEase = fr * fr * (3 - 2 * fr);
+          tentFloorMesh.position.y = fby + (1 - landEase) * drop;
+          const sc = 0.94 + 0.06 * landEase;
           tentFloorMesh.scale.set(sc, 1, sc);
         }
       }
