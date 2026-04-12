@@ -1688,9 +1688,10 @@
     }
     const hangPeakLift =
       Math.max(...TENSILE_PEAK_SPEC.map((s) => s.yLift)) * TENT_SCALE;
-    /** Одна линия крепления для всех штор (без рандома по Y — верх ровный) */
+    /** Одна линия крепления для всех штор (без рандома по Y — верх ровный).
+     * При TENT_SCALE=24: ≈300 (было ≈307 при −0.19·T) */
     const hangRailY =
-      SQ_ROOF_Y + hangPeakLift * 0.88 - 0.19 * TENT_SCALE;
+      SQ_ROOF_Y + hangPeakLift * 0.88 - 0.475 * TENT_SCALE;
     for (let hi = 0; hi < nHangPanels; hi++) {
       let px = 0;
       let pz = 0;
