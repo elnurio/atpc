@@ -1480,7 +1480,8 @@
     floorMesh.renderOrder = 1;
     floorMesh.userData.floorBaseY = floorBaseY;
     /** Старт у верхней зоны купола/неба, не чуть над столом — визуально спуск с неба */
-    floorMesh.userData.floorDropFromSky = SQ_ROOF_Y - floorBaseY + 1.1 * TENT_SCALE;
+    floorMesh.userData.floorDropFromSky =
+      SQ_ROOF_Y - floorBaseY + 1.1 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
     g.add(floorMesh);
 
     const stakeEvery = Math.max(1, Math.floor(wallAnchors.length / 32));
@@ -1674,6 +1675,8 @@
   const FLOOR_DESCENT_END_P = 1.5 / NSEG;
   /** >1 — медленнее в начале интервала спуска */
   const FLOOR_DESCENT_SLOW_POW = 1.52;
+  /** Доп. высота старта пола над зоной крыши (× TENT_SCALE) — выше = длиннее «падение с неба» */
+  const FLOOR_SKY_DROP_EXTRA_SCALE = 2.25;
   /** Assembly: после полёта в белый — кроссфейд (доля сегмента uLin 0→1) */
   const ASSEMBLY_PAGE_CROSS_START = 0.5;
   const ASSEMBLY_PAGE_CROSS_LEN = 0.38;
@@ -2014,7 +2017,7 @@
         const fby = tentFloorMesh.userData.floorBaseY;
         const drop =
           tentFloorMesh.userData.floorDropFromSky
-          ?? SQ_ROOF_Y - fby + 1.1 * TENT_SCALE;
+          ?? SQ_ROOF_Y - fby + 1.1 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
         if (p < FLOOR_DESCENT_START_P) {
           tentFloorMesh.visible = false;
         } else {
