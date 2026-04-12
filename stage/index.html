@@ -287,6 +287,8 @@
   let shelterCeilingRing = null;
   let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
+  let godSunGroup, godSunMat, godSunSprite;
+  const sunDirTmp = new THREE.Vector3();
   let interiorGroup;
   let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh, squareTentStakeMesh;
   let hangingInteriorFabricGroup;
@@ -370,6 +372,8 @@
    * плавное появление в последних ~12% трека установки купола (синхрон с «посадкой» мембраны).
    */
   const HANGING_PROFILE_LATE_START = 0.875;
+  /** clk += 0.006/кадр — без множителя качание визуально «замерзает»; это даёт читаемый ветер */
+  const HANG_WIND_CLK = 46;
   /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
   /* Стол DJ — фаза Light (sl3): появляется от начала сегмента 3 и к концу Light уже полностью */
   const INTERIOR_TABLE_LIGHT_SEG = 3;
@@ -1604,22 +1608,23 @@
       pivot.userData.baseRy = hfRnd() * Math.PI * 2 + (hfRnd() - 0.5) * 0.85;
       pivot.userData.swayPhase = hfRnd() * Math.PI * 2;
       pivot.userData.swayPhase2 = hfRnd() * Math.PI * 2;
-      /** Медленные частоты — лёгкое «дыхание» ткани, без маятника */
-      pivot.userData.swayRate = 0.055 + hfRnd() * 0.048;
-      pivot.userData.swayRate2 = 0.028 + hfRnd() * 0.026;
-      pivot.userData.ampX = (0.018 + hfRnd() * 0.02) * (0.88 + hi * 0.006);
-      pivot.userData.ampZ = (0.026 + hfRnd() * 0.024) * (0.9 + hi * 0.005);
-      pivot.userData.ampY = (0.012 + hfRnd() * 0.016) * (0.85 + hi * 0.004);
-      pivot.userData.driftR = 0.038 + hfRnd() * 0.036;
+      /** Частоты (множитель tw=clk*HANG_WIND_CLK в update) — читаемое качание как от ветра */
+      pivot.userData.swayRate = 0.078 + hfRnd() * 0.062;
+      pivot.userData.swayRate2 = 0.041 + hfRnd() * 0.038;
+      pivot.userData.ampX = (0.052 + hfRnd() * 0.048) * (0.88 + hi * 0.006);
+      pivot.userData.ampZ = (0.068 + hfRnd() * 0.055) * (0.9 + hi * 0.005);
+      pivot.userData.ampY = (0.032 + hfRnd() * 0.038) * (0.85 + hi * 0.004);
+      pivot.userData.windK = 0.58 + hfRnd() * 0.48;
+      pivot.userData.driftR = 0.055 + hfRnd() * 0.05;
       pivot.userData.driftPh = hfRnd() * Math.PI * 2;
-      pivot.userData.driftX = (0.0018 + hfRnd() * 0.0036) * DIAMOND_R;
-      pivot.userData.driftZ = (0.0016 + hfRnd() * 0.0034) * DIAMOND_R;
-      pivot.userData.breathR = 0.034 + hfRnd() * 0.03;
+      pivot.userData.driftX = (0.0042 + hfRnd() * 0.0065) * DIAMOND_R;
+      pivot.userData.driftZ = (0.0038 + hfRnd() * 0.006) * DIAMOND_R;
+      pivot.userData.breathR = 0.048 + hfRnd() * 0.042;
       pivot.userData.breathPh = hfRnd() * Math.PI * 2;
-      pivot.userData.breathAmp = (0.00032 + hfRnd() * 0.00055) * SQ_ROOF_Y;
-      pivot.userData.stripTwistR = 0.072 + hfRnd() * 0.062;
+      pivot.userData.breathAmp = (0.00075 + hfRnd() * 0.001) * SQ_ROOF_Y;
+      pivot.userData.stripTwistR = 0.095 + hfRnd() * 0.088;
       pivot.userData.stripTwistPh = hfRnd() * Math.PI * 2;
-      pivot.userData.stripTwistAmp = 0.011 + hfRnd() * 0.013;
+      pivot.userData.stripTwistAmp = 0.034 + hfRnd() * 0.038;
       pivot.rotation.y = pivot.userData.baseRy;
       hangingInteriorFabricGroup.add(pivot);
     }
@@ -1696,6 +1701,24 @@
   }
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
+
+  function makeSunDiscTexture() {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 256;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 126);
+    g.addColorStop(0, 'rgba(255, 255, 252, 1)');
+    g.addColorStop(0.12, 'rgba(255, 248, 220, 0.95)');
+    g.addColorStop(0.35, 'rgba(255, 228, 170, 0.45)');
+    g.addColorStop(0.62, 'rgba(255, 210, 140, 0.12)');
+    g.addColorStop(1, 'rgba(255, 200, 120, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
   const BLUEPRINT_WHITE = new THREE.Color(0xf2f4f8);
   const VOL_RAY_WHITE = new THREE.Color(0xffffff);
   const volRayColorTmp = new THREE.Color();
@@ -1846,6 +1869,12 @@
         ? ss(clamp((uLin - ASSEMBLY_PAGE_CROSS_START) / ASSEMBLY_PAGE_CROSS_LEN, 0, 1))
         : 0;
     const sceneWhiteMix = s === 7 ? blueprintT * (1 - 0.94 * drawingPageT) : 0;
+
+    /** Фаза Light (sl3): солнце + god-rays синхронно с появлением луча */
+    const lightSegA = INTERIOR_TABLE_LIGHT_SEG / NSEG;
+    const lightSegB = (INTERIOR_TABLE_LIGHT_SEG + 1) / NSEG;
+    const lightScrollU = clamp((p - lightSegA) / Math.max(1e-6, lightSegB - lightSegA), 0, 1);
+    const lightEase = ss(lightScrollU);
 
     if (s === 5) {
       /** Предпоследний сегмент: перенос + look — тот же приём, что на финале (uLin), без «рваного» нарастания */
@@ -2003,6 +2032,16 @@
         const hangVis = hangAccentT > 0.008 && p >= ROOF_SCROLL_START - 1e-6 && wallReveal > 0.02;
         hangingInteriorFabricGroup.visible = hangVis;
         if (hangVis) {
+          const tw = clk * HANG_WIND_CLK;
+          /** Общий «порыв» для всех полос — ощущение одного потока воздуха в объёме */
+          const windGustX =
+            Math.sin(tw * 0.098 + 0.31) * 0.095
+            + Math.sin(tw * 0.171 + 1.12) * 0.042
+            + Math.sin(tw * 0.246 + 0.55) * 0.026;
+          const windGustZ =
+            Math.sin(tw * 0.084 + 0.18) * 0.118
+            + Math.cos(tw * 0.152 + 0.74) * 0.052
+            + Math.sin(tw * 0.203 + 2.1) * 0.028;
           hangingInteriorFabricGroup.traverse((obj) => {
             if (obj.isMesh && obj.material && obj.material.userData && obj.material.userData.hangBaseOpacity != null) {
               const b = obj.material.userData.hangBaseOpacity;
@@ -2011,38 +2050,40 @@
             }
             if (!obj.userData.panelSway) return;
             const u = obj.userData;
-            const mw = Math.max(0.1, hangAccentT);
-            const s = clk;
+            const mw = Math.max(0.18, hangAccentT);
             const ph = u.swayPhase;
             const ph2 = u.swayPhase2;
             const r = u.swayRate;
             const r2 = u.swayRate2;
-            const s2 = s * 0.52 + ph * 0.22;
-            /** Две несводимые частоты + лёгкая модуляция — мягкая ткань, не жёсткий маятник */
+            const t2 = tw * 0.52 + ph * 0.22;
+            const wk = u.windK;
             const ax =
-              Math.sin(s * r + ph) * u.ampX
-              + Math.sin(s2 * r2 + ph2) * u.ampX * 0.42
-              + Math.sin(s * r * 0.31 + ph2 * 1.4) * u.ampX * 0.22;
+              Math.sin(tw * r + ph) * u.ampX
+              + Math.sin(t2 * r2 + ph2) * u.ampX * 0.44
+              + Math.sin(tw * r * 0.31 + ph2 * 1.4) * u.ampX * 0.24
+              + windGustX * wk;
             const ay =
-              Math.sin(s * r * 0.33 + ph * 1.12) * u.ampY
-              + Math.sin(s2 * r2 * 0.71 + ph2) * u.ampY * 0.38;
+              Math.sin(tw * r * 0.33 + ph * 1.12) * u.ampY
+              + Math.sin(t2 * r2 * 0.71 + ph2) * u.ampY * 0.4
+              + Math.sin(tw * 0.073 + ph * 0.5) * u.ampY * 0.18;
             const az =
-              Math.sin(s * r * 0.88 + ph * 1.48) * u.ampZ
-              + Math.sin(s2 * r2 * 1.05 + ph2 * 0.9) * u.ampZ * 0.36;
+              Math.sin(tw * r * 0.88 + ph * 1.48) * u.ampZ
+              + Math.sin(t2 * r2 * 1.05 + ph2 * 0.9) * u.ampZ * 0.38
+              + windGustZ * wk;
             obj.rotation.x = ax * mw;
             obj.rotation.y = u.baseRy + ay * mw;
             obj.rotation.z = az * mw;
             obj.position.set(
-              u.anchorPx + Math.sin(s * u.driftR + u.driftPh) * u.driftX * mw,
-              u.anchorPy + Math.sin(s * u.breathR + u.breathPh) * u.breathAmp * mw,
-              u.anchorPz + Math.cos(s * u.driftR * 0.89 + u.driftPh * 1.09) * u.driftZ * mw
+              u.anchorPx + Math.sin(tw * u.driftR + u.driftPh) * u.driftX * mw,
+              u.anchorPy + Math.sin(tw * u.breathR + u.breathPh) * u.breathAmp * mw,
+              u.anchorPz + Math.cos(tw * u.driftR * 0.89 + u.driftPh * 1.09) * u.driftZ * mw
             );
             for (let ci = 0; ci < obj.children.length; ci++) {
               const ch = obj.children[ci];
               if (!ch.isMesh) continue;
-              const tw = u.stripTwistAmp * mw;
-              ch.rotation.x = Math.sin(s * u.stripTwistR + u.stripTwistPh) * tw * 0.4;
-              ch.rotation.z = Math.sin(s * u.stripTwistR * 0.64 + u.stripTwistPh * 1.18) * tw;
+              const st = u.stripTwistAmp * mw;
+              ch.rotation.x = Math.sin(tw * u.stripTwistR + u.stripTwistPh) * st * 0.45;
+              ch.rotation.z = Math.sin(tw * u.stripTwistR * 0.64 + u.stripTwistPh * 1.18) * st;
             }
           });
         }
@@ -2060,12 +2101,14 @@
       const skyDim = upliftBoost * oculusOpKF;
       let sunI = lerp(0.68, 0.48, uDim) + 0.38 * upliftBoost;
       sunI *= 1 - 0.1 * skyDim;
+      sunI *= 1 + 0.26 * lightEase;
       mainSun.intensity = Math.max(0.22, sunI) * bpDim;
       let hemiI = (lerp(0.48, 0.38, uDim) + 0.08 * upliftBoost) * (1 - 0.18 * skyDim);
+      hemiI *= 1 + 0.1 * lightEase;
       hemiMain.intensity = Math.max(0.12, hemiI) * bpDim;
       if (fillSun) {
         /** Луч/заливка остаются в кадре до конца SPACE — не гасим при взгляде вверх */
-        fillSun.intensity = 0.152 * bpDim;
+        fillSun.intensity = 0.152 * (1 + 0.42 * lightEase) * bpDim;
       }
       mainSun.position.set(58, 132 + 48 * upliftBoost, 52);
     }
@@ -2091,38 +2134,66 @@
     const cab = lerp(A.cable, B.cable, t);
 
     const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
-    bCoreMat.opacity = 0.14 * bA * pulse * rayBoostEff * volVis;
-    bHaloMat.opacity = 0.055 * bA * pulse * rayBoostEff * volVis;
-    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost) * volVis;
+    const beamLightBoost = 1 + 0.24 * lightEase;
+    bCoreMat.opacity = 0.14 * bA * pulse * rayBoostEff * volVis * beamLightBoost;
+    bHaloMat.opacity = 0.055 * bA * pulse * rayBoostEff * volVis * beamLightBoost;
+    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost) * volVis * beamLightBoost;
 
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
     bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
 
     const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
+    const godRayPack =
+      rA * rayPulse * rayBoostEff * rayAperture * volVis * (1 + 0.32 * lightEase);
+    const rayOpScale = s === 7 ? lerp(1, 1.22, volEase) : 1;
     rayGrp.position.set(0, 0, 0);
     const oW = oculusWorldY;
-    if (rayGrp.children[0]) {
-      rayGrp.children[0].position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
-      rayGrp.children[0].rotation.x = 0.062;
+    const rayColumn = rayGrp.getObjectByName('godRayColumn');
+    if (rayColumn) {
+      rayColumn.position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
+      rayColumn.rotation.x = 0.062;
     }
-    if (rayMats[0]) {
-      const rayOpBase = 0.092 * (s === 7 ? lerp(1, 1.22, volEase) : 1);
-      rayMats[0].opacity = Math.min(
-        1,
-        rayOpBase * rA * rayPulse * rayBoostEff * rayAperture * volVis
+    if (rayMats.length) {
+      const opShell = Math.min(1, 0.048 * rayOpScale * godRayPack * 1.15);
+      const opCore = Math.min(1, 0.128 * rayOpScale * godRayPack * 1.35);
+      const opFin = Math.min(1, 0.036 * rayOpScale * godRayPack * 1.08);
+      if (rayMats[0]) rayMats[0].opacity = opShell;
+      if (rayMats[1]) rayMats[1].opacity = opCore;
+      for (let ri = 2; ri < rayMats.length; ri++) rayMats[ri].opacity = opFin;
+    }
+    if (godSunGroup && godSunMat && godSunSprite) {
+      sunDirTmp.set(58, 132 + 48 * upliftBoost, 52).normalize();
+      const sunLift = RAY_LEN_SKY * 0.9 + 1040;
+      godSunGroup.position.set(
+        OCULUS_CENTER_X + sunDirTmp.x * sunLift,
+        SQ_ROOF_OCULUS_Y + sunDirTmp.y * sunLift,
+        OCULUS_CENTER_Z + sunDirTmp.z * sunLift
       );
+      const sunStrength = clamp(
+        Math.max(lightEase * 0.98, rA * 0.9 + upliftBoost * 0.3) * (1 - blueprintT * 0.94),
+        0,
+        1
+      );
+      godSunGroup.visible = sunStrength > 0.012;
+      godSunMat.opacity = sunStrength * 0.9;
+      const sc = (TENT_SCALE / 24) * (320 + 110 * sunStrength);
+      godSunSprite.scale.set(sc, sc, 1);
     }
     if (s === 7) {
       volRayColorTmp.setHex(BCOL).lerp(VOL_RAY_WHITE, volEase * 0.52);
       bCoreMat.color.copy(volRayColorTmp);
       bHaloMat.color.copy(volRayColorTmp);
       poolMat.color.copy(volRayColorTmp);
-      if (rayMats[0]) rayMats[0].color.copy(volRayColorTmp);
+      for (let ri = 0; ri < rayMats.length; ri++) rayMats[ri].color.copy(volRayColorTmp);
     } else {
       bCoreMat.color.setHex(BCOL);
       bHaloMat.color.setHex(BCOL);
       poolMat.color.setHex(BCOL);
+      const cCore = 0xfff6e0;
+      const cFin = 0xffefcc;
       if (rayMats[0]) rayMats[0].color.setHex(BCOL);
+      if (rayMats[1]) rayMats[1].color.setHex(cCore);
+      for (let ri = 2; ri < rayMats.length; ri++) rayMats[ri].color.setHex(cFin);
     }
 
     updateTreeGuyCables(
@@ -2419,6 +2490,22 @@
     pool.rotation.x = -Math.PI / 2;
     pool.position.set(OCULUS_CENTER_X, 0.035, OCULUS_CENTER_Z);
     scene.add(pool);
+
+    godSunGroup = new THREE.Group();
+    godSunMat = new THREE.SpriteMaterial({
+      map: makeSunDiscTexture(),
+      color: 0xfffaee,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    godSunSprite = new THREE.Sprite(godSunMat);
+    godSunSprite.frustumCulled = false;
+    godSunSprite.renderOrder = 5;
+    godSunGroup.add(godSunSprite);
+    scene.add(godSunGroup);
 
     interiorGroup = new THREE.Group();
     const invS = 1 / INTERIOR_SCALE;
@@ -2860,8 +2947,9 @@
     scene.add(interiorGroup);
 
     rayGrp = new THREE.Group();
-    const raySegs = 28;
-    const rayMat = new THREE.MeshBasicMaterial({
+    const raySegs = 40;
+
+    const rayShellMat = new THREE.MeshBasicMaterial({
       color: BCOL,
       transparent: true,
       opacity: 0,
@@ -2869,31 +2957,96 @@
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    rayMats = [rayMat];
 
-    const lower = new THREE.CylinderGeometry(
-      RAY_R_IN_BASE,
-      RAY_R_IN_FLOOR,
+    const lowerSh = new THREE.CylinderGeometry(
+      RAY_R_IN_BASE * 1.1,
+      RAY_R_IN_FLOOR * 1.14,
       RAY_LEN_BELOW,
       raySegs, 1, true
     );
-    lower.translate(0, -RAY_LEN_BELOW / 2, 0);
+    lowerSh.translate(0, -RAY_LEN_BELOW / 2, 0);
 
-    const upper = new THREE.CylinderGeometry(
-      RAY_R_SKY,
-      RAY_R_IN_BASE,
+    const upperSh = new THREE.CylinderGeometry(
+      RAY_R_SKY * 1.08,
+      RAY_R_IN_BASE * 1.1,
       RAY_LEN_SKY,
       raySegs, 1, true
     );
-    upper.translate(0, RAY_LEN_SKY / 2, 0);
+    upperSh.translate(0, RAY_LEN_SKY / 2, 0);
 
-    const rayGeo = mergeGeometries([lower, upper], false);
-    lower.dispose();
-    upper.dispose();
+    const rayShellGeo = mergeGeometries([lowerSh, upperSh], false);
+    lowerSh.dispose();
+    upperSh.dispose();
 
-    rayGrp.add(new THREE.Mesh(rayGeo, rayMat));
+    const rayCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xfff6e0,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const lowerCr = new THREE.CylinderGeometry(
+      RAY_R_IN_BASE * 0.5,
+      RAY_R_IN_FLOOR * 0.46,
+      RAY_LEN_BELOW,
+      raySegs, 1, true
+    );
+    lowerCr.translate(0, -RAY_LEN_BELOW / 2, 0);
+
+    const upperCr = new THREE.CylinderGeometry(
+      RAY_R_SKY * 0.36,
+      RAY_R_IN_BASE * 0.5,
+      RAY_LEN_SKY,
+      raySegs, 1, true
+    );
+    upperCr.translate(0, RAY_LEN_SKY / 2, 0);
+
+    const rayCoreGeo = mergeGeometries([lowerCr, upperCr], false);
+    lowerCr.dispose();
+    upperCr.dispose();
+
+    const rayColumn = new THREE.Group();
+    rayColumn.name = 'godRayColumn';
+
+    const shellMesh = new THREE.Mesh(rayShellGeo, rayShellMat);
+    shellMesh.renderOrder = 0;
+    rayColumn.add(shellMesh);
+
+    const coreMesh = new THREE.Mesh(rayCoreGeo, rayCoreMat);
+    coreMesh.renderOrder = 2;
+    rayColumn.add(coreMesh);
+
+    const finH = RAY_LEN_SKY + RAY_LEN_BELOW;
+    const finW = RAY_R_SKY * 2.8;
+    const sharedFinGeo = new THREE.PlaneGeometry(finW, finH, 1, 56);
+    sharedFinGeo.translate(0, (RAY_LEN_SKY - RAY_LEN_BELOW) * 0.5, 0);
+
+    const finMats = [];
+    const nFins = 10;
+    for (let fi = 0; fi < nFins; fi++) {
+      const finMat = new THREE.MeshBasicMaterial({
+        color: 0xffefcc,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      finMats.push(finMat);
+      const fin = new THREE.Mesh(sharedFinGeo, finMat);
+      fin.rotation.y = (fi / nFins) * Math.PI + fi * 0.031;
+      fin.renderOrder = 1;
+      rayColumn.add(fin);
+    }
+
+    rayColumn.rotation.order = 'YXZ';
+    rayGrp.add(rayColumn);
     rayGrp.position.set(0, 0, 0);
     scene.add(rayGrp);
+
+    rayMats = [rayShellMat, rayCoreMat, ...finMats];
 
     window.addEventListener('scroll', () => {
       applyScrollPhaseControl();
