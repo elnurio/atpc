@@ -1806,6 +1806,8 @@
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
   const djSpkDir = new THREE.Vector3();
+  const djSpkBoothW = new THREE.Vector3();
+  const djSpkCamW = new THREE.Vector3();
   const djSpkParentQuat = new THREE.Quaternion();
   const djSpkAlignQuat = new THREE.Quaternion();
 
@@ -2403,16 +2405,22 @@
         djSpeakersRiseGroup.position.y =
           -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
         /**
-         * Фронт колонок +Z: обе смотрят на зрителя параллельно кадру (без toe-in), только XZ.
-         * Направление фиксируется в первый кадр появления (uTable>0), дальше не крутится за камерой.
+         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ (не −forward камеры:
+         * на движении по пути forward часто «вдоль» сцены, из‑за этого казалось, что колонки
+         * развёрнуты к столу). Фиксация после uTable>SPK_FACE_LOCK_U — кадр ближе к фронтальному.
          */
+        const SPK_FACE_LOCK_U = 0.62;
         const sud = djSpeakersRiseGroup.userData;
         if (!sud.faceDirLocked) {
-          camera.getWorldDirection(djSpkDir).negate();
+          const booth = djSpeakersRiseGroup.parent;
+          if (booth) booth.getWorldPosition(djSpkBoothW);
+          else djSpeakersRiseGroup.getWorldPosition(djSpkBoothW);
+          camera.getWorldPosition(djSpkCamW);
+          djSpkDir.copy(djSpkCamW).sub(djSpkBoothW);
           djSpkDir.y = 0;
           if (djSpkDir.lengthSq() < 1e-12) djSpkDir.set(0, 0, 1);
           else djSpkDir.normalize();
-          if (uTable > 0) sud.faceDirLocked = djSpkDir.clone();
+          if (uTable >= SPK_FACE_LOCK_U) sud.faceDirLocked = djSpkDir.clone();
         } else {
           djSpkDir.copy(sud.faceDirLocked);
         }
@@ -3312,7 +3320,7 @@
      */
     const SPK_MUL = 5.45;
     /** Полуразмас по X от центра стола (ед. чертежа × gearScale); больше — шире стойка */
-    const SPK_SIDE_X = 6.85;
+    const SPK_SIDE_X = 7.78;
     /** Подъём якоря: крестовина и ножки стойки не утопают в полу, читаются в кадре */
     const SPK_ANCHOR_Y = 0.58 * gearScale;
     /** Чуть глубже в глубину сцены (локаль lowDjBooth −Z — «назад» от стола) */
@@ -3329,7 +3337,7 @@
       anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, SPK_ANCHOR_Z);
       const spk = makeConcreteMonolithSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
-      /** Азимут к зрителю фиксируется при первом uTable>0; фронт — локальный +Z */
+      /** Азимут: центр стола → камера (XZ), фиксация при uTable≥0.62; фронт — локальный +Z */
     });
     lowDjBooth.add(djSpkRise);
 
