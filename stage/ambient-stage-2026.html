@@ -26,9 +26,9 @@ body{background:#0e0e0e;overflow-x:hidden}
 
 .page-wrap--spine{--spine-hole-left:24.61%;--spine-hole-top:25.38%;--spine-hole-width:50.59%;--spine-hole-height:54.51%}
 .page-wrap--spine>img{position:relative;z-index:0}
-.spine-slot{position:absolute;left:var(--spine-hole-left);top:var(--spine-hole-top);width:var(--spine-hole-width);height:var(--spine-hole-height);transform:none;max-width:none;box-sizing:border-box;z-index:2;background:transparent;overflow:hidden;display:flex;flex-direction:column;gap:5px}
+.spine-slot{position:absolute;left:var(--spine-hole-left);top:var(--spine-hole-top);width:var(--spine-hole-width);height:var(--spine-hole-height);transform:none;max-width:none;box-sizing:border-box;z-index:2;background:transparent;overflow:hidden;display:flex;flex-direction:column;align-items:stretch;gap:8px}
 .spine-screen{flex:1 1 auto;min-height:0;width:100%;position:relative;overflow:hidden;background:transparent}
-.spine-caption{margin:0;font-family:'Jost',sans-serif;font-size:45px;font-weight:300;line-height:1.45;color:rgba(95,90,82,.92);text-align:center;letter-spacing:.04em;padding:8px 12px 4px;flex:0 0 auto}
+.spine-caption{margin:0;width:100%;box-sizing:border-box;font-family:'Jost',sans-serif;font-size:clamp(13px,1.05vw,15px);font-weight:300;line-height:1.55;color:rgba(52,50,46,.9);text-align:center;letter-spacing:.01em;padding:11px 18px 13px;flex:0 0 auto;background:rgba(255,255,255,.46);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .spine-fs-shell{position:absolute;inset:0;z-index:2;pointer-events:none;background:transparent}
 .spine-fs-shell .spine-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;display:block;background:transparent;z-index:0}
 .spine-fs-shell:fullscreen,.spine-fs-shell:-webkit-full-screen,.spine-fs-shell:-moz-full-screen{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#000;pointer-events:auto;box-sizing:border-box}
