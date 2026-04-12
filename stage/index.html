@@ -3332,8 +3332,12 @@
     const SPK_SIDE_X = 8.45;
     /** Подъём якоря: крестовина и ножки стойки не утопают в полу, читаются в кадре */
     const SPK_ANCHOR_Y = 0.58 * gearScale;
-    /** Глубже за линией стола (локаль lowDjBooth −Z — «назад» от столешницы к зрителю) */
-    const SPK_ANCHOR_Z = -1.68 * gearScale;
+    /**
+     * За столом в локали lowDjBooth: центр столешницы xz=0, глубина topD → задняя грань z=−topD/2.
+     * Раньше якорь считался от gearScale≈topD/4 и давал |z|≈0.42·topD — колонки оказывались
+     * ещё впереди заднего края. Нужно |z|>topD/2; −0.58·topD — запас за задней гранью.
+     */
+    const SPK_ANCHOR_Z = -topD * 0.58;
     const spkScale = gearScale * SPK_MUL;
     const djSpkRise = new THREE.Group();
     djSpkRise.name = 'djSpeakersRise';
