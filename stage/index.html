@@ -1589,7 +1589,8 @@
       const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
       const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
       const w = (0.068 + hfRnd() * 0.112) * DIAMOND_R;
-      const stripGeo = new THREE.PlaneGeometry(w, len, 1, 8);
+      /** Сегменты по высоте — деформация вершин, верх (к куполу) почти неподвижен */
+      const stripGeo = new THREE.PlaneGeometry(w, len, 3, 32);
       const mat = voileMat.clone();
       mat.opacity = 0.5 + hfRnd() * 0.18;
       mat.transparent = true;
@@ -1598,6 +1599,11 @@
       const strip = new THREE.Mesh(stripGeo, mat);
       strip.position.set(0, -0.5 * len, 0);
       strip.renderOrder = 2;
+      const pa0 = stripGeo.attributes.position.array;
+      const hangRest = new Float32Array(pa0.length);
+      hangRest.set(pa0);
+      strip.userData.hangRestPos = hangRest;
+      strip.userData.hangLen = len;
       const pivot = new THREE.Group();
       pivot.position.set(px, topY, pz);
       pivot.add(strip);
@@ -1608,23 +1614,24 @@
       pivot.userData.baseRy = hfRnd() * Math.PI * 2 + (hfRnd() - 0.5) * 0.85;
       pivot.userData.swayPhase = hfRnd() * Math.PI * 2;
       pivot.userData.swayPhase2 = hfRnd() * Math.PI * 2;
-      /** Частоты (множитель tw=clk*HANG_WIND_CLK в update) — читаемое качание как от ветра */
-      pivot.userData.swayRate = 0.078 + hfRnd() * 0.062;
-      pivot.userData.swayRate2 = 0.041 + hfRnd() * 0.038;
-      pivot.userData.ampX = (0.052 + hfRnd() * 0.048) * (0.88 + hi * 0.006);
-      pivot.userData.ampZ = (0.068 + hfRnd() * 0.055) * (0.9 + hi * 0.005);
-      pivot.userData.ampY = (0.032 + hfRnd() * 0.038) * (0.85 + hi * 0.004);
-      pivot.userData.windK = 0.58 + hfRnd() * 0.48;
-      pivot.userData.driftR = 0.055 + hfRnd() * 0.05;
-      pivot.userData.driftPh = hfRnd() * Math.PI * 2;
-      pivot.userData.driftX = (0.0042 + hfRnd() * 0.0065) * DIAMOND_R;
-      pivot.userData.driftZ = (0.0038 + hfRnd() * 0.006) * DIAMOND_R;
-      pivot.userData.breathR = 0.048 + hfRnd() * 0.042;
-      pivot.userData.breathPh = hfRnd() * Math.PI * 2;
-      pivot.userData.breathAmp = (0.00075 + hfRnd() * 0.001) * SQ_ROOF_Y;
-      pivot.userData.stripTwistR = 0.095 + hfRnd() * 0.088;
-      pivot.userData.stripTwistPh = hfRnd() * Math.PI * 2;
-      pivot.userData.stripTwistAmp = 0.034 + hfRnd() * 0.038;
+      pivot.userData.swayPhase3 = hfRnd() * Math.PI * 2;
+      pivot.userData.windK = 0.55 + hfRnd() * 0.48;
+      pivot.userData.dfRx = 0.079 + hfRnd() * 0.068;
+      pivot.userData.dfRx2 = 0.048 + hfRnd() * 0.045;
+      pivot.userData.dfRx3 = 0.105 + hfRnd() * 0.092;
+      pivot.userData.dfRz = 0.088 + hfRnd() * 0.076;
+      pivot.userData.dfRz2 = 0.058 + hfRnd() * 0.052;
+      pivot.userData.dfRz3 = 0.132 + hfRnd() * 0.088;
+      pivot.userData.dfCr = 0.044 + hfRnd() * 0.039;
+      pivot.userData.dfLat = len * (0.010 + hfRnd() * 0.013) * (0.9 + hi * 0.004);
+      pivot.userData.dfLat2 = len * (0.0065 + hfRnd() * 0.0095);
+      pivot.userData.dfLat3 = len * (0.0045 + hfRnd() * 0.007);
+      pivot.userData.dfOut = len * (0.0085 + hfRnd() * 0.011);
+      pivot.userData.dfOut2 = len * (0.0058 + hfRnd() * 0.0088);
+      pivot.userData.dfOut3 = len * (0.004 + hfRnd() * 0.0065);
+      pivot.userData.dfCurl = len * (0.0055 + hfRnd() * 0.0075);
+      pivot.userData.dfShear = len * (0.0038 + hfRnd() * 0.0055);
+      pivot.userData.dfRowJ = 0.55 + hfRnd() * 1.2;
       pivot.rotation.y = pivot.userData.baseRy;
       hangingInteriorFabricGroup.add(pivot);
     }
@@ -1850,6 +1857,55 @@
     cableGeo.attributes.position.needsUpdate = true;
   }
 
+  /**
+   * Подвесная вуаль: верх (y → +len/2 в локали полосы) зафиксирован, движение — смещения вершин к низу.
+   * Несинхронные частоты по высоте дают мягкий «тканевый» изгиб без качания всего листа как двери.
+   */
+  function deformHangStrip(mesh, u, tw, windGustX, windGustZ, mw, wk) {
+    const rest = mesh.userData.hangRestPos;
+    const len = mesh.userData.hangLen;
+    if (!rest || !len || !mesh.geometry || !mesh.geometry.attributes.position) return;
+    const geo = mesh.geometry;
+    const posAttr = geo.attributes.position;
+    const arr = posAttr.array;
+    const half = len * 0.5;
+    const ph = u.swayPhase;
+    const ph2 = u.swayPhase2;
+    const ph3 = u.swayPhase3;
+    const wkx = windGustX * wk * u.windK;
+    const wkz = windGustZ * wk * u.windK;
+    for (let i = 0; i < arr.length; i += 3) {
+      const x0 = rest[i];
+      const y0 = rest[i + 1];
+      const z0 = rest[i + 2];
+      const t = clamp((half - y0) / len, 0, 1);
+      const ssT = t * t * (3 - 2 * t);
+      const wght = Math.pow(ssT, 1.62) * mw;
+      const row = ssT;
+      const rj = u.dfRowJ;
+      const rowPh = row * Math.PI * 2 * rj;
+      let dx =
+        u.dfLat * Math.sin(tw * u.dfRx + ph + rowPh) * wght
+        + u.dfLat2 * Math.sin(tw * u.dfRx2 + ph2 + rowPh * 2.17 + y0 * 0.0018) * wght
+        + u.dfLat3 * Math.sin(tw * u.dfRx3 + ph3 + row * 5.5) * wght * (0.35 + 0.65 * row);
+      let dz =
+        u.dfOut * Math.sin(tw * u.dfRz + ph * 1.07 + rowPh * 1.55) * wght
+        + u.dfOut2 * Math.cos(tw * u.dfRz2 + ph2 * 0.93 + rowPh * 2.8) * wght
+        + u.dfOut3 * Math.sin(tw * u.dfRz3 + ph3 + row * 4.2) * wght * row;
+      dx += wght * wkx * len * 0.031;
+      dz += wght * wkz * len * 0.036;
+      dx += u.dfCurl * Math.sin(tw * u.dfCr + rowPh * 3.4 + ph2 * 0.5) * wght * row * row;
+      dz += u.dfShear * Math.sin(tw * u.dfCr * 1.3 + rowPh * 2.1 + ph * 0.7) * wght * row;
+      const xN = x0 + dx;
+      const zN = z0 + dz;
+      arr[i] = xN;
+      arr[i + 1] = y0;
+      arr[i + 2] = zN;
+    }
+    posAttr.needsUpdate = true;
+    geo.computeVertexNormals();
+  }
+
   function updateScene(p) {
     const step = p * NSEG;
     const s = clamp(Math.floor(step), 0, NSEG - 1);
@@ -2051,39 +2107,16 @@
             if (!obj.userData.panelSway) return;
             const u = obj.userData;
             const mw = Math.max(0.18, hangAccentT);
-            const ph = u.swayPhase;
-            const ph2 = u.swayPhase2;
-            const r = u.swayRate;
-            const r2 = u.swayRate2;
-            const t2 = tw * 0.52 + ph * 0.22;
             const wk = u.windK;
-            const ax =
-              Math.sin(tw * r + ph) * u.ampX
-              + Math.sin(t2 * r2 + ph2) * u.ampX * 0.44
-              + Math.sin(tw * r * 0.31 + ph2 * 1.4) * u.ampX * 0.24
-              + windGustX * wk;
-            const ay =
-              Math.sin(tw * r * 0.33 + ph * 1.12) * u.ampY
-              + Math.sin(t2 * r2 * 0.71 + ph2) * u.ampY * 0.4
-              + Math.sin(tw * 0.073 + ph * 0.5) * u.ampY * 0.18;
-            const az =
-              Math.sin(tw * r * 0.88 + ph * 1.48) * u.ampZ
-              + Math.sin(t2 * r2 * 1.05 + ph2 * 0.9) * u.ampZ * 0.38
-              + windGustZ * wk;
-            obj.rotation.x = ax * mw;
-            obj.rotation.y = u.baseRy + ay * mw;
-            obj.rotation.z = az * mw;
-            obj.position.set(
-              u.anchorPx + Math.sin(tw * u.driftR + u.driftPh) * u.driftX * mw,
-              u.anchorPy + Math.sin(tw * u.breathR + u.breathPh) * u.breathAmp * mw,
-              u.anchorPz + Math.cos(tw * u.driftR * 0.89 + u.driftPh * 1.09) * u.driftZ * mw
-            );
+            obj.position.set(u.anchorPx, u.anchorPy, u.anchorPz);
+            obj.rotation.x = 0;
+            obj.rotation.z = 0;
+            obj.rotation.y = u.baseRy + Math.sin(tw * 0.036 + u.swayPhase * 0.8) * 0.0075 * mw;
             for (let ci = 0; ci < obj.children.length; ci++) {
               const ch = obj.children[ci];
-              if (!ch.isMesh) continue;
-              const st = u.stripTwistAmp * mw;
-              ch.rotation.x = Math.sin(tw * u.stripTwistR + u.stripTwistPh) * st * 0.45;
-              ch.rotation.z = Math.sin(tw * u.stripTwistR * 0.64 + u.stripTwistPh * 1.18) * st;
+              if (!ch.isMesh || !ch.userData.hangRestPos) continue;
+              ch.rotation.set(0, 0, 0);
+              deformHangStrip(ch, u, tw, windGustX, windGustZ, mw, wk);
             }
           });
         }
