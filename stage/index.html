@@ -1847,8 +1847,56 @@
   const dots = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('d' + i));
   const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
-  /** Подсказка видна, когда сглаженный прогресс сцены sp догнал rawSP (камера/сцена «остановились») */
-  const SCROLL_HINT_SETTLE_EPS = 0.0009;
+  /**
+   * Подсказка скролла: реагирует на скорость прокрутки (px/мс), с EMA и гистерезисом.
+   * Выше ACTIVE — скрыть; ниже IDLE удерживается IDLE_HOLD_MS — снова показать. Повторяется на всём пути.
+   */
+  const SCROLL_HINT_VEL_IDLE_PX_MS = 0.014;
+  const SCROLL_HINT_VEL_ACTIVE_PX_MS = 0.038;
+  const SCROLL_HINT_IDLE_HOLD_MS = 320;
+  const SCROLL_HINT_VEL_EMA = 0.78;
+  let scrollHintVelLastT = 0;
+  let scrollHintVelLastY = 0;
+  let scrollHintVelEma = 0;
+  let scrollHintIdleSinceT = null;
+  /** true = нет заметной прокрутки, можно показывать подсказку (если сцена не скрывает) */
+  let scrollHintScrollIdle = true;
+
+  function bumpScrollHintMotionFromWheel() {
+    scrollHintVelEma = Math.max(
+      scrollHintVelEma,
+      SCROLL_HINT_VEL_ACTIVE_PX_MS * 1.35
+    );
+    scrollHintScrollIdle = false;
+    scrollHintIdleSinceT = null;
+  }
+
+  function updateScrollHintVelocity(nowMs) {
+    const y = window.scrollY;
+    if (scrollHintVelLastT === 0) {
+      scrollHintVelLastT = nowMs;
+      scrollHintVelLastY = y;
+      return;
+    }
+    const dtMs = Math.max(1, nowMs - scrollHintVelLastT);
+    const instVel = Math.abs(y - scrollHintVelLastY) / dtMs;
+    scrollHintVelLastT = nowMs;
+    scrollHintVelLastY = y;
+    scrollHintVelEma = scrollHintVelEma * SCROLL_HINT_VEL_EMA + instVel * (1 - SCROLL_HINT_VEL_EMA);
+
+    if (scrollHintVelEma >= SCROLL_HINT_VEL_ACTIVE_PX_MS) {
+      scrollHintScrollIdle = false;
+      scrollHintIdleSinceT = null;
+    } else if (scrollHintVelEma <= SCROLL_HINT_VEL_IDLE_PX_MS) {
+      if (scrollHintIdleSinceT == null) scrollHintIdleSinceT = nowMs;
+      if (nowMs - scrollHintIdleSinceT >= SCROLL_HINT_IDLE_HOLD_MS) {
+        scrollHintScrollIdle = true;
+      }
+    } else {
+      scrollHintScrollIdle = false;
+      scrollHintIdleSinceT = null;
+    }
+  }
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function ss(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
@@ -2442,8 +2490,7 @@
 
     if (scrollHint) {
       const sceneHide = p > 0.06 || blueprintT > 0.12;
-      const sceneScrollSettled = Math.abs(rawSP - p) < SCROLL_HINT_SETTLE_EPS;
-      scrollHint.classList.toggle('hidden', sceneHide || !sceneScrollSettled);
+      scrollHint.classList.toggle('hidden', sceneHide || !scrollHintScrollIdle);
     }
 
     if (interiorGroup) {
@@ -2557,6 +2604,8 @@
 
   function tick(now) {
     requestAnimationFrame(tick);
+    updateScrollHintVelocity(now);
+
     if (now - lastFrame < 1000 / targetFPS) return;
     lastFrame = now;
 
@@ -3693,6 +3742,7 @@
     }, { passive: true });
 
     window.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey && Math.abs(e.deltaY) > 0.25) bumpScrollHintMotionFromWheel();
       if (e.ctrlKey) return;
       const max = scrollPageMax();
       if (max <= 0) return;
