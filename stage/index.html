@@ -1571,7 +1571,7 @@
         pz = Math.sin(t) * rad * (0.8 + hfRnd() * 0.38);
         px += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
         pz += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
-        const minD = (0.22 + hfRnd() * 0.14) * DIAMOND_R;
+        const minD = (0.3 + hfRnd() * 0.2) * DIAMOND_R;
         let spaced = true;
         for (let i = 0; i < hfPlaced.length; i++) {
           if (Math.hypot(hfPlaced[i].x - px, hfPlaced[i].z - pz) < minD) {
@@ -1592,9 +1592,9 @@
       const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
       const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
       const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
-      const w = (0.118 + hfRnd() * 0.152) * DIAMOND_R;
-      /** Сегменты по ширине/высоте — шире полосы, чуть больше сегментов по X для изгиба */
-      const stripGeo = new THREE.PlaneGeometry(w, len, 5, 32);
+      const w = (0.175 + hfRnd() * 0.22) * DIAMOND_R;
+      /** Сегменты по ширине/высоте — широкие полосы, плотнее сетка по X для мягкого изгиба */
+      const stripGeo = new THREE.PlaneGeometry(w, len, 7, 32);
       const mat = voileMat.clone();
       mat.opacity = 0.5 + hfRnd() * 0.18;
       mat.transparent = true;
@@ -2170,7 +2170,10 @@
     const rA = lerp(A.rays, B.rays, t);
     const cab = lerp(A.cable, B.cable, t);
 
-    const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
+    /** Плавное нарастание вместо порога bA>0.02 — иначе луч «щёлкает» кадрами */
+    const beamPulseAnim = 0.86 + Math.sin(clk * 0.24) * 0.14;
+    const beamStrengthSmooth = ss(clamp(bA / 0.16, 0, 1));
+    const pulse = beamPulseAnim * beamStrengthSmooth;
     const beamLightBoost = 1 + 0.24 * lightEase;
     bCoreMat.opacity = 0.14 * bA * pulse * rayBoostEff * volVis * beamLightBoost;
     bHaloMat.opacity = 0.055 * bA * pulse * rayBoostEff * volVis * beamLightBoost;
@@ -2179,7 +2182,9 @@
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
     bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
 
-    const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
+    const rayPulseAnim = 0.8 + Math.sin(clk * 0.31) * 0.2;
+    const rayStrengthSmooth = ss(clamp(rA / 0.2, 0, 1));
+    const rayPulse = rayPulseAnim * rayStrengthSmooth;
     const godRayPack =
       rA * rayPulse * rayBoostEff * rayAperture * volVis * (1 + 0.32 * lightEase);
     const rayOpScale = s === 7 ? lerp(1, 1.22, volEase) : 1;
@@ -2211,8 +2216,8 @@
         0,
         1
       );
-      godSunGroup.visible = sunStrength > 0.012;
-      godSunMat.opacity = sunStrength * 0.9;
+      godSunGroup.visible = sunStrength > 0.002;
+      godSunMat.opacity = ss(clamp(sunStrength * 1.25, 0, 1)) * 0.88;
       const sc = (TENT_SCALE / 24) * (320 + 110 * sunStrength);
       godSunSprite.scale.set(sc, sc, 1);
     }
