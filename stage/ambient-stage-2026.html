@@ -94,7 +94,7 @@
     max-width: 720px;
     aspect-ratio: 16 / 10;
     z-index: 2;
-    background: #0a0a0a;
+    background: transparent;
     overflow: hidden;
   }
 
@@ -103,7 +103,7 @@
     height: 100%;
     position: relative;
     overflow: hidden;
-    box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.06);
+    background: transparent;
   }
 
   /* Оболочка видео — как .iphone-fs-shell в Trotamundo */
@@ -112,6 +112,7 @@
     inset: 0;
     z-index: 2;
     pointer-events: none;
+    background: transparent;
   }
 
   .spine-fs-shell .spine-video {
@@ -119,10 +120,10 @@
     inset: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     object-position: center;
     display: block;
-    background: #1a1a2e;
+    background: transparent;
     z-index: 0;
   }
 
@@ -187,8 +188,8 @@
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    opacity: 0;
-    transform: scale(0.75);
+    opacity: 1;
+    transform: scale(1);
     transition: opacity 0.25s ease, transform 0.25s ease;
     padding: 0;
   }
@@ -200,8 +201,7 @@
   }
 
   .spine-slot:hover .play-btn {
-    opacity: 1;
-    transform: scale(1);
+    transform: scale(1.04);
   }
 
   .play-btn:active {
@@ -299,16 +299,8 @@
     .spine-overlay {
       background: rgba(0, 0, 0, 0.12);
     }
-    .play-btn {
-      opacity: 1;
-      transform: scale(1);
-    }
     .spine-slot:hover .spine-overlay {
       background: rgba(0, 0, 0, 0.18);
-    }
-    .spine-slot:hover .play-btn {
-      opacity: 1;
-      transform: scale(1);
     }
     .play-btn:active {
       transform: scale(0.94);
