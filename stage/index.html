@@ -3011,162 +3011,288 @@
       return g;
     }
 
-    /** SubZero C12A на стойке; parent.add, без rotation — задаётся снаружи (lookAt к центру) */
+    /**
+     * SubZero C12A — детализированная версия (светлее материалы, перфорация, стойка).
+     * parent.add; rotation задаётся снаружи (к камере).
+     */
     function makeSubZeroSpeaker(parent, x, y, z) {
       const g = new THREE.Group();
 
-      const blackCarpet = new THREE.MeshLambertMaterial({ color: 0x111111 });
-      const blackDark = new THREE.MeshLambertMaterial({ color: 0x0a0a0a });
-      const grilleMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-      const metalMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
-      const metalLight = new THREE.MeshLambertMaterial({ color: 0x888888 });
-      const rubberMat = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
-      const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+      const carpetMat = new THREE.MeshLambertMaterial({ color: 0x1c1c1c });
+      const carpetSide = new THREE.MeshLambertMaterial({ color: 0x252525 });
+      const grilleMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+      const metalDark = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
+      const metalMid = new THREE.MeshLambertMaterial({ color: 0x686868 });
+      const metalLight = new THREE.MeshLambertMaterial({ color: 0x909090 });
+      const rubberMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+      const poleMat = new THREE.MeshLambertMaterial({ color: 0x404040 });
+      const coneBlack = new THREE.MeshLambertMaterial({ color: 0x0d0d0d });
+      const edgeMat = new THREE.MeshLambertMaterial({ color: 0x0f0f0f });
 
-      const baseArm1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.12), metalMat);
-      baseArm1.position.set(0, 0.02, 0);
-      baseArm1.castShadow = true;
-      baseArm1.receiveShadow = true;
-      g.add(baseArm1);
-      const baseArm2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.9), metalMat);
-      baseArm2.position.set(0, 0.02, 0);
-      baseArm2.castShadow = true;
-      baseArm2.receiveShadow = true;
-      g.add(baseArm2);
+      const baseGeo = new THREE.BoxGeometry(1.02, 0.052, 0.13);
+      const base1 = new THREE.Mesh(baseGeo, metalDark);
+      base1.position.set(0, 0.026, 0);
+      base1.castShadow = true;
+      base1.receiveShadow = true;
+      g.add(base1);
 
-      [[-0.38, 0], [0.38, 0], [0, -0.38], [0, 0.38]].forEach(([bx, bz]) => {
-        const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.05, 12), rubberMat);
-        tip.position.set(bx, 0.01, bz);
-        tip.receiveShadow = true;
-        g.add(tip);
+      const base2 = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.052, 0.72), metalDark);
+      base2.position.set(-0.44, 0.026, 0);
+      base2.castShadow = true;
+      base2.receiveShadow = true;
+      g.add(base2);
+
+      const base3 = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.052, 0.72), metalDark);
+      base3.position.set(0.44, 0.026, 0);
+      base3.castShadow = true;
+      base3.receiveShadow = true;
+      g.add(base3);
+
+      const baseCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 16), metalMid);
+      baseCenter.position.set(0, 0.03, 0);
+      g.add(baseCenter);
+
+      [
+        [-0.46, -0.3],
+        [-0.46, 0.3],
+        [0.46, -0.3],
+        [0.46, 0.3],
+        [0, -0.34],
+        [0, 0.34],
+      ].forEach(([bx, bz]) => {
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.038, 12), rubberMat);
+        foot.position.set(bx, 0.008, bz);
+        foot.receiveShadow = true;
+        g.add(foot);
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.006, 10), metalLight);
+        ring.position.set(bx, 0.022, bz);
+        g.add(ring);
       });
 
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 1.05, 16), poleMat);
-      pole.position.set(0, 0.565, 0);
-      pole.castShadow = true;
-      g.add(pole);
+      const poleMain = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 1.15, 20), poleMat);
+      poleMain.position.set(0, 0.625, 0);
+      poleMain.castShadow = true;
+      g.add(poleMain);
 
-      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.1, 16), metalMat);
-      cup.position.set(0, 1.12, 0);
-      g.add(cup);
-      const cupScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 8), metalLight);
-      cupScrew.rotation.z = Math.PI / 2;
-      cupScrew.position.set(0.062, 1.12, 0);
-      g.add(cupScrew);
+      const clampM = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.072, 16), metalDark);
+      clampM.position.set(0, 0.85, 0);
+      g.add(clampM);
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.068, 8), metalMid);
+      bolt.rotation.z = Math.PI / 2;
+      bolt.position.set(0.054, 0.85, 0);
+      g.add(bolt);
+      const boltHead = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.018, 6), metalLight);
+      boltHead.rotation.z = Math.PI / 2;
+      boltHead.position.set(0.068, 0.85, 0);
+      g.add(boltHead);
 
-      const CW = 0.38;
-      const CH = 0.62;
-      const CD = 0.32;
-      const cabY = 1.18;
+      const topCup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.085, 20), metalDark);
+      topCup.position.set(0, 1.24, 0);
+      g.add(topCup);
+      const topCupRim = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 20), metalMid);
+      topCupRim.position.set(0, 1.284, 0);
+      g.add(topCupRim);
 
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(CW, CH, CD), blackCarpet);
+      const CW = 0.44;
+      const CH = 0.68;
+      const CD = 0.36;
+      const cabY = 1.285;
+
+      const cabMats = [carpetSide, carpetSide, carpetSide, carpetSide, grilleMat, carpetSide];
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(CW, CH, CD), cabMats);
       cab.position.set(0, cabY + CH / 2, 0);
       cab.castShadow = true;
       cab.receiveShadow = true;
       g.add(cab);
 
-      const chamferGeo = new THREE.BoxGeometry(0.06, 0.06, CD);
-      const chamferMat = new THREE.MeshLambertMaterial({ color: 0x0d0d0d });
-      [[-CW / 2, cabY], [CW / 2, cabY]].forEach(([cx, cy]) => {
-        const ch = new THREE.Mesh(chamferGeo, chamferMat);
-        ch.position.set(cx, cy + 0.03, 0);
-        ch.rotation.z = cx < 0 ? Math.PI / 4 : -Math.PI / 4;
-        g.add(ch);
+      const edgeTop = new THREE.Mesh(new THREE.BoxGeometry(CW + 0.008, 0.018, 0.018), edgeMat);
+      edgeTop.position.set(0, cabY + CH - 0.009, CD / 2 - 0.009);
+      g.add(edgeTop);
+      const edgeBot = new THREE.Mesh(new THREE.BoxGeometry(CW + 0.008, 0.018, 0.018), edgeMat);
+      edgeBot.position.set(0, cabY + 0.009, CD / 2 - 0.009);
+      g.add(edgeBot);
+      [-CW / 2, CW / 2].forEach((ex) => {
+        const edgeSide = new THREE.Mesh(new THREE.BoxGeometry(0.018, CH + 0.008, 0.018), edgeMat);
+        edgeSide.position.set(ex, cabY + CH / 2, CD / 2 - 0.009);
+        g.add(edgeSide);
       });
 
-      const grilleFrame = new THREE.Mesh(
-        new THREE.BoxGeometry(CW - 0.04, CH - 0.04, 0.012),
-        grilleMat
-      );
-      grilleFrame.position.set(0, cabY + CH / 2, CD / 2 + 0.006);
-      g.add(grilleFrame);
+      const chamfMat = new THREE.MeshLambertMaterial({ color: 0x131313 });
+      const chamfGeo = new THREE.BoxGeometry(CW + 0.01, 0.062, 0.062);
+      const chFront = new THREE.Mesh(chamfGeo, chamfMat);
+      chFront.rotation.x = Math.PI / 4;
+      chFront.position.set(0, cabY + 0.03, CD / 2 - 0.031);
+      g.add(chFront);
+      const chBack = new THREE.Mesh(chamfGeo, chamfMat);
+      chBack.rotation.x = -Math.PI / 4;
+      chBack.position.set(0, cabY + 0.03, -CD / 2 + 0.031);
+      g.add(chBack);
 
-      const dotGeo = new THREE.CircleGeometry(0.008, 6);
-      const dotMat = new THREE.MeshLambertMaterial({ color: 0x0d0d0d, side: THREE.FrontSide });
-      const grilleOffX = -(CW * 0.44);
-      const grilleOffY = cabY + CH / 2 - CH * 0.44;
-      const cols = 14;
-      const rows = 20;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const dot = new THREE.Mesh(dotGeo, dotMat);
-          dot.position.set(
-            grilleOffX + (c * (CW * 0.88)) / (cols - 1),
-            grilleOffY + (r * (CH * 0.88)) / (rows - 1),
-            CD / 2 + 0.013
+      const fz = CD / 2;
+
+      const gFrame = new THREE.Mesh(new THREE.BoxGeometry(CW - 0.01, CH - 0.01, 0.014), grilleMat);
+      gFrame.position.set(0, cabY + CH / 2, fz + 0.007);
+      g.add(gFrame);
+
+      const holeMat = new THREE.MeshLambertMaterial({ color: 0x050505, side: THREE.FrontSide });
+      const holeGeo = new THREE.CircleGeometry(0.0085, 6);
+      const gcols = 15;
+      const grows = 21;
+      for (let r = 0; r < grows; r++) {
+        for (let c = 0; c < gcols; c++) {
+          const hole = new THREE.Mesh(holeGeo, holeMat);
+          const rowOffset = r % 2 === 0 ? 0 : ((CW * 0.88) / (gcols - 1)) * 0.5;
+          hole.position.set(
+            -CW * 0.42 + c * ((CW * 0.84) / (gcols - 1)) + rowOffset,
+            cabY + CH * 0.07 + r * ((CH * 0.86) / (grows - 1)),
+            fz + 0.015
           );
-          g.add(dot);
+          g.add(hole);
         }
       }
 
-      const wooferRing = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.018, 32), blackDark);
-      wooferRing.rotation.x = Math.PI / 2;
-      wooferRing.position.set(0, cabY + CH * 0.52, CD / 2 + 0.01);
-      g.add(wooferRing);
-      const wooferCone = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.06, 32), blackDark);
-      wooferCone.rotation.x = -Math.PI / 2;
-      wooferCone.position.set(0, cabY + CH * 0.52, CD / 2 + 0.005);
-      g.add(wooferCone);
-      const dustCap = new THREE.Mesh(
-        new THREE.SphereGeometry(0.028, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-        blackDark
+      const wY = cabY + CH * 0.46;
+      const wBasket = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.014, 40), metalDark);
+      wBasket.rotation.x = Math.PI / 2;
+      wBasket.position.set(0, wY, fz + 0.007);
+      g.add(wBasket);
+      const wSurround = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.155, 0.155, 0.02, 40),
+        new THREE.MeshLambertMaterial({ color: 0x111111 })
       );
-      dustCap.rotation.x = Math.PI / 2;
-      dustCap.position.set(0, cabY + CH * 0.52, CD / 2 + 0.038);
-      g.add(dustCap);
-
-      const tweetRing = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.01, 24), blackDark);
-      tweetRing.rotation.x = Math.PI / 2;
-      tweetRing.position.set(0, cabY + CH * 0.82, CD / 2 + 0.012);
-      g.add(tweetRing);
-      const tweetDome = new THREE.Mesh(
-        new THREE.SphereGeometry(0.022, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-        blackDark
-      );
-      tweetDome.rotation.x = Math.PI / 2;
-      tweetDome.position.set(0, cabY + CH * 0.82, CD / 2 + 0.022);
-      g.add(tweetDome);
-
-      const handleBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 0.06), blackDark);
-      handleBase.position.set(-CW / 2 - 0.012, cabY + CH * 0.62, 0);
-      g.add(handleBase);
-      const handleBar = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.055, 0.05), metalLight);
-      handleBar.position.set(-CW / 2 - 0.022, cabY + CH * 0.62, 0);
-      g.add(handleBar);
-
-      const backPanel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.01), blackDark);
-      backPanel.position.set(0, cabY + CH * 0.46, -CD / 2 - 0.005);
-      g.add(backPanel);
-
-      [-0.06, 0.02].forEach((bx) => {
-        const xlr = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.025, 12), metalMat);
-        xlr.rotation.x = Math.PI / 2;
-        xlr.position.set(bx, cabY + CH * 0.52, -CD / 2 - 0.012);
-        g.add(xlr);
+      wSurround.rotation.x = Math.PI / 2;
+      wSurround.position.set(0, wY, fz + 0.01);
+      g.add(wSurround);
+      const wConeGeo = new THREE.CylinderGeometry(0.04, 0.148, 0.068, 40);
+      const wCone = new THREE.Mesh(wConeGeo, coneBlack);
+      wCone.rotation.x = -Math.PI / 2;
+      wCone.position.set(0, wY, fz + 0.015);
+      g.add(wCone);
+      const wDomeGeo = new THREE.SphereGeometry(0.032, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+      const wDome = new THREE.Mesh(wDomeGeo, coneBlack);
+      wDome.rotation.x = Math.PI / 2;
+      wDome.position.set(0, wY, fz + 0.048);
+      g.add(wDome);
+      [
+        [0.155, 0],
+        [-0.155, 0],
+        [0, 0.155],
+        [0, -0.155],
+      ].forEach(([bx, by]) => {
+        const wb = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 8), metalMid);
+        wb.rotation.x = Math.PI / 2;
+        wb.position.set(bx, wY + by, fz + 0.016);
+        g.add(wb);
       });
 
-      const volKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 12), blackDark);
-      volKnob.rotation.x = Math.PI / 2;
-      volKnob.position.set(0.07, cabY + CH * 0.52, -CD / 2 - 0.01);
-      g.add(volKnob);
+      const tY = cabY + CH * 0.82;
+      const tweetHorn = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.035, 0.025, 24), metalDark);
+      tweetHorn.rotation.x = Math.PI / 2;
+      tweetHorn.position.set(0, tY, fz + 0.007);
+      g.add(tweetHorn);
+      const tweetDomeGeo = new THREE.SphereGeometry(0.022, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2);
+      const tweetDome = new THREE.Mesh(tweetDomeGeo, coneBlack);
+      tweetDome.rotation.x = Math.PI / 2;
+      tweetDome.position.set(0, tY, fz + 0.022);
+      g.add(tweetDome);
 
-      const poleSocket = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.06, 16), blackDark);
-      poleSocket.position.set(0, cabY - 0.03, 0);
-      g.add(poleSocket);
+      const hY = cabY + CH * 0.64;
+      [-0.038, 0.038].forEach((hz) => {
+        const hBracket = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.065, 0.022), metalDark);
+        hBracket.position.set(-CW / 2 - 0.011, hY, hz);
+        g.add(hBracket);
+        const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.014, 6), metalLight);
+        screw.rotation.z = Math.PI / 2;
+        screw.position.set(-CW / 2 - 0.018, hY + 0.018, hz);
+        g.add(screw);
+      });
+      const handlePts = [
+        new THREE.Vector3(-CW / 2 - 0.018, hY + 0.02, 0.038),
+        new THREE.Vector3(-CW / 2 - 0.04, hY + 0.02, 0.018),
+        new THREE.Vector3(-CW / 2 - 0.048, hY, 0),
+        new THREE.Vector3(-CW / 2 - 0.04, hY - 0.02, -0.018),
+        new THREE.Vector3(-CW / 2 - 0.018, hY - 0.02, -0.038),
+      ];
+      const handleTube = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(handlePts), 12, 0.009, 8, false),
+        metalLight
+      );
+      g.add(handleTube);
 
-      const connector = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.044, 0.05, 16), metalMat);
-      connector.position.set(0, 1.14, 0);
-      g.add(connector);
+      const bz = -CD / 2;
+      const ampPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.26, 0.32, 0.012),
+        new THREE.MeshLambertMaterial({ color: 0x151515 })
+      );
+      ampPlate.position.set(0.02, cabY + CH * 0.44, bz - 0.006);
+      g.add(ampPlate);
+
+      const xlr1 = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.025, 12), metalMid);
+      xlr1.rotation.x = Math.PI / 2;
+      xlr1.position.set(-0.07, cabY + CH * 0.5, bz - 0.013);
+      g.add(xlr1);
+      const xlr2 = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.025, 12), metalMid);
+      xlr2.rotation.x = Math.PI / 2;
+      xlr2.position.set(0.01, cabY + CH * 0.5, bz - 0.013);
+      g.add(xlr2);
+      [xlr1, xlr2].forEach((xlr) => {
+        const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.018, 6), metalLight);
+        pin.rotation.x = Math.PI / 2;
+        pin.position.set(xlr.position.x, xlr.position.y, bz - 0.022);
+        g.add(pin);
+      });
+
+      const lvlKnob = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 0.025, 16),
+        new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+      );
+      lvlKnob.rotation.x = Math.PI / 2;
+      lvlKnob.position.set(0.09, cabY + CH * 0.5, bz - 0.012);
+      g.add(lvlKnob);
+      const lvlCap = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 12), metalLight);
+      lvlCap.rotation.x = Math.PI / 2;
+      lvlCap.position.set(0.09, cabY + CH * 0.5, bz - 0.02);
+      g.add(lvlCap);
 
       [
-        [-CW / 2 + 0.06, -CD / 2 + 0.06],
-        [CW / 2 - 0.06, -CD / 2 + 0.06],
-        [-CW / 2 + 0.06, CD / 2 - 0.06],
-        [CW / 2 - 0.06, CD / 2 - 0.06],
-      ].forEach(([bx, bz]) => {
-        const bump = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.028, 0.02, 10), rubberMat);
-        bump.position.set(bx, cabY - 0.01, bz);
+        [0xff2200, 0],
+        [0xdddddd, 1],
+      ].forEach(([col, i]) => {
+        const rca = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.01, 0.01, 0.022, 10),
+          new THREE.MeshLambertMaterial({ color: col })
+        );
+        rca.rotation.x = Math.PI / 2;
+        rca.position.set(-0.07 + i * 0.028, cabY + CH * 0.42, bz - 0.012);
+        g.add(rca);
+      });
+
+      const power = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.03, 0.02),
+        new THREE.MeshLambertMaterial({ color: 0x111111 })
+      );
+      power.position.set(-0.02, cabY + CH * 0.34, bz - 0.01);
+      g.add(power);
+
+      const mount = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.032, 0.032, 0.06, 16),
+        new THREE.MeshLambertMaterial({ color: 0x0d0d0d })
+      );
+      mount.position.set(0, cabY - 0.03, 0);
+      g.add(mount);
+
+      [
+        [-CW / 2 + 0.065, -CD / 2 + 0.065],
+        [CW / 2 - 0.065, -CD / 2 + 0.065],
+        [-CW / 2 + 0.065, CD / 2 - 0.065],
+        [CW / 2 - 0.065, CD / 2 - 0.065],
+      ].forEach(([bx, bz2]) => {
+        const bump = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.025, 0.016, 10), rubberMat);
+        bump.position.set(bx, cabY - 0.008, bz2);
         g.add(bump);
+        const bumpRing = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.005, 8), metalLight);
+        bumpRing.position.set(bx, cabY - 0.003, bz2);
+        g.add(bumpRing);
       });
 
       g.position.set(x, y, z);
