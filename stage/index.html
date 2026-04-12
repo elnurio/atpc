@@ -114,12 +114,12 @@
       transition: color .4s;
     }
     #back:hover { color: rgba(190, 190, 190, 0.95); }
-    /** С фазы Interior (sl4): тёмный текст на светлом полу */
+    /** С фазы Interior: тот же серый характер, но плотнее — читается на белом полу */
     body.atpc-ui-dark #back {
-      color: rgba(36, 36, 36, 0.78);
+      color: rgba(82, 84, 88, 0.88);
     }
     body.atpc-ui-dark #back:hover {
-      color: #0a0a0a;
+      color: rgba(54, 56, 60, 0.95);
     }
 
     .slabel {
@@ -137,7 +137,12 @@
       transition: color 0.45s ease;
     }
     body.atpc-ui-dark .slabel h2 {
-      color: #0f0f0f;
+      color: rgba(58, 62, 68, 0.96);
+    }
+
+    /** Сегмент Assembly: подпись не нужна */
+    #sl7 {
+      display: none !important;
     }
 
     .scroll-hint {
@@ -156,7 +161,7 @@
     .scroll-hint.hidden {
       opacity: 0;
     }
-    /** До Interior — серый, как подписи; с Interior — чёрный */
+    /** До Interior — светло-серый; с Interior — чуть темнее серый под белый пол */
     .scroll-hint-text {
       font-family: Arial, sans-serif;
       font-size: 10px;
@@ -166,7 +171,7 @@
       transition: color 0.45s ease;
     }
     body.atpc-ui-dark .scroll-hint-text {
-      color: #0f0f0f;
+      color: rgba(58, 62, 68, 0.96);
     }
     .scroll-hint-chevrons {
       display: flex;
@@ -184,8 +189,8 @@
       transition: border-color 0.45s ease;
     }
     body.atpc-ui-dark .scroll-hint .chevron {
-      border-right-color: #0f0f0f;
-      border-bottom-color: #0f0f0f;
+      border-right-color: rgba(58, 62, 68, 0.92);
+      border-bottom-color: rgba(58, 62, 68, 0.92);
     }
     .scroll-hint .chevron:nth-child(2) {
       opacity: 0.5;
@@ -1836,7 +1841,7 @@
   ];
 
   const NSEG = 8;
-  /** sl4 «Interior»: с порога этого сегмента (p ≥ 4/8) — чёрный UI; до — серый */
+  /** sl4 «Interior»: с p ≥ 4/8 — более тёмный серый UI (белый пол); до — светло-серый */
   const INTERIOR_UI_START_P = 4 / NSEG;
   /** Пол скрыт до середины Site; спуск с p = 0.5/NSEG до середины Structure p = 1.5/NSEG */
   const FLOOR_DESCENT_START_P = 0.5 / NSEG;
