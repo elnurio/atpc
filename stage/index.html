@@ -150,13 +150,17 @@
     }
     .scroll-hint.hidden {
       opacity: 0;
+      visibility: hidden;
     }
     .scroll-hint-text {
       font-family: Helvetica, Arial, sans-serif;
       font-size: 10px;
       letter-spacing: 0.22em;
-      color: rgba(235, 235, 235, 0.92);
+      color: rgba(42, 44, 48, 0.88);
       text-transform: uppercase;
+      text-shadow:
+        0 0 12px rgba(255, 255, 255, 0.95),
+        0 1px 2px rgba(255, 255, 255, 0.6);
     }
     .scroll-hint-chevrons {
       display: flex;
@@ -167,8 +171,9 @@
     .scroll-hint .chevron {
       width: 14px;
       height: 14px;
-      border-right: 2px solid rgba(235, 235, 235, 0.85);
-      border-bottom: 2px solid rgba(235, 235, 235, 0.85);
+      border-right: 2px solid rgba(55, 58, 62, 0.88);
+      border-bottom: 2px solid rgba(55, 58, 62, 0.88);
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9));
       transform: rotate(45deg);
       animation: scrollHintChevronBounce 1.4s ease-in-out infinite;
     }
@@ -1853,7 +1858,7 @@
    */
   const SCROLL_HINT_VEL_IDLE_PX_MS = 0.014;
   const SCROLL_HINT_VEL_ACTIVE_PX_MS = 0.038;
-  const SCROLL_HINT_IDLE_HOLD_MS = 320;
+  const SCROLL_HINT_IDLE_HOLD_MS = 200;
   const SCROLL_HINT_VEL_EMA = 0.78;
   let scrollHintVelLastT = 0;
   let scrollHintVelLastY = 0;
@@ -1888,9 +1893,17 @@
       scrollHintScrollIdle = false;
       scrollHintIdleSinceT = null;
     } else if (scrollHintVelEma <= SCROLL_HINT_VEL_IDLE_PX_MS) {
-      if (scrollHintIdleSinceT == null) scrollHintIdleSinceT = nowMs;
-      if (nowMs - scrollHintIdleSinceT >= SCROLL_HINT_IDLE_HOLD_MS) {
+      const y = window.scrollY;
+      const maxY = Math.max(1, scrollPageMax());
+      const atTop = y < 4 && y / maxY < 0.008;
+      if (atTop) {
         scrollHintScrollIdle = true;
+        scrollHintIdleSinceT = null;
+      } else {
+        if (scrollHintIdleSinceT == null) scrollHintIdleSinceT = nowMs;
+        if (nowMs - scrollHintIdleSinceT >= SCROLL_HINT_IDLE_HOLD_MS) {
+          scrollHintScrollIdle = true;
+        }
       }
     } else {
       scrollHintScrollIdle = false;
@@ -2489,7 +2502,8 @@
     dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
 
     if (scrollHint) {
-      const sceneHide = p > 0.06 || blueprintT > 0.12;
+      /** Только финал Assembly (белый объём / чертёж) — не глушить подсказку на всём скролле (раньше p>0.06 отключал её почти сразу) */
+      const sceneHide = blueprintT > 0.22;
       scrollHint.classList.toggle('hidden', sceneHide || !scrollHintScrollIdle);
     }
 
