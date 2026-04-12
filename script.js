@@ -2,6 +2,7 @@ const video = document.getElementById('heroVideo');
 const title = document.getElementById('heroTitle');
 const audio = document.getElementById('heroAudio');
 let soundtrackEnabled = true;
+let autoplayBlocked = false;
 
 function syncAudioToVideo() {
   if (!audio || !video) return;
@@ -22,8 +23,16 @@ function playSoundtrack() {
   syncAudioToVideo();
   const playback = audio.play();
   if (playback && typeof playback.catch === 'function') {
-    playback.catch(() => {});
+    playback.catch(() => {
+      autoplayBlocked = true;
+    });
   }
+}
+
+function tryUnlockSoundtrack() {
+  if (!autoplayBlocked) return;
+  autoplayBlocked = false;
+  playSoundtrack();
 }
 
 video.addEventListener('ended', () => {
@@ -42,3 +51,6 @@ video.addEventListener('ratechange', () => {
   audio.playbackRate = video.playbackRate || 1;
 });
 window.addEventListener('load', playSoundtrack);
+document.addEventListener('pointerdown', tryUnlockSoundtrack);
+document.addEventListener('touchstart', tryUnlockSoundtrack, { passive: true });
+document.addEventListener('keydown', tryUnlockSoundtrack);
