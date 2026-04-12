@@ -2678,141 +2678,352 @@
       return a + rnd() * (b - a);
     }
 
-    /**
-     * Карта смещения из растрового SVG: тёмные панели вертаков/микшера → выше (светлее в disp-текстуре).
-     * Лёгкое размытие исходника сглаживает рельеф, чтобы не было «иглы» по линиям.
-     */
-    function buildDjSetupDisplacementTexture(sourceTex, dispW = 920) {
-      const img = sourceTex.image;
-      if (!img || !img.naturalWidth) return null;
-      const asp = img.naturalWidth / img.naturalHeight;
-      const dw = dispW;
-      const dh = Math.max(40, Math.round(dispW / asp));
-      const canvas = document.createElement('canvas');
-      canvas.width = dw;
-      canvas.height = dh;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#a0a0a0';
-      ctx.fillRect(0, 0, dw, dh);
-      ctx.filter = 'blur(1.1px)';
-      ctx.drawImage(img, 0, 0, dw, dh);
-      ctx.filter = 'none';
-      const id = ctx.getImageData(0, 0, dw, dh);
-      const d = id.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const a = d[i + 3] / 255;
-        const lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
-        const lift = (1 - lum) * (0.15 + 0.85 * a);
-        const v = 0.38 + 0.62 * lift;
-        const b = Math.round(Math.min(255, Math.max(0, v * 255)));
-        d[i] = d[i + 1] = d[i + 2] = b;
-        d[i + 3] = 255;
+    /** Модель стола в «чертёжных» единицах (ширина столешницы 8); масштаб к прежней ширине 1.52×L×DJ_BOOTH_SCALE */
+    const DJ_BOOTH_SCALE_LEGACY = 1.38 * 1.5;
+    const DJ_NEW_MODEL_SCALE = (1.52 * L * DJ_BOOTH_SCALE_LEGACY) / 8;
+    const topW = 8 * DJ_NEW_MODEL_SCALE;
+    const topD = 4 * DJ_NEW_MODEL_SCALE;
+    const boothFullH = 0.37 * DJ_NEW_MODEL_SCALE;
+
+    const silverM = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
+    const silver2 = new THREE.MeshLambertMaterial({ color: 0xd8d8d8 });
+    const darkM = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
+    const blackBase = new THREE.MeshLambertMaterial({ color: 0x0d0d0d });
+    const slipmatM = new THREE.MeshLambertMaterial({ color: 0x0a0a0a });
+    const chromeM = new THREE.MeshLambertMaterial({ color: 0xd8d8d8 });
+    const rubberM = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+    const redM = new THREE.MeshLambertMaterial({
+      color: 0xff2200,
+      emissive: new THREE.Color(0x880000),
+    });
+    const woodM = new THREE.MeshLambertMaterial({ color: 0xb07830 });
+    const woodDarkM = new THREE.MeshLambertMaterial({ color: 0x8a5a20 });
+    const eclerBlk = new THREE.MeshLambertMaterial({ color: 0x0e0e0e });
+    const knobDarkM = new THREE.MeshLambertMaterial({ color: 0x222222 });
+    const knobSilM = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+    const greenLED = new THREE.MeshLambertMaterial({
+      color: 0x00ff66,
+      emissive: new THREE.Color(0x00aa33),
+    });
+    const tableTopM = new THREE.MeshLambertMaterial({ color: 0xb5ad96 });
+    const tableTrimM = new THREE.MeshLambertMaterial({ color: 0x9e9680 });
+    /** Без прозрачности: applyInteriorOpacity на группе иначе перезаписала бы opacity */
+    const grainM = new THREE.MeshLambertMaterial({ color: 0xa09880 });
+
+    function makeDJTable(parent, x, y, z) {
+      const TW = 8.0;
+      const TD = 4.0;
+      const TH = 0.11;
+      const LEG = 0.26;
+      const g = new THREE.Group();
+
+      const top = new THREE.Mesh(new THREE.BoxGeometry(TW, TH, TD), tableTopM);
+      top.position.y = LEG + TH / 2;
+      top.receiveShadow = true;
+      g.add(top);
+
+      for (let i = -1.5; i <= 1.5; i += 0.5) {
+        const grain = new THREE.Mesh(new THREE.BoxGeometry(TW - 0.1, 0.004, 0.01), grainM);
+        grain.position.set(0, LEG + TH + 0.002, i);
+        g.add(grain);
       }
-      ctx.putImageData(id, 0, 0);
-      const t = new THREE.CanvasTexture(canvas);
-      t.colorSpace = THREE.NoColorSpace;
-      t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-      t.needsUpdate = true;
-      return t;
+
+      [[0, TD / 2 + 0.015], [0, -(TD / 2 + 0.015)]].forEach(([px, pz]) => {
+        const t = new THREE.Mesh(new THREE.BoxGeometry(TW + 0.04, TH + 0.015, 0.03), tableTrimM);
+        t.position.set(px, LEG + TH / 2, pz);
+        g.add(t);
+      });
+      [[TW / 2 + 0.015, 0], [-(TW / 2 + 0.015), 0]].forEach(([px, pz]) => {
+        const t = new THREE.Mesh(new THREE.BoxGeometry(0.03, TH + 0.015, TD + 0.04), tableTrimM);
+        t.position.set(px, LEG + TH / 2, pz);
+        g.add(t);
+      });
+
+      [
+        [-TW / 2 + 0.28, -TD / 2 + 0.25],
+        [TW / 2 - 0.28, -TD / 2 + 0.25],
+        [-TW / 2 + 0.28, TD / 2 - 0.25],
+        [TW / 2 - 0.28, TD / 2 - 0.25],
+      ].forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, LEG, 0.2), tableTrimM);
+        leg.position.set(lx, LEG / 2, lz);
+        leg.castShadow = true;
+        leg.receiveShadow = true;
+        g.add(leg);
+      });
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
     }
 
-    /* Low DJ bench — proportions from low_dj_planning_design_sheet (wide monolithic top, three legs, decks) */
-    const DJ_BOOTH_SCALE = 1.38 * 1.5;
-    const benchTopMat = new THREE.MeshStandardMaterial({
-      color: 0xf3ead9,
-      roughness: 0.82,
-      metalness: 0.02,
-      envMapIntensity: 0.55,
-    });
-    const benchLegMat = new THREE.MeshStandardMaterial({
-      color: 0xe7dac1,
-      roughness: 0.8,
-      metalness: 0.03,
-      envMapIntensity: 0.52,
-    });
-    const legH = 0.36 * L * DJ_BOOTH_SCALE;
-    const topTy = 0.1 * L * DJ_BOOTH_SCALE;
-    const topW = 1.52 * L * DJ_BOOTH_SCALE;
-    const topD = 0.58 * L * DJ_BOOTH_SCALE;
-    const legW = 0.2 * L * DJ_BOOTH_SCALE;
-    const legD = 0.44 * L * DJ_BOOTH_SCALE;
-    const lx = 0.41 * L * DJ_BOOTH_SCALE;
+    function makeTechnics(parent, x, y, z, mirrorX) {
+      const g = new THREE.Group();
+      const mx = mirrorX ? -1 : 1;
+
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.22, 2.25), blackBase);
+      chassis.position.set(0, 0.11, 0);
+      chassis.castShadow = true;
+      chassis.receiveShadow = true;
+      g.add(chassis);
+
+      [[-0.95, -0.9], [0.95, -0.9], [-0.95, 0.9], [0.95, 0.9]].forEach(([fx, fz]) => {
+        const f = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.06, 16), rubberM);
+        f.position.set(fx, -0.01, fz);
+        g.add(f);
+      });
+
+      const topPanel = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.06, 2.2), silverM);
+      topPanel.position.set(0, 0.25, 0);
+      topPanel.castShadow = true;
+      topPanel.receiveShadow = true;
+      g.add(topPanel);
+
+      const recess = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.94, 0.94, 0.015, 64),
+        new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+      );
+      recess.position.set(-0.08 * mx, 0.275, 0.02);
+      g.add(recess);
+
+      const platter = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.04, 64), darkM);
+      platter.position.set(-0.08 * mx, 0.29, 0.02);
+      g.add(platter);
+
+      const sm = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.012, 64), slipmatM);
+      sm.position.set(-0.08 * mx, 0.312, 0.02);
+      g.add(sm);
+
+      const dotM = new THREE.MeshLambertMaterial({ color: 0x888888 });
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const d = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.005, 6), dotM);
+        d.position.set(-0.08 * mx + 0.88 * Math.sin(a), 0.316, 0.02 + 0.88 * Math.cos(a));
+        g.add(d);
+      }
+
+      const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.06, 12), chromeM);
+      sp.position.set(-0.08 * mx, 0.335, 0.02);
+      g.add(sp);
+
+      const wk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.04, 20), chromeM);
+      wk.position.set(-1.0 * mx, 0.275, -0.82);
+      g.add(wk);
+
+      const abx = 0.82 * mx;
+      const abz = -0.68;
+      const ab = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.09, 20), chromeM);
+      ab.position.set(abx, 0.3, abz);
+      g.add(ab);
+      const abCap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 16), darkM);
+      abCap.position.set(abx, 0.35, abz);
+      g.add(abCap);
+
+      const cw = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.1, 16), darkM);
+      cw.rotation.z = Math.PI / 2;
+      cw.position.set(abx + 0.12 * mx, 0.335, abz);
+      g.add(cw);
+
+      const pts = [
+        new THREE.Vector3(abx, 0.34, abz),
+        new THREE.Vector3(abx * 0.7, 0.35, abz + 0.22),
+        new THREE.Vector3(abx * 0.4, 0.34, abz + 0.52),
+        new THREE.Vector3(abx * 0.15, 0.32, abz + 0.78),
+        new THREE.Vector3(abx * 0.05, 0.3, abz + 0.98),
+      ];
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.016, 8, false),
+        chromeM
+      );
+      g.add(tube);
+
+      const hs = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.035, 0.09), chromeM);
+      hs.position.set(abx * 0.04, 0.296, abz + 1.0);
+      g.add(hs);
+      const cart = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.028, 0.07), darkM);
+      cart.position.set(abx * 0.04, 0.278, abz + 1.04);
+      g.add(cart);
+      const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.002, 0.05, 6), darkM);
+      needle.rotation.x = Math.PI / 8;
+      needle.position.set(abx * 0.04, 0.255, abz + 1.11);
+      g.add(needle);
+
+      const lift = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 8), chromeM);
+      lift.position.set(0.72 * mx, 0.29, abz + 0.55);
+      g.add(lift);
+
+      const ssBtn = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.025, 0.09), darkM);
+      ssBtn.position.set(-0.55 * mx, 0.113, 0.92);
+      g.add(ssBtn);
+
+      const led = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.015, 10), redM);
+      led.position.set(-0.95 * mx, 0.113, 0.78);
+      g.add(led);
+
+      const b33 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.07), darkM);
+      b33.position.set(-0.22 * mx, 0.113, 0.92);
+      g.add(b33);
+      const b45 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.07), darkM);
+      b45.position.set(-0.08 * mx, 0.113, 0.92);
+      g.add(b45);
+
+      const pitchTrack = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.85), silver2);
+      pitchTrack.position.set(1.0 * mx, 0.262, 0.1);
+      g.add(pitchTrack);
+      const pitchFader = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.065), silver2);
+      pitchFader.position.set(1.0 * mx, 0.272, -0.05);
+      g.add(pitchFader);
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    }
+
+    function makeEcler(parent, x, y, z) {
+      const g = new THREE.Group();
+
+      [-0.66, 0.66].forEach((wx) => {
+        const s = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 1.8), woodM);
+        s.position.set(wx, 0.25, 0);
+        s.receiveShadow = true;
+        g.add(s);
+        [[0.06, -0.16], [0.06, 0.16], [-0.06, -0.16], [-0.06, 0.16]].forEach(([dz, dy]) => {
+          const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.01, 8), woodDarkM);
+          sc.rotation.z = Math.PI / 2;
+          sc.position.set(wx + (wx > 0 ? 0.1 : -0.1), 0.25 + dy, dz);
+          g.add(sc);
+        });
+      });
+
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.8), eclerBlk);
+      chassis.position.set(0, 0.25, 0);
+      chassis.receiveShadow = true;
+      g.add(chassis);
+
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(1.08, 0.005, 1.78),
+        new THREE.MeshLambertMaterial({ color: 0x181818 })
+      );
+      panel.position.set(0, 0.503, 0);
+      g.add(panel);
+
+      [-0.18, 0.18].forEach((dx) => {
+        const d = new THREE.Mesh(
+          new THREE.BoxGeometry(0.005, 0.003, 1.7),
+          new THREE.MeshLambertMaterial({ color: 0x333333 })
+        );
+        d.position.set(dx, 0.506, 0);
+        g.add(d);
+      });
+
+      function knob(gp, kx, ky, kz, r) {
+        const km = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.04, 20), knobDarkM);
+        km.position.set(kx, ky, kz);
+        gp.add(km);
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.58, r * 0.58, 0.012, 16), knobSilM);
+        cap.position.set(kx, ky + 0.026, kz);
+        gp.add(cap);
+        const mk = new THREE.Mesh(
+          new THREE.BoxGeometry(0.006, 0.014, 0.004),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        mk.position.set(kx, ky + 0.033, kz - r * 0.5);
+        gp.add(mk);
+      }
+
+      [-0.3, 0, 0.3].forEach((cx) => {
+        knob(g, cx, 0.522, -0.62, 0.055);
+        knob(g, cx, 0.524, -0.38, 0.062);
+        knob(g, cx, 0.524, -0.14, 0.062);
+        knob(g, cx, 0.524, 0.1, 0.062);
+        const pfl = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.018, 12), knobSilM);
+        pfl.position.set(cx, 0.514, 0.28);
+        g.add(pfl);
+        const fx = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.03, 16), knobDarkM);
+        fx.position.set(cx, 0.518, 0.38);
+        g.add(fx);
+      });
+
+      [-0.32, 0, 0.32].forEach((cx) => {
+        knob(g, cx, 0.528, 0.62, 0.085);
+      });
+
+      [-0.36, 0.36].forEach((cx) => {
+        const vm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.065, 24), knobDarkM);
+        vm.position.set(cx, 0.532, 0.82);
+        g.add(vm);
+        const vc = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.018, 20), knobSilM);
+        vc.position.set(cx, 0.556, 0.82);
+        g.add(vc);
+        const vmk = new THREE.Mesh(
+          new THREE.BoxGeometry(0.007, 0.018, 0.004),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        vmk.position.set(cx, 0.566, 0.82 - 0.065);
+        g.add(vmk);
+      });
+
+      const vuBg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.005, 0.35),
+        new THREE.MeshLambertMaterial({ color: 0x060606 })
+      );
+      vuBg.position.set(0, 0.506, 0.76);
+      g.add(vuBg);
+      const vuCols = [0x22cc44, 0x22cc44, 0x22cc44, 0x22cc44, 0xffaa00, 0xff2200];
+      [-0.04, 0.04].forEach((vx) => {
+        vuCols.forEach((col, i) => {
+          const em = new THREE.Color(col);
+          em.multiplyScalar(0.25);
+          const bar = new THREE.Mesh(
+            new THREE.BoxGeometry(0.032, 0.006, 0.03),
+            new THREE.MeshLambertMaterial({ color: col, emissive: em })
+          );
+          bar.position.set(vx, 0.51, 0.68 - i * 0.038);
+          g.add(bar);
+        });
+      });
+
+      const onLed = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.01, 10), greenLED);
+      onLed.position.set(0, 0.507, -0.84);
+      g.add(onLed);
+
+      const hj1 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), darkM);
+      hj1.rotation.x = Math.PI / 2;
+      hj1.position.set(-0.3, 0.24, 0.912);
+      g.add(hj1);
+      const hj2 = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.04, 12), darkM);
+      hj2.rotation.x = Math.PI / 2;
+      hj2.position.set(-0.2, 0.24, 0.912);
+      g.add(hj2);
+
+      [0.05, 0.22].forEach((fx) => {
+        const fk = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 20), knobDarkM);
+        fk.rotation.x = Math.PI / 2;
+        fk.position.set(fx, 0.24, 0.912);
+        g.add(fk);
+        const fkc = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.014, 16), knobSilM);
+        fkc.rotation.x = Math.PI / 2;
+        fkc.position.set(fx, 0.24, 0.919);
+        g.add(fkc);
+      });
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    }
+
     const lowDjBooth = new THREE.Group();
     lowDjBooth.name = 'lowDjBooth';
-    const topSlab = new THREE.Mesh(new THREE.BoxGeometry(topW, topTy, topD), benchTopMat);
-    topSlab.position.y = legH + 0.5 * topTy;
-    lowDjBooth.add(topSlab);
-    function addLeg(x) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(legW, legH, legD), benchLegMat);
-      leg.position.set(x, 0.5 * legH, 0);
-      lowDjBooth.add(leg);
-    }
-    addLeg(-lx);
-    addLeg(0);
-    addLeg(lx);
-    /** Вид сверху: Technics SL-1200 ×2 + микшер (technics_dj_setup_clean.svg, viewBox 680×330) на столешнице */
-    const djSvgAsp = 680 / 330;
-    const availTopX = topW * 0.93;
-    const availTopZ = topD * 0.88;
-    let layW, layZ;
-    if (availTopX / availTopZ > djSvgAsp) {
-      layZ = availTopZ;
-      layW = layZ * djSvgAsp;
-    } else {
-      layW = availTopX;
-      layZ = layW / djSvgAsp;
-    }
-    const slabTopY = legH + topTy + 0.0028 * L * DJ_BOOTH_SCALE;
-    const djTopTexMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.58,
-      metalness: 0.06,
-      envMapIntensity: 0.62,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-    });
-    const djSegX = 96;
-    const djSegZ = Math.max(36, Math.round(djSegX * (330 / 680)));
-    const djTopPlane = new THREE.Mesh(new THREE.PlaneGeometry(layW, layZ, djSegX, djSegZ), djTopTexMat);
-    djTopPlane.rotation.x = -Math.PI / 2;
-    djTopPlane.position.set(0, slabTopY, 0);
-    djTopPlane.name = 'djTechnicsTopLayout';
-    lowDjBooth.add(djTopPlane);
-    const djSvgUrl = new URL('technics_dj_setup_clean.svg', import.meta.url).href;
-    new THREE.TextureLoader().load(
-      djSvgUrl,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-        tex.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-        tex.needsUpdate = true;
-        const pl = lowDjBooth.getObjectByName('djTechnicsTopLayout');
-        if (pl && pl.material) {
-          const m = pl.material;
-          m.map = tex;
-          const disp = buildDjSetupDisplacementTexture(tex);
-          if (disp) {
-            m.displacementMap = disp;
-            m.displacementScale = 0.1;
-            m.displacementBias = -0.041;
-            m.bumpMap = tex;
-            m.bumpScale = 0.034;
-          }
-          m.needsUpdate = true;
-        }
-      },
-      undefined,
-      () => {
-        const pl = lowDjBooth.getObjectByName('djTechnicsTopLayout');
-        if (pl && pl.material) pl.material.color.setHex(0x1c1c1e);
-      }
-    );
-    /* Центр бутика по вертикали как у прежнего стола; локально = мир / INTERIOR_SCALE */
-    const boothFullH = legH + topTy;
+    const djModelRoot = new THREE.Group();
+    djModelRoot.scale.setScalar(DJ_NEW_MODEL_SCALE);
+    lowDjBooth.add(djModelRoot);
+
+    const TABLE_SURFACE_LOCAL = 0.37;
+    makeDJTable(djModelRoot, 0, 0, 0);
+    makeTechnics(djModelRoot, -2.05, TABLE_SURFACE_LOCAL, 0, false);
+    makeTechnics(djModelRoot, 2.05, TABLE_SURFACE_LOCAL, 0, true);
+    makeEcler(djModelRoot, 0, TABLE_SURFACE_LOCAL, 0);
+
     const tableCenterY = 0.095 * L * invS;
     lowDjBooth.position.set(
       OCULUS_CENTER_X / INTERIOR_SCALE,
