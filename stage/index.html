@@ -294,6 +294,8 @@
   let hangingInteriorFabricGroup;
   /** Пол дуба: скрыт до середины Site, спуск до середины Structure */
   let tentFloorMesh;
+  /** Группа PA-колонок DJ: подъём снизу (фаза Light) */
+  let djSpeakersRiseGroup = null;
   let mainSun, hemiMain, fillSun;
   let sceneAmbient;
   let sceneBgOrig;
@@ -1724,6 +1726,7 @@
   }
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
+  const djSpkCamPos = new THREE.Vector3();
 
   function makeSunDiscTexture() {
     const c = document.createElement('canvas');
@@ -2307,6 +2310,20 @@
         (p >= tableSegStart - 1e-5 || uProps > 0.006) && (s < 7 || uLin < 0.035);
       const scG = (0.9 + 0.1 * ss(uGroup)) * INTERIOR_SCALE;
       interiorGroup.scale.setScalar(scG);
+
+      if (djSpeakersRiseGroup && djSpeakersRiseGroup.userData.riseLift != null) {
+        const spkEase = ss(uTable * 0.9);
+        djSpeakersRiseGroup.position.y =
+          -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
+        /** Решётка в локальном +Z; lookAt даёт −Z на камеру → rotateY(π) разворачивает «лицом» к зрителю */
+        camera.getWorldPosition(djSpkCamPos);
+        djSpeakersRiseGroup.children.forEach((anchor) => {
+          const spk = anchor.children[0];
+          if (!spk || !spk.isObject3D) return;
+          spk.lookAt(djSpkCamPos);
+          spk.rotateY(Math.PI);
+        });
+      }
 
       /** Напольные подушки: короче окно подъёма — заметны уже в ходе Light */
       const riseSpanDefault = 0.52;
@@ -3207,14 +3224,25 @@
     makeTechnics(djGearRoot, 2.05, 0, 0, true);
     makeEcler(djGearRoot, 0, 0, 0);
 
-    /** SubZero на полу по бокам стола (масштаб как у чертежа 8×4); решётка смотрит в центр */
-    const spSpacing = 5.5 * gearScale;
-    const spAimY = 1.26;
+    /**
+     * SubZero: масштаб с пультами (gearScale) × SPK_MUL — иначе «метровая» геометрия крошечная рядом со столом.
+     * Подъём снизу — группа djSpeakersRise, позиция.y в updateScene по uTable.
+     */
+    const SPK_MUL = 3.35;
+    const spkScale = gearScale * SPK_MUL;
+    const djSpkRise = new THREE.Group();
+    djSpkRise.name = 'djSpeakersRise';
+    djSpkRise.userData.riseLift = 4.5 * spkScale;
+    djSpkRise.position.y = -djSpkRise.userData.riseLift;
     [-1, 1].forEach((side) => {
-      const spk = makeSubZeroSpeaker(lowDjBooth, side * spSpacing, 0, 0);
-      spk.lookAt(0, spAimY, 0);
-      spk.rotateY(Math.PI);
+      const anchor = new THREE.Group();
+      djSpkRise.add(anchor);
+      anchor.position.set(side * 5.5 * gearScale, 0, 0); // ±X по бокам стола
+      const spk = makeSubZeroSpeaker(anchor, 0, 0, 0);
+      spk.scale.setScalar(spkScale);
+      /** Поворот к камере — каждый кадр в updateScene (lookAt + π по Y, решётка в +Z) */
     });
+    lowDjBooth.add(djSpkRise);
 
     /**
      * Низ стола (ножки y=0) чуть выше настила интерьера — как у футонов 0.036·L·invS + запас.
@@ -3228,6 +3256,7 @@
     lowDjBooth.rotation.y = Math.atan2(OCULUS_CENTER_X, OCULUS_CENTER_Z) + rndRange(-0.1, 0.1);
     registerInteriorRiseGroup(lowDjBooth, 0, -0.06);
     interiorGroup.add(lowDjBooth);
+    djSpeakersRiseGroup = lowDjBooth.getObjectByName('djSpeakersRise');
 
     /** Чертёж: 1 ед ≈ 1 м → локаль interiorGroup (ромб шатра) */
     const M2I = 3.52;
