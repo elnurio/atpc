@@ -1583,8 +1583,12 @@
       }
       if (!ok) continue;
       hfPlaced.push({ x: px, z: pz });
-      /** Подвес у самого верха купола (линия SQ_ROOF_Y), лёгкий разброс по высоте крепления */
-      const topY = SQ_ROOF_Y * (0.965 + hfRnd() * 0.048);
+      /**
+       * Крепление на линии основания купола — как якоря натяжной мембраны (createAnchors),
+       * без множителя 0.965×SQ_ROOF_Y, который оставлял заметный зазор под «крышей».
+       */
+      const hangRoofBaseY = SQ_ROOF_Y - 0.03 * TENT_SCALE;
+      const topY = hangRoofBaseY + (hfRnd() - 0.5) * 0.018 * TENT_SCALE;
       const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
       const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
       const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
