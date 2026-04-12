@@ -79,7 +79,7 @@
     }
     body.atpc-drawing-end #dots,
     body.atpc-drawing-end .slabel,
-    body.atpc-drawing-end #hint {
+    body.atpc-drawing-end #scrollHint {
       visibility: hidden !important;
       opacity: 0 !important;
       pointer-events: none !important;
@@ -126,35 +126,69 @@
     .slabel h2 {
       color: rgba(200, 200, 200, 0.92);
       font: 200 clamp(22px, 4.2vw, 52px)/1 Helvetica, Arial, sans-serif;
-      letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
-    }
-    .slabel p {
-      color: rgba(130, 130, 130, 0.72);
-      font: 300 10px/1.6 Helvetica, Arial, sans-serif;
-      letter-spacing: .22em; text-transform: uppercase;
+      letter-spacing: .14em; text-transform: uppercase;
     }
 
-    #hint {
-      position: fixed; bottom: 36px; left: 50%;
-      transform: translateX(-50%);
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
-      pointer-events: none; z-index: 20; transition: opacity .8s ease;
+    .scroll-hint {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 32px;
+      width: 100%;
+      max-width: 100vw;
+      box-sizing: border-box;
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      z-index: 999;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
     }
-    #hint.hide { opacity: 0; }
-    #hint span {
-      color: rgba(130, 130, 130, 0.5);
-      font: 300 9px/1 Helvetica, Arial, sans-serif;
-      letter-spacing: .3em; text-transform: uppercase;
+    .scroll-hint.hidden {
+      opacity: 0;
     }
-    #hint-line {
-      width: 1px; height: 32px;
-      background: linear-gradient(to bottom, rgba(150, 150, 150, 0.4), transparent);
-      animation: drip 2.2s ease-in-out infinite; transform-origin: top;
+    .scroll-hint-text {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      color: rgba(235, 235, 235, 0.92);
+      text-transform: uppercase;
     }
-    @keyframes drip {
-      0%  { transform: scaleY(0); opacity: 1; }
-      60% { transform: scaleY(1); opacity: 1; }
-      100%{ transform: scaleY(1); opacity: 0; }
+    .scroll-hint-chevrons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .scroll-hint .chevron {
+      width: 14px;
+      height: 14px;
+      border-right: 2px solid rgba(235, 235, 235, 0.85);
+      border-bottom: 2px solid rgba(235, 235, 235, 0.85);
+      transform: rotate(45deg);
+      animation: scrollHintChevronBounce 1.4s ease-in-out infinite;
+    }
+    .scroll-hint .chevron:nth-child(2) {
+      opacity: 0.5;
+      animation-delay: 0.18s;
+    }
+    .scroll-hint .chevron:nth-child(3) {
+      opacity: 0.2;
+      animation-delay: 0.36s;
+    }
+    @keyframes scrollHintChevronBounce {
+      0%, 100% {
+        transform: rotate(45deg) translateY(0);
+        opacity: inherit;
+      }
+      50% {
+        transform: rotate(45deg) translateY(5px);
+        opacity: 0.1;
+      }
     }
 
     #dots {
@@ -192,22 +226,13 @@
       .slabel h2 {
         font-size: clamp(18px, 8vw, 34px);
         letter-spacing: .1em;
-        margin-bottom: 8px;
       }
 
-      .slabel p {
-        font-size: 9px;
-        line-height: 1.5;
-        letter-spacing: .14em;
+      .scroll-hint {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+        padding-left: max(8px, env(safe-area-inset-left, 0px));
+        padding-right: max(8px, env(safe-area-inset-right, 0px));
       }
-
-      #hint {
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-        gap: 8px;
-      }
-
-      #hint span { letter-spacing: .2em; }
-      #hint-line { height: 24px; }
 
       #dots {
         left: 50%;
@@ -236,38 +261,37 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Minimal sand — fabric micro-city: white floor lowers into place, tensile walls, floating ceiling fields</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Diamond footprint anchors — guy lines to rim, corner posts at rhombus vertices</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>Layered floating tensile ceiling — sagging membrane fields, diagonal ties, hem above sand</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Light</h2>
-    <p>Amber shaft through the ring — projection from the crown</p>
   </div>
   <div class="slabel" id="sl4">
     <h2>Interior</h2>
-    <p>We move inside the shell</p>
   </div>
   <div class="slabel" id="sl5">
     <h2>Space</h2>
-    <p>Reveal — lift through the membrane to the oculus and sky beyond</p>
   </div>
   <div class="slabel" id="sl6">
     <h2>Sky</h2>
-    <p>Reposition — drift back into the volume; distance and enclosure read</p>
   </div>
   <div class="slabel" id="sl7">
     <h2>Assembly</h2>
-    <p>Blueprint — cross into the white drawing space; combined technical sheet</p>
   </div>
 
-  <div id="hint"><span>Scroll</span><div id="hint-line"></div></div>
+  <div class="scroll-hint" id="scrollHint" aria-hidden="true">
+    <div class="scroll-hint-text">Scroll Down</div>
+    <div class="scroll-hint-chevrons">
+      <div class="chevron"></div>
+      <div class="chevron"></div>
+      <div class="chevron"></div>
+    </div>
+  </div>
 
   <div id="whiteBloom" aria-hidden="true"></div>
   <div id="assemblyShell">
@@ -1792,8 +1816,11 @@
 
   const labels = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('sl' + i));
   const dots = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('d' + i));
-  const hint = document.getElementById('hint');
+  const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
+  /** Скрыть подсказку при скролле; через 3 с снова показать только если у верха страницы */
+  let scrollHintScrollSuppressed = window.scrollY > 100;
+  let scrollHintHideTimer;
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function ss(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
@@ -2385,7 +2412,10 @@
     const activeDot = clamp(Math.floor(p * NSEG + 0.08), 0, NSEG - 1);
     dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
 
-    hint.classList.toggle('hide', p > 0.06 || blueprintT > 0.12);
+    if (scrollHint) {
+      const sceneHide = p > 0.06 || blueprintT > 0.12;
+      scrollHint.classList.toggle('hidden', sceneHide || scrollHintScrollSuppressed);
+    }
 
     if (interiorGroup) {
       const tableSegStart = INTERIOR_TABLE_LIGHT_SEG / NSEG;
@@ -3631,6 +3661,13 @@
     window.addEventListener('scroll', () => {
       applyScrollPhaseControl();
       syncRawScrollProgress();
+      if (scrollHint) {
+        scrollHintScrollSuppressed = true;
+        clearTimeout(scrollHintHideTimer);
+        scrollHintHideTimer = setTimeout(() => {
+          scrollHintScrollSuppressed = window.scrollY >= 100;
+        }, 3000);
+      }
     }, { passive: true });
 
     window.addEventListener('wheel', (e) => {
