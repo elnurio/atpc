@@ -114,6 +114,13 @@
       transition: color .4s;
     }
     #back:hover { color: rgba(190, 190, 190, 0.95); }
+    /** С фазы Interior (sl4): тёмный текст на светлом полу */
+    body.atpc-ui-dark #back {
+      color: rgba(36, 36, 36, 0.78);
+    }
+    body.atpc-ui-dark #back:hover {
+      color: #0a0a0a;
+    }
 
     .slabel {
       position: fixed; bottom: 18vh; left: 50%;
@@ -127,6 +134,10 @@
       color: rgba(200, 200, 200, 0.92);
       font: 200 clamp(22px, 4.2vw, 52px)/1 Helvetica, Arial, sans-serif;
       letter-spacing: .14em; text-transform: uppercase;
+      transition: color 0.45s ease;
+    }
+    body.atpc-ui-dark .slabel h2 {
+      color: #0f0f0f;
     }
 
     .scroll-hint {
@@ -145,12 +156,17 @@
     .scroll-hint.hidden {
       opacity: 0;
     }
+    /** До Interior — серый, как подписи; с Interior — чёрный */
     .scroll-hint-text {
       font-family: Arial, sans-serif;
       font-size: 10px;
       letter-spacing: 0.22em;
-      color: #fff;
+      color: rgba(165, 165, 165, 0.92);
       text-transform: uppercase;
+      transition: color 0.45s ease;
+    }
+    body.atpc-ui-dark .scroll-hint-text {
+      color: #0f0f0f;
     }
     .scroll-hint-chevrons {
       display: flex;
@@ -161,10 +177,15 @@
     .scroll-hint .chevron {
       width: 14px;
       height: 14px;
-      border-right: 2px solid #fff;
-      border-bottom: 2px solid #fff;
+      border-right: 2px solid rgba(165, 165, 165, 0.88);
+      border-bottom: 2px solid rgba(165, 165, 165, 0.88);
       transform: rotate(45deg);
       animation: scrollHintChevronBounce 1.4s ease-in-out infinite;
+      transition: border-color 0.45s ease;
+    }
+    body.atpc-ui-dark .scroll-hint .chevron {
+      border-right-color: #0f0f0f;
+      border-bottom-color: #0f0f0f;
     }
     .scroll-hint .chevron:nth-child(2) {
       opacity: 0.5;
@@ -1685,11 +1706,15 @@
       if (!ok) continue;
       hfPlaced.push({ x: px, z: pz });
       /**
-       * Крепление на линии основания купола — как якоря натяжной мембраны (createAnchors),
-       * без множителя 0.965×SQ_ROOF_Y, который оставлял заметный зазор под «крышей».
+       * Верх шторы — у нижней кромки видимого «верхнего» слоя купола: периметр якорей
+       * (SQ_ROOF_Y−0.03T) оказался ниже того, что читается как потолок в кадре (пики мачт
+       * и выпуклость мембраны выше). Смещаем к линии пиков TENSILE_PEAK_SPEC, чуть ниже
+       * максимума — без зазора «висящего» полотна под потолком.
        */
-      const hangRoofBaseY = SQ_ROOF_Y - 0.03 * TENT_SCALE;
-      const topY = hangRoofBaseY + (hfRnd() - 0.5) * 0.018 * TENT_SCALE;
+      const hangPeakLift =
+        Math.max(...TENSILE_PEAK_SPEC.map((s) => s.yLift)) * TENT_SCALE;
+      const hangRoofBaseY = SQ_ROOF_Y + hangPeakLift * 0.92 - 0.02 * TENT_SCALE;
+      const topY = hangRoofBaseY + (hfRnd() - 0.5) * 0.008 * TENT_SCALE;
       const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
       const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
       const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
@@ -1815,6 +1840,8 @@
   ];
 
   const NSEG = 8;
+  /** sl4 «Interior»: с порога этого сегмента (p ≥ 4/8) — чёрный UI; до — серый */
+  const INTERIOR_UI_START_P = 4 / NSEG;
   /** Пол скрыт до середины Site; спуск с p = 0.5/NSEG до середины Structure p = 1.5/NSEG */
   const FLOOR_DESCENT_START_P = 0.5 / NSEG;
   const FLOOR_DESCENT_END_P = 1.5 / NSEG;
@@ -2484,6 +2511,8 @@
     LWIN.forEach(([inAt, outAt], i) => {
       labels[i].classList.toggle('on', p >= inAt && p <= outAt);
     });
+
+    document.body.classList.toggle('atpc-ui-dark', p >= INTERIOR_UI_START_P);
 
     const activeDot = clamp(Math.floor(p * NSEG + 0.08), 0, NSEG - 1);
     dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
