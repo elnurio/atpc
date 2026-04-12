@@ -3000,6 +3000,169 @@
       return g;
     }
 
+    /** SubZero C12A на стойке; parent.add, без rotation — задаётся снаружи (lookAt к центру) */
+    function makeSubZeroSpeaker(parent, x, y, z) {
+      const g = new THREE.Group();
+
+      const blackCarpet = new THREE.MeshLambertMaterial({ color: 0x111111 });
+      const blackDark = new THREE.MeshLambertMaterial({ color: 0x0a0a0a });
+      const grilleMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+      const metalMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+      const metalLight = new THREE.MeshLambertMaterial({ color: 0x888888 });
+      const rubberMat = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
+      const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+
+      const baseArm1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.12), metalMat);
+      baseArm1.position.set(0, 0.02, 0);
+      baseArm1.castShadow = true;
+      baseArm1.receiveShadow = true;
+      g.add(baseArm1);
+      const baseArm2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.9), metalMat);
+      baseArm2.position.set(0, 0.02, 0);
+      baseArm2.castShadow = true;
+      baseArm2.receiveShadow = true;
+      g.add(baseArm2);
+
+      [[-0.38, 0], [0.38, 0], [0, -0.38], [0, 0.38]].forEach(([bx, bz]) => {
+        const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.05, 12), rubberMat);
+        tip.position.set(bx, 0.01, bz);
+        tip.receiveShadow = true;
+        g.add(tip);
+      });
+
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 1.05, 16), poleMat);
+      pole.position.set(0, 0.565, 0);
+      pole.castShadow = true;
+      g.add(pole);
+
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.1, 16), metalMat);
+      cup.position.set(0, 1.12, 0);
+      g.add(cup);
+      const cupScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 8), metalLight);
+      cupScrew.rotation.z = Math.PI / 2;
+      cupScrew.position.set(0.062, 1.12, 0);
+      g.add(cupScrew);
+
+      const CW = 0.38;
+      const CH = 0.62;
+      const CD = 0.32;
+      const cabY = 1.18;
+
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(CW, CH, CD), blackCarpet);
+      cab.position.set(0, cabY + CH / 2, 0);
+      cab.castShadow = true;
+      cab.receiveShadow = true;
+      g.add(cab);
+
+      const chamferGeo = new THREE.BoxGeometry(0.06, 0.06, CD);
+      const chamferMat = new THREE.MeshLambertMaterial({ color: 0x0d0d0d });
+      [[-CW / 2, cabY], [CW / 2, cabY]].forEach(([cx, cy]) => {
+        const ch = new THREE.Mesh(chamferGeo, chamferMat);
+        ch.position.set(cx, cy + 0.03, 0);
+        ch.rotation.z = cx < 0 ? Math.PI / 4 : -Math.PI / 4;
+        g.add(ch);
+      });
+
+      const grilleFrame = new THREE.Mesh(
+        new THREE.BoxGeometry(CW - 0.04, CH - 0.04, 0.012),
+        grilleMat
+      );
+      grilleFrame.position.set(0, cabY + CH / 2, CD / 2 + 0.006);
+      g.add(grilleFrame);
+
+      const dotGeo = new THREE.CircleGeometry(0.008, 6);
+      const dotMat = new THREE.MeshLambertMaterial({ color: 0x0d0d0d, side: THREE.FrontSide });
+      const grilleOffX = -(CW * 0.44);
+      const grilleOffY = cabY + CH / 2 - CH * 0.44;
+      const cols = 14;
+      const rows = 20;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const dot = new THREE.Mesh(dotGeo, dotMat);
+          dot.position.set(
+            grilleOffX + (c * (CW * 0.88)) / (cols - 1),
+            grilleOffY + (r * (CH * 0.88)) / (rows - 1),
+            CD / 2 + 0.013
+          );
+          g.add(dot);
+        }
+      }
+
+      const wooferRing = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.018, 32), blackDark);
+      wooferRing.rotation.x = Math.PI / 2;
+      wooferRing.position.set(0, cabY + CH * 0.52, CD / 2 + 0.01);
+      g.add(wooferRing);
+      const wooferCone = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.06, 32), blackDark);
+      wooferCone.rotation.x = -Math.PI / 2;
+      wooferCone.position.set(0, cabY + CH * 0.52, CD / 2 + 0.005);
+      g.add(wooferCone);
+      const dustCap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        blackDark
+      );
+      dustCap.rotation.x = Math.PI / 2;
+      dustCap.position.set(0, cabY + CH * 0.52, CD / 2 + 0.038);
+      g.add(dustCap);
+
+      const tweetRing = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.01, 24), blackDark);
+      tweetRing.rotation.x = Math.PI / 2;
+      tweetRing.position.set(0, cabY + CH * 0.82, CD / 2 + 0.012);
+      g.add(tweetRing);
+      const tweetDome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.022, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        blackDark
+      );
+      tweetDome.rotation.x = Math.PI / 2;
+      tweetDome.position.set(0, cabY + CH * 0.82, CD / 2 + 0.022);
+      g.add(tweetDome);
+
+      const handleBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 0.06), blackDark);
+      handleBase.position.set(-CW / 2 - 0.012, cabY + CH * 0.62, 0);
+      g.add(handleBase);
+      const handleBar = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.055, 0.05), metalLight);
+      handleBar.position.set(-CW / 2 - 0.022, cabY + CH * 0.62, 0);
+      g.add(handleBar);
+
+      const backPanel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.01), blackDark);
+      backPanel.position.set(0, cabY + CH * 0.46, -CD / 2 - 0.005);
+      g.add(backPanel);
+
+      [-0.06, 0.02].forEach((bx) => {
+        const xlr = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.025, 12), metalMat);
+        xlr.rotation.x = Math.PI / 2;
+        xlr.position.set(bx, cabY + CH * 0.52, -CD / 2 - 0.012);
+        g.add(xlr);
+      });
+
+      const volKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 12), blackDark);
+      volKnob.rotation.x = Math.PI / 2;
+      volKnob.position.set(0.07, cabY + CH * 0.52, -CD / 2 - 0.01);
+      g.add(volKnob);
+
+      const poleSocket = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.06, 16), blackDark);
+      poleSocket.position.set(0, cabY - 0.03, 0);
+      g.add(poleSocket);
+
+      const connector = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.044, 0.05, 16), metalMat);
+      connector.position.set(0, 1.14, 0);
+      g.add(connector);
+
+      [
+        [-CW / 2 + 0.06, -CD / 2 + 0.06],
+        [CW / 2 - 0.06, -CD / 2 + 0.06],
+        [-CW / 2 + 0.06, CD / 2 - 0.06],
+        [CW / 2 - 0.06, CD / 2 - 0.06],
+      ].forEach(([bx, bz]) => {
+        const bump = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.028, 0.02, 10), rubberMat);
+        bump.position.set(bx, cabY - 0.01, bz);
+        g.add(bump);
+      });
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    }
+
     const lowDjBooth = new THREE.Group();
     lowDjBooth.name = 'lowDjBooth';
 
@@ -3043,6 +3206,15 @@
     makeTechnics(djGearRoot, -2.05, 0, 0, false);
     makeTechnics(djGearRoot, 2.05, 0, 0, true);
     makeEcler(djGearRoot, 0, 0, 0);
+
+    /** SubZero на полу по бокам стола (масштаб как у чертежа 8×4); решётка смотрит в центр */
+    const spSpacing = 5.5 * gearScale;
+    const spAimY = 1.26;
+    [-1, 1].forEach((side) => {
+      const spk = makeSubZeroSpeaker(lowDjBooth, side * spSpacing, 0, 0);
+      spk.lookAt(0, spAimY, 0);
+      spk.rotateY(Math.PI);
+    });
 
     /**
      * Низ стола (ножки y=0) чуть выше настила интерьера — как у футонов 0.036·L·invS + запас.
