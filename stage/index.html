@@ -292,7 +292,7 @@
   let interiorGroup;
   let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh, squareTentStakeMesh;
   let hangingInteriorFabricGroup;
-  /** Ромбовый пол: светлый дуб (текстура); спуск сверху, стоп к середине Structure */
+  /** Пол дуба: скрыт до середины Site, спуск до середины Structure */
   let tentFloorMesh;
   let mainSun, hemiMain, fillSun;
   let sceneAmbient;
@@ -1690,9 +1690,10 @@
   ];
 
   const NSEG = 8;
-  /** Пол: полный спуск к середине второй фазы (Structure) — p = 1/NSEG + 0.5/NSEG */
+  /** Пол скрыт до середины Site; спуск с p = 0.5/NSEG до середины Structure p = 1.5/NSEG */
+  const FLOOR_DESCENT_START_P = 0.5 / NSEG;
   const FLOOR_DESCENT_END_P = 1.5 / NSEG;
-  /** >1 — медленнее в начале спуска (меньше смещения на единицу скролла) */
+  /** >1 — медленнее в начале интервала спуска */
   const FLOOR_DESCENT_SLOW_POW = 1.52;
   /** Assembly: после полёта в белый — кроссфейд (доля сегмента uLin 0→1) */
   const ASSEMBLY_PAGE_CROSS_START = 0.5;
@@ -2031,13 +2032,18 @@
         const fby = tentFloorMesh.userData.floorBaseY;
         const drop =
           tentFloorMesh.userData.floorDropFromSky ?? 2.2 * TENT_SCALE;
-        const linear = clamp(p / Math.max(1e-6, FLOOR_DESCENT_END_P), 0, 1);
-        const slowed = Math.pow(linear, FLOOR_DESCENT_SLOW_POW);
-        const landEase = slowed * slowed * (3 - 2 * slowed);
-        tentFloorMesh.visible = true;
-        tentFloorMesh.position.y = fby + (1 - landEase) * drop;
-        const sc = 0.965 + 0.035 * landEase;
-        tentFloorMesh.scale.set(sc, 1, sc);
+        if (p < FLOOR_DESCENT_START_P) {
+          tentFloorMesh.visible = false;
+        } else {
+          const span = Math.max(1e-6, FLOOR_DESCENT_END_P - FLOOR_DESCENT_START_P);
+          const linear = clamp((p - FLOOR_DESCENT_START_P) / span, 0, 1);
+          const slowed = Math.pow(linear, FLOOR_DESCENT_SLOW_POW);
+          const landEase = slowed * slowed * (3 - 2 * slowed);
+          tentFloorMesh.visible = true;
+          tentFloorMesh.position.y = fby + (1 - landEase) * drop;
+          const sc = 0.965 + 0.035 * landEase;
+          tentFloorMesh.scale.set(sc, 1, sc);
+        }
       }
       if (squareWallMesh) {
         const wallsOn = wallReveal > 0.004;
