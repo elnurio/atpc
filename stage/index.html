@@ -1681,6 +1681,11 @@
     function hfOculusOk(px, pz) {
       return Math.hypot(px - OCULUS_CENTER_X, pz - OCULUS_CENTER_Z) > ROOF_OCULUS_CUT_R * 1.25 + 0.045 * TENT_SCALE;
     }
+    const hangPeakLift =
+      Math.max(...TENSILE_PEAK_SPEC.map((s) => s.yLift)) * TENT_SCALE;
+    /** Одна линия крепления для всех штор (без рандома по Y — верх ровный) */
+    const hangRailY =
+      SQ_ROOF_Y + hangPeakLift * 0.88 - 0.1 * TENT_SCALE;
     for (let hi = 0; hi < nHangPanels; hi++) {
       let px = 0;
       let pz = 0;
@@ -1705,16 +1710,7 @@
       }
       if (!ok) continue;
       hfPlaced.push({ x: px, z: pz });
-      /**
-       * Верх шторы — у нижней кромки видимого «верхнего» слоя купола: периметр якорей
-       * (SQ_ROOF_Y−0.03T) оказался ниже того, что читается как потолок в кадре (пики мачт
-       * и выпуклость мембраны выше). Смещаем к линии пиков TENSILE_PEAK_SPEC, чуть ниже
-       * максимума — без зазора «висящего» полотна под потолком.
-       */
-      const hangPeakLift =
-        Math.max(...TENSILE_PEAK_SPEC.map((s) => s.yLift)) * TENT_SCALE;
-      const hangRoofBaseY = SQ_ROOF_Y + hangPeakLift * 0.92 - 0.02 * TENT_SCALE;
-      const topY = hangRoofBaseY + (hfRnd() - 0.5) * 0.008 * TENT_SCALE;
+      const topY = hangRailY;
       const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
       const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
       const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
