@@ -1481,7 +1481,7 @@
     floorMesh.userData.floorBaseY = floorBaseY;
     /** Старт у верхней зоны купола/неба, не чуть над столом — визуально спуск с неба */
     floorMesh.userData.floorDropFromSky =
-      SQ_ROOF_Y - floorBaseY + 1.1 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
+      SQ_ROOF_Y - floorBaseY + 1.45 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
     g.add(floorMesh);
 
     const stakeEvery = Math.max(1, Math.floor(wallAnchors.length / 32));
@@ -1676,7 +1676,7 @@
   /** >1 — медленнее в начале интервала спуска */
   const FLOOR_DESCENT_SLOW_POW = 1.52;
   /** Доп. высота старта пола над зоной крыши (× TENT_SCALE) — выше = длиннее «падение с неба» */
-  const FLOOR_SKY_DROP_EXTRA_SCALE = 2.25;
+  const FLOOR_SKY_DROP_EXTRA_SCALE = 3.85;
   /** Assembly: после полёта в белый — кроссфейд (доля сегмента uLin 0→1) */
   const ASSEMBLY_PAGE_CROSS_START = 0.5;
   const ASSEMBLY_PAGE_CROSS_LEN = 0.38;
@@ -2017,7 +2017,7 @@
         const fby = tentFloorMesh.userData.floorBaseY;
         const drop =
           tentFloorMesh.userData.floorDropFromSky
-          ?? SQ_ROOF_Y - fby + 1.1 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
+          ?? SQ_ROOF_Y - fby + 1.45 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
         if (p < FLOOR_DESCENT_START_P) {
           tentFloorMesh.visible = false;
         } else {
@@ -3348,9 +3348,11 @@
      * SubZero: масштаб с пультами (gearScale) × SPK_MUL — иначе «метровая» геометрия крошечная рядом со столом.
      * Подъём снизу — группа djSpeakersRise, позиция.y в updateScene по uTable.
      */
-    const SPK_MUL = 4.35;
+    const SPK_MUL = 5.45;
     /** Полуразмас по X от центра стола (ед. чертежа × gearScale); больше — шире стойка */
     const SPK_SIDE_X = 6.85;
+    /** Подъём якоря: крестовина и ножки стойки не утопают в полу, читаются в кадре */
+    const SPK_ANCHOR_Y = 0.58 * gearScale;
     const spkScale = gearScale * SPK_MUL;
     const djSpkRise = new THREE.Group();
     djSpkRise.name = 'djSpeakersRise';
@@ -3359,7 +3361,7 @@
     [-1, 1].forEach((side) => {
       const anchor = new THREE.Group();
       djSpkRise.add(anchor);
-      anchor.position.set(side * SPK_SIDE_X * gearScale, 0, 0);
+      anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, 0);
       const spk = makeSubZeroSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
       /** Поворот к камере — каждый кадр в updateScene (lookAt + π по Y, решётка в +Z) */
