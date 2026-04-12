@@ -98,7 +98,7 @@
     #loader.hide { opacity: 0; pointer-events: none; }
     #loader-dot {
       width: 5px; height: 5px; border-radius: 50%;
-      background: rgba(220, 210, 190, 0.35);
+      background: rgba(160, 160, 160, 0.4);
       animation: ldot 1.3s ease-in-out infinite;
     }
     @keyframes ldot {
@@ -108,12 +108,12 @@
 
     #back {
       position: fixed; top: 36px; left: 40px; z-index: 30;
-      color: rgba(240, 235, 220, 0.45);
+      color: rgba(150, 150, 150, 0.65);
       font: 300 10px/1 Helvetica, Arial, sans-serif;
       letter-spacing: .25em; text-transform: uppercase; text-decoration: none;
       transition: color .4s;
     }
-    #back:hover { color: rgba(240, 235, 220, 0.8); }
+    #back:hover { color: rgba(190, 190, 190, 0.95); }
 
     .slabel {
       position: fixed; bottom: 18vh; left: 50%;
@@ -124,12 +124,12 @@
     }
     .slabel.on { opacity: 1; transform: translateX(-50%) translateY(0); }
     .slabel h2 {
-      color: rgba(245, 240, 230, 0.9);
+      color: rgba(200, 200, 200, 0.92);
       font: 200 clamp(22px, 4.2vw, 52px)/1 Helvetica, Arial, sans-serif;
       letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
     }
     .slabel p {
-      color: rgba(220, 210, 195, 0.45);
+      color: rgba(130, 130, 130, 0.72);
       font: 300 10px/1.6 Helvetica, Arial, sans-serif;
       letter-spacing: .22em; text-transform: uppercase;
     }
@@ -142,13 +142,13 @@
     }
     #hint.hide { opacity: 0; }
     #hint span {
-      color: rgba(220, 210, 195, 0.35);
+      color: rgba(130, 130, 130, 0.5);
       font: 300 9px/1 Helvetica, Arial, sans-serif;
       letter-spacing: .3em; text-transform: uppercase;
     }
     #hint-line {
       width: 1px; height: 32px;
-      background: linear-gradient(to bottom, rgba(220, 210, 195, 0.35), transparent);
+      background: linear-gradient(to bottom, rgba(150, 150, 150, 0.4), transparent);
       animation: drip 2.2s ease-in-out infinite; transform-origin: top;
     }
     @keyframes drip {
@@ -164,9 +164,9 @@
     }
     .dot {
       width: 3px; height: 3px; border-radius: 50%;
-      background: rgba(220, 210, 195, 0.25); transition: background .4s, transform .4s;
+      background: rgba(140, 140, 140, 0.3); transition: background .4s, transform .4s;
     }
-    .dot.on { background: rgba(240, 235, 220, 0.65); transform: scale(1.8); }
+    .dot.on { background: rgba(190, 190, 190, 0.7); transform: scale(1.8); }
 
     @media (max-width: 900px), (pointer: coarse) {
       body { height: 896vh; min-height: 896vh; }
@@ -1806,8 +1806,14 @@
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
   const djSpkDir = new THREE.Vector3();
+  const djSpkFaceDir = new THREE.Vector3();
   const djSpkBoothW = new THREE.Vector3();
   const djSpkCamW = new THREE.Vector3();
+  /** Поворот фронта колонок вправо на 45° в XZ (мир), после азимута «стол → камера» */
+  const DJ_SPK_YAW_RIGHT_45 = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    -Math.PI / 4
+  );
   const djSpkParentQuat = new THREE.Quaternion();
   const djSpkAlignQuat = new THREE.Quaternion();
 
@@ -2405,9 +2411,8 @@
         djSpeakersRiseGroup.position.y =
           -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
         /**
-         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ (не −forward камеры:
-         * на движении по пути forward часто «вдоль» сцены, из‑за этого казалось, что колонки
-         * развёрнуты к столу). Фиксация после uTable>SPK_FACE_LOCK_U — кадр ближе к фронтальному.
+         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ; затем поворот вправо 45°
+         * в плоскости пола. Фиксация базового направления после uTable>SPK_FACE_LOCK_U.
          */
         const SPK_FACE_LOCK_U = 0.62;
         const sud = djSpeakersRiseGroup.userData;
@@ -2424,10 +2429,14 @@
         } else {
           djSpkDir.copy(sud.faceDirLocked);
         }
+        djSpkFaceDir.copy(djSpkDir).applyQuaternion(DJ_SPK_YAW_RIGHT_45);
+        djSpkFaceDir.y = 0;
+        if (djSpkFaceDir.lengthSq() < 1e-12) djSpkFaceDir.set(0, 0, 1);
+        else djSpkFaceDir.normalize();
         djSpeakersRiseGroup.children.forEach((anchor) => {
           const spk = anchor.children[0];
           if (!spk || !spk.isObject3D) return;
-          djSpkAlignQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), djSpkDir);
+          djSpkAlignQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), djSpkFaceDir);
           const par = spk.parent;
           if (par) {
             par.updateWorldMatrix(true, false);
@@ -3320,11 +3329,11 @@
      */
     const SPK_MUL = 5.45;
     /** Полуразмас по X от центра стола (ед. чертежа × gearScale); больше — шире стойка */
-    const SPK_SIDE_X = 7.78;
+    const SPK_SIDE_X = 8.45;
     /** Подъём якоря: крестовина и ножки стойки не утопают в полу, читаются в кадре */
     const SPK_ANCHOR_Y = 0.58 * gearScale;
-    /** Чуть глубже в глубину сцены (локаль lowDjBooth −Z — «назад» от стола) */
-    const SPK_ANCHOR_Z = -0.72 * gearScale;
+    /** Глубже за линией стола (локаль lowDjBooth −Z — «назад» от столешницы к зрителю) */
+    const SPK_ANCHOR_Z = -1.22 * gearScale;
     const spkScale = gearScale * SPK_MUL;
     const djSpkRise = new THREE.Group();
     djSpkRise.name = 'djSpeakersRise';
@@ -3337,7 +3346,7 @@
       anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, SPK_ANCHOR_Z);
       const spk = makeConcreteMonolithSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
-      /** Азимут: центр стола → камера (XZ), фиксация при uTable≥0.62; фронт — локальный +Z */
+      /** Азимут стол→камера (XZ) + 45° вправо по Y; фиксация при uTable≥0.62; фронт — локальный +Z */
     });
     lowDjBooth.add(djSpkRise);
 
