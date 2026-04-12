@@ -1809,10 +1809,10 @@
   const djSpkFaceDir = new THREE.Vector3();
   const djSpkBoothW = new THREE.Vector3();
   const djSpkCamW = new THREE.Vector3();
-  /** Поворот фронта колонок вправо на 45° в XZ (мир), после азимута «стол → камера» */
-  const DJ_SPK_YAW_RIGHT_45 = new THREE.Quaternion().setFromAxisAngle(
+  /** Поворот фронта колонок на 90° в XZ (мир), противоположный прежнему −45°: +90° вокруг Y */
+  const DJ_SPK_YAW_EXTRA = new THREE.Quaternion().setFromAxisAngle(
     new THREE.Vector3(0, 1, 0),
-    -Math.PI / 4
+    Math.PI / 2
   );
   const djSpkParentQuat = new THREE.Quaternion();
   const djSpkAlignQuat = new THREE.Quaternion();
@@ -2411,8 +2411,8 @@
         djSpeakersRiseGroup.position.y =
           -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
         /**
-         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ; затем поворот вправо 45°
-         * в плоскости пола. Фиксация базового направления после uTable>SPK_FACE_LOCK_U.
+         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ; затем +90° вокруг Y в плоскости пола.
+         * Фиксация базового направления после uTable>SPK_FACE_LOCK_U.
          */
         const SPK_FACE_LOCK_U = 0.62;
         const sud = djSpeakersRiseGroup.userData;
@@ -2429,7 +2429,7 @@
         } else {
           djSpkDir.copy(sud.faceDirLocked);
         }
-        djSpkFaceDir.copy(djSpkDir).applyQuaternion(DJ_SPK_YAW_RIGHT_45);
+        djSpkFaceDir.copy(djSpkDir).applyQuaternion(DJ_SPK_YAW_EXTRA);
         djSpkFaceDir.y = 0;
         if (djSpkFaceDir.lengthSq() < 1e-12) djSpkFaceDir.set(0, 0, 1);
         else djSpkFaceDir.normalize();
@@ -3346,7 +3346,7 @@
       anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, SPK_ANCHOR_Z);
       const spk = makeConcreteMonolithSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
-      /** Азимут стол→камера (XZ) + 45° вправо по Y; фиксация при uTable≥0.62; фронт — локальный +Z */
+      /** Азимут стол→камера (XZ) + 90° по Y; фиксация при uTable≥0.62; фронт — локальный +Z */
     });
     lowDjBooth.add(djSpkRise);
 
