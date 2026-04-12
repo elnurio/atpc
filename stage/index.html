@@ -421,8 +421,8 @@
 
   function buildForestTreeRing() {
     const grp = new THREE.Group();
-    /** Меньше экземпляров + прореживание клина «перед камерой» (ракурс с +X +Z на центр) */
-    const nCap = 72;
+    /** Меньше экземпляров; клин по азимуту камеры Site (KF0/KF1) — в кадре не должно быть кроны «в лоб» */
+    const nCap = 80;
     const nTarget = 52;
     /** Высота уровня купола (SQ_ROOF_Y): ствол + крона */
     const trunkH = 0.49 * MAST_MAIN_H;
@@ -452,25 +452,49 @@
     const minR = DIAMOND_R * 1.44 + 38;
     const maxR = 900;
     const ringW = maxR - minR;
-    const camBearing = Math.atan2(1, 0.82);
-    const wedgeHalf = 0.82;
+    const openingBearings = [
+      Math.atan2(KF[0].pos[0], KF[0].pos[2]),
+      Math.atan2(KF[1].pos[0], KF[1].pos[2]),
+    ];
+    /** Полуширина клина (рад): шире для широкого FOV на мобиле; без деревьев в секторе «впереди» камеры */
+    const wedgeHalf = 1.14;
+    const minTreeCamDist = 428;
+    const camXZ = [
+      [KF[0].pos[0], KF[0].pos[2]],
+      [KF[1].pos[0], KF[1].pos[2]],
+    ];
+    function angDist(a, b) {
+      let d = Math.abs(a - b);
+      if (d > Math.PI) d = 2 * Math.PI - d;
+      return d;
+    }
+    function inOpeningWedge(treeBearing) {
+      for (let i = 0; i < openingBearings.length; i++) {
+        if (angDist(treeBearing, openingBearings[i]) < wedgeHalf) return true;
+      }
+      return false;
+    }
     let placed = 0;
     let tries = 0;
-    const maxTries = 2400;
+    const maxTries = 5200;
     while (placed < nTarget && tries < maxTries) {
       tries++;
       const ang = Math.random() * Math.PI * 2;
       const rad = minR + Math.random() * ringW;
       const x = Math.cos(ang) * rad;
       const z = Math.sin(ang) * rad;
-      let b = Math.atan2(x, z);
-      let dAng = Math.abs(b - camBearing);
-      if (dAng > Math.PI) dAng = 2 * Math.PI - dAng;
-      const inCamWedge = dAng < wedgeHalf;
-      if (inCamWedge) {
-        if (Math.random() > 0.14) continue;
-        if (rad < minR + ringW * 0.42 && Math.random() > 0.18) continue;
+      const b = Math.atan2(x, z);
+      if (inOpeningWedge(b)) continue;
+      let tooCloseToCam = false;
+      for (let ci = 0; ci < camXZ.length; ci++) {
+        const cx = camXZ[ci][0];
+        const cz = camXZ[ci][1];
+        if (Math.hypot(x - cx, z - cz) < minTreeCamDist) {
+          tooCloseToCam = true;
+          break;
+        }
       }
+      if (tooCloseToCam) continue;
       const sc = 0.86 + Math.random() * 0.22;
       dummy.position.set(x, 0, z);
       dummy.rotation.y = Math.random() * Math.PI * 2;
@@ -1574,12 +1598,28 @@
       pivot.position.set(px, topY, pz);
       pivot.add(strip);
       pivot.userData.panelSway = true;
+      pivot.userData.anchorPx = px;
+      pivot.userData.anchorPy = topY;
+      pivot.userData.anchorPz = pz;
       pivot.userData.baseRy = hfRnd() * Math.PI * 2 + (hfRnd() - 0.5) * 0.85;
       pivot.userData.swayPhase = hfRnd() * Math.PI * 2;
-      pivot.userData.swayRate = 0.095 + hfRnd() * 0.085;
-      pivot.userData.ampX = (0.006 + hfRnd() * 0.012) * (0.85 + hi * 0.008);
-      pivot.userData.ampZ = (0.009 + hfRnd() * 0.016) * (0.9 + hi * 0.006);
-      pivot.userData.ampY = (0.0035 + hfRnd() * 0.008) * (0.8 + hi * 0.005);
+      pivot.userData.swayPhase2 = hfRnd() * Math.PI * 2;
+      /** Медленные частоты — лёгкое «дыхание» ткани, без маятника */
+      pivot.userData.swayRate = 0.055 + hfRnd() * 0.048;
+      pivot.userData.swayRate2 = 0.028 + hfRnd() * 0.026;
+      pivot.userData.ampX = (0.018 + hfRnd() * 0.02) * (0.88 + hi * 0.006);
+      pivot.userData.ampZ = (0.026 + hfRnd() * 0.024) * (0.9 + hi * 0.005);
+      pivot.userData.ampY = (0.012 + hfRnd() * 0.016) * (0.85 + hi * 0.004);
+      pivot.userData.driftR = 0.038 + hfRnd() * 0.036;
+      pivot.userData.driftPh = hfRnd() * Math.PI * 2;
+      pivot.userData.driftX = (0.0018 + hfRnd() * 0.0036) * DIAMOND_R;
+      pivot.userData.driftZ = (0.0016 + hfRnd() * 0.0034) * DIAMOND_R;
+      pivot.userData.breathR = 0.034 + hfRnd() * 0.03;
+      pivot.userData.breathPh = hfRnd() * Math.PI * 2;
+      pivot.userData.breathAmp = (0.00032 + hfRnd() * 0.00055) * SQ_ROOF_Y;
+      pivot.userData.stripTwistR = 0.072 + hfRnd() * 0.062;
+      pivot.userData.stripTwistPh = hfRnd() * Math.PI * 2;
+      pivot.userData.stripTwistAmp = 0.011 + hfRnd() * 0.013;
       pivot.rotation.y = pivot.userData.baseRy;
       hangingInteriorFabricGroup.add(pivot);
     }
@@ -1971,12 +2011,39 @@
             }
             if (!obj.userData.panelSway) return;
             const u = obj.userData;
-            const ph = u.swayPhase;
-            const r = u.swayRate;
+            const mw = Math.max(0.1, hangAccentT);
             const s = clk;
-            obj.rotation.x = Math.sin(s * r + ph) * u.ampX;
-            obj.rotation.y = u.baseRy + Math.sin(s * r * 0.36 + ph * 1.15) * u.ampY;
-            obj.rotation.z = Math.sin(s * r * 0.89 + ph * 1.52) * u.ampZ;
+            const ph = u.swayPhase;
+            const ph2 = u.swayPhase2;
+            const r = u.swayRate;
+            const r2 = u.swayRate2;
+            const s2 = s * 0.52 + ph * 0.22;
+            /** Две несводимые частоты + лёгкая модуляция — мягкая ткань, не жёсткий маятник */
+            const ax =
+              Math.sin(s * r + ph) * u.ampX
+              + Math.sin(s2 * r2 + ph2) * u.ampX * 0.42
+              + Math.sin(s * r * 0.31 + ph2 * 1.4) * u.ampX * 0.22;
+            const ay =
+              Math.sin(s * r * 0.33 + ph * 1.12) * u.ampY
+              + Math.sin(s2 * r2 * 0.71 + ph2) * u.ampY * 0.38;
+            const az =
+              Math.sin(s * r * 0.88 + ph * 1.48) * u.ampZ
+              + Math.sin(s2 * r2 * 1.05 + ph2 * 0.9) * u.ampZ * 0.36;
+            obj.rotation.x = ax * mw;
+            obj.rotation.y = u.baseRy + ay * mw;
+            obj.rotation.z = az * mw;
+            obj.position.set(
+              u.anchorPx + Math.sin(s * u.driftR + u.driftPh) * u.driftX * mw,
+              u.anchorPy + Math.sin(s * u.breathR + u.breathPh) * u.breathAmp * mw,
+              u.anchorPz + Math.cos(s * u.driftR * 0.89 + u.driftPh * 1.09) * u.driftZ * mw
+            );
+            for (let ci = 0; ci < obj.children.length; ci++) {
+              const ch = obj.children[ci];
+              if (!ch.isMesh) continue;
+              const tw = u.stripTwistAmp * mw;
+              ch.rotation.x = Math.sin(s * u.stripTwistR + u.stripTwistPh) * tw * 0.4;
+              ch.rotation.z = Math.sin(s * u.stripTwistR * 0.64 + u.stripTwistPh * 1.18) * tw;
+            }
           });
         }
       }
