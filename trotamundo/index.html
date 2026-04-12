@@ -5,23 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="format-detection" content="telephone=no">
+  <script>
+    if (location.pathname === '/trotamundo') {
+      location.replace('/trotamundo/' + location.search + location.hash);
+    }
+  </script>
   <title>Trotamundo — Generative Live</title>
-  <link rel="stylesheet" href="style.css?v=33">
-  <link rel="stylesheet" href="fs-grid.css">
+  <link rel="stylesheet" href="/trotamundo/style.css?v=33">
+  <link rel="stylesheet" href="/trotamundo/fs-grid.css">
 </head>
 <body>
 
   <!-- Background layer — clouds injected by JS -->
   <div class="bg-layer" aria-hidden="true">
     <!-- Trotamundo bg logos -->
-    <div class="bg-logo bg-logo-1"><img src="assets/trotamundo.png" alt=""></div>
-    <div class="bg-logo bg-logo-2"><img src="assets/trotamundo.png" alt=""></div>
-    <div class="bg-logo bg-logo-3"><img src="assets/trotamundo.png" alt=""></div>
+    <div class="bg-logo bg-logo-1"><img src="/trotamundo/assets/trotamundo.png" alt=""></div>
+    <div class="bg-logo bg-logo-2"><img src="/trotamundo/assets/trotamundo.png" alt=""></div>
+    <div class="bg-logo bg-logo-3"><img src="/trotamundo/assets/trotamundo.png" alt=""></div>
   </div>
 
   <!-- Hero -->
   <header class="hero">
-    <img class="hero-logo" src="assets/trotamundo.png" alt="Trotamundo">
+    <img class="hero-logo" src="/trotamundo/assets/trotamundo.png" alt="Trotamundo">
   </header>
 
   <!-- Artist sections -->
@@ -49,10 +54,10 @@
                   <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="1" width="18" height="8" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="18.5" y="3" width="2" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="11" height="5" rx="1" fill="currentColor"/></svg>
                 </span>
               </div>
-              <img class="iphone-poster" src="assets/cover/poster-1.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+              <img class="iphone-poster" src="/trotamundo/assets/cover/poster-1.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
               <div class="iphone-fs-shell">
               <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-                <source src="assets/IMG_5181.mp4" type="video/mp4">
+                <source src="/trotamundo/assets/IMG_5181.mp4" type="video/mp4">
               </video>
               </div>
               <div class="iphone-overlay">
@@ -79,10 +84,10 @@
                   <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="1" width="18" height="8" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="18.5" y="3" width="2" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="11" height="5" rx="1" fill="currentColor"/></svg>
                 </span>
               </div>
-              <img class="iphone-poster" src="assets/cover/poster-2.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+              <img class="iphone-poster" src="/trotamundo/assets/cover/poster-2.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
               <div class="iphone-fs-shell">
               <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-                <source src="assets/JNLTE1245.mp4" type="video/mp4">
+                <source src="/trotamundo/assets/JNLTE1245.mp4" type="video/mp4">
               </video>
               </div>
               <div class="iphone-overlay">
@@ -109,10 +114,10 @@
                   <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="1" width="18" height="8" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="18.5" y="3" width="2" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="11" height="5" rx="1" fill="currentColor"/></svg>
                 </span>
               </div>
-              <img class="iphone-poster" src="assets/cover/poster-3.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+              <img class="iphone-poster" src="/trotamundo/assets/cover/poster-3.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
               <div class="iphone-fs-shell">
               <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-                <source src="assets/IMG_5180.mp4" type="video/mp4">
+                <source src="/trotamundo/assets/IMG_5180.mp4" type="video/mp4">
               </video>
               </div>
               <div class="iphone-overlay">
@@ -138,10 +143,10 @@
           <div class="iphone-btn power"></div>
           <div class="iphone-screen">
             <div class="iphone-island"></div>
-            <img class="iphone-poster" src="assets/cover/poster-4.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+            <img class="iphone-poster" src="/trotamundo/assets/cover/poster-4.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
             <div class="iphone-fs-shell">
             <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-              <source src="assets/SDFB4453.mp4" type="video/mp4">
+              <source src="/trotamundo/assets/SDFB4453.mp4" type="video/mp4">
             </video>
             </div>
             <div class="iphone-overlay">
@@ -170,10 +175,10 @@
               <div class="iphone-btn power"></div>
               <div class="iphone-screen">
                 <div class="iphone-island"></div>
-                <img class="iphone-poster" src="assets/cover/poster-5.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+                <img class="iphone-poster" src="/trotamundo/assets/cover/poster-5.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
                 <div class="iphone-fs-shell">
                 <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-                  <source src="assets/IMG_5192.mp4" type="video/mp4">
+                  <source src="/trotamundo/assets/IMG_5192.mp4" type="video/mp4">
                 </video>
                 </div>
                 <div class="iphone-overlay">
@@ -197,10 +202,10 @@
               <div class="iphone-btn power"></div>
               <div class="iphone-screen">
                 <div class="iphone-island"></div>
-                <img class="iphone-poster" src="assets/cover/poster-6.webp" alt="" aria-hidden="true" decoding="async">
+                <img class="iphone-poster" src="/trotamundo/assets/cover/poster-6.webp" alt="" aria-hidden="true" decoding="async">
                 <div class="iphone-fs-shell">
                 <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-                  <source src="assets/EWCD7760.mp4" type="video/mp4">
+                  <source src="/trotamundo/assets/EWCD7760.mp4" type="video/mp4">
                 </video>
                 </div>
                 <div class="iphone-overlay">
@@ -221,10 +226,10 @@
               <div class="iphone-btn power"></div>
               <div class="iphone-screen">
                 <div class="iphone-island"></div>
-                <img class="iphone-poster" src="assets/cover/poster-7.webp" alt="" aria-hidden="true" decoding="async">
+                <img class="iphone-poster" src="/trotamundo/assets/cover/poster-7.webp" alt="" aria-hidden="true" decoding="async">
                 <div class="iphone-fs-shell">
                 <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
-                  <source src="assets/IMG_5189.mp4" type="video/mp4">
+                  <source src="/trotamundo/assets/IMG_5189.mp4" type="video/mp4">
                 </video>
                 </div>
                 <div class="iphone-overlay">
