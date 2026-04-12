@@ -1,20 +1,7 @@
 const video = document.getElementById('heroVideo');
 const title = document.getElementById('heroTitle');
 const audio = document.getElementById('heroAudio');
-const soundToggle = document.getElementById('soundToggle');
-
-let soundtrackEnabled = false;
-
-function updateSoundToggle() {
-  if (!soundToggle) return;
-  soundToggle.classList.toggle('is-on', soundtrackEnabled);
-  soundToggle.setAttribute('aria-pressed', String(soundtrackEnabled));
-  soundToggle.textContent = soundtrackEnabled ? 'sound on' : 'tap for sound';
-  soundToggle.setAttribute(
-    'aria-label',
-    soundtrackEnabled ? 'Disable soundtrack' : 'Enable soundtrack'
-  );
-}
+let soundtrackEnabled = true;
 
 function syncAudioToVideo() {
   if (!audio || !video) return;
@@ -35,31 +22,9 @@ function playSoundtrack() {
   syncAudioToVideo();
   const playback = audio.play();
   if (playback && typeof playback.catch === 'function') {
-    playback.catch(() => {
-      soundtrackEnabled = false;
-      updateSoundToggle();
-    });
+    playback.catch(() => {});
   }
 }
-
-function setSoundtrackEnabled(enabled) {
-  soundtrackEnabled = enabled;
-  updateSoundToggle();
-
-  if (!soundtrackEnabled) {
-    pauseSoundtrack();
-    return;
-  }
-
-  playSoundtrack();
-}
-
-function unlockSoundtrackFromGesture() {
-  if (soundtrackEnabled) return;
-  setSoundtrackEnabled(true);
-}
-
-updateSoundToggle();
 
 video.addEventListener('ended', () => {
   pauseSoundtrack();
@@ -76,12 +41,4 @@ video.addEventListener('ratechange', () => {
   if (!audio) return;
   audio.playbackRate = video.playbackRate || 1;
 });
-
-if (soundToggle) {
-  soundToggle.addEventListener('click', () => {
-    setSoundtrackEnabled(!soundtrackEnabled);
-  });
-}
-
-document.addEventListener('pointerdown', unlockSoundtrackFromGesture, { once: true });
-document.addEventListener('keydown', unlockSoundtrackFromGesture, { once: true });
+window.addEventListener('load', playSoundtrack);
