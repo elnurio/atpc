@@ -228,7 +228,7 @@
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Minimal sand — fabric micro-city: pale oak floor lowers into place, tensile walls, floating ceiling fields</p>
+    <p>Minimal sand — fabric micro-city: white floor lowers into place, tensile walls, floating ceiling fields</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
@@ -1433,7 +1433,6 @@
     g.add(fabricRoofGroup);
 
     const tentFloorBump = makeTentInteriorFloorBumpMap();
-    const floorOakUrl = new URL('textures/light-oak-floor.png', import.meta.url).href;
     const fR = DIAMOND_R * 1.07;
     const floorShape = new THREE.Shape();
     floorShape.moveTo(0, -fR);
@@ -1459,11 +1458,11 @@
       color: 0xffffff,
       map: null,
       bumpMap: tentFloorBump,
-      bumpScale: 0.028 * (TENT_SCALE / 4),
-      roughness: 0.88,
+      bumpScale: 0.018 * (TENT_SCALE / 4),
+      roughness: 0.92,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.26,
+      envMapIntensity: 0.18,
       emissive: new THREE.Color(0x000000),
       emissiveIntensity: 0,
       side: THREE.DoubleSide,
@@ -1483,29 +1482,6 @@
     /** Старт у верхней зоны купола/неба, не чуть над столом — визуально спуск с неба */
     floorMesh.userData.floorDropFromSky = SQ_ROOF_Y - floorBaseY + 1.1 * TENT_SCALE;
     g.add(floorMesh);
-    new THREE.TextureLoader().load(
-      floorOakUrl,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(5.2, 5.2);
-        tex.rotation = Math.PI / 2;
-        tex.center.set(0.5, 0.5);
-        tex.anisotropy = Math.min(16, bedding.map.anisotropy || 1);
-        tex.needsUpdate = true;
-        const m = floorMesh.material;
-        if (m && m.map !== tex) {
-          m.map = tex;
-          m.color.setHex(0xffffff);
-          m.needsUpdate = true;
-        }
-      },
-      undefined,
-      () => {
-        const m = floorMesh.material;
-        if (m && !m.map) m.color.setHex(0xd8c4a8);
-      }
-    );
 
     const stakeEvery = Math.max(1, Math.floor(wallAnchors.length / 32));
     let nStakes = 0;
@@ -3228,7 +3204,9 @@
      * SubZero: масштаб с пультами (gearScale) × SPK_MUL — иначе «метровая» геометрия крошечная рядом со столом.
      * Подъём снизу — группа djSpeakersRise, позиция.y в updateScene по uTable.
      */
-    const SPK_MUL = 3.35;
+    const SPK_MUL = 4.35;
+    /** Полуразмас по X от центра стола (ед. чертежа × gearScale); больше — шире стойка */
+    const SPK_SIDE_X = 6.85;
     const spkScale = gearScale * SPK_MUL;
     const djSpkRise = new THREE.Group();
     djSpkRise.name = 'djSpeakersRise';
@@ -3237,7 +3215,7 @@
     [-1, 1].forEach((side) => {
       const anchor = new THREE.Group();
       djSpkRise.add(anchor);
-      anchor.position.set(side * 5.5 * gearScale, 0, 0); // ±X по бокам стола
+      anchor.position.set(side * SPK_SIDE_X * gearScale, 0, 0);
       const spk = makeSubZeroSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
       /** Поворот к камере — каждый кадр в updateScene (lookAt + π по Y, решётка в +Z) */
