@@ -1478,7 +1478,8 @@
     floorMesh.position.y = floorBaseY;
     floorMesh.renderOrder = 1;
     floorMesh.userData.floorBaseY = floorBaseY;
-    floorMesh.userData.floorDropFromSky = 2.35 * TENT_SCALE;
+    /** Старт у верхней зоны купола/неба, не чуть над столом — визуально спуск с неба */
+    floorMesh.userData.floorDropFromSky = SQ_ROOF_Y - floorBaseY + 1.1 * TENT_SCALE;
     g.add(floorMesh);
     new THREE.TextureLoader().load(
       floorOakUrl,
@@ -2031,7 +2032,8 @@
       if (tentFloorMesh && tentFloorMesh.userData.floorBaseY != null) {
         const fby = tentFloorMesh.userData.floorBaseY;
         const drop =
-          tentFloorMesh.userData.floorDropFromSky ?? 2.2 * TENT_SCALE;
+          tentFloorMesh.userData.floorDropFromSky
+          ?? SQ_ROOF_Y - fby + 1.1 * TENT_SCALE;
         if (p < FLOOR_DESCENT_START_P) {
           tentFloorMesh.visible = false;
         } else {
