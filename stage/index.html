@@ -1748,6 +1748,35 @@
       pivot.rotation.y = pivot.userData.baseRy;
       hangingInteriorFabricGroup.add(pivot);
     }
+    /** Убрать одну полосу прямо над зоной стола (окуляр): ближайшая к OCULUS_CENTER в XZ */
+    {
+      let victim = null;
+      let bestD = Infinity;
+      for (let ci = 0; ci < hangingInteriorFabricGroup.children.length; ci++) {
+        const piv = hangingInteriorFabricGroup.children[ci];
+        const d = Math.hypot(
+          piv.position.x - OCULUS_CENTER_X,
+          piv.position.z - OCULUS_CENTER_Z
+        );
+        if (d < bestD) {
+          bestD = d;
+          victim = piv;
+        }
+      }
+      if (victim) {
+        hangingInteriorFabricGroup.remove(victim);
+        victim.traverse((o) => {
+          if (o.isMesh) {
+            o.geometry?.dispose();
+            const m = o.material;
+            if (m) {
+              if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+              else m.dispose();
+            }
+          }
+        });
+      }
+    }
     hangingInteriorFabricGroup.visible = false;
     g.add(hangingInteriorFabricGroup);
 
@@ -1818,9 +1847,8 @@
   const dots = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('d' + i));
   const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
-  /** Скрыть подсказку при скролле; через 3 с снова показать только если у верха страницы */
-  let scrollHintScrollSuppressed = window.scrollY > 100;
-  let scrollHintHideTimer;
+  /** Подсказка видна, когда сглаженный прогресс сцены sp догнал rawSP (камера/сцена «остановились») */
+  const SCROLL_HINT_SETTLE_EPS = 0.0009;
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function ss(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
@@ -2414,7 +2442,8 @@
 
     if (scrollHint) {
       const sceneHide = p > 0.06 || blueprintT > 0.12;
-      scrollHint.classList.toggle('hidden', sceneHide || scrollHintScrollSuppressed);
+      const sceneScrollSettled = Math.abs(rawSP - p) < SCROLL_HINT_SETTLE_EPS;
+      scrollHint.classList.toggle('hidden', sceneHide || !sceneScrollSettled);
     }
 
     if (interiorGroup) {
@@ -3661,13 +3690,6 @@
     window.addEventListener('scroll', () => {
       applyScrollPhaseControl();
       syncRawScrollProgress();
-      if (scrollHint) {
-        scrollHintScrollSuppressed = true;
-        clearTimeout(scrollHintHideTimer);
-        scrollHintHideTimer = setTimeout(() => {
-          scrollHintScrollSuppressed = window.scrollY >= 100;
-        }, 3000);
-      }
     }, { passive: true });
 
     window.addEventListener('wheel', (e) => {
