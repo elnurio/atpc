@@ -2678,11 +2678,15 @@
       return a + rnd() * (b - a);
     }
 
-    /** Модель стола в «чертёжных» единицах (ширина столешницы 8); масштаб к прежней ширине 1.52×L×DJ_BOOTH_SCALE */
-    const DJ_BOOTH_SCALE_LEGACY = 1.38 * 1.5;
-    const DJ_NEW_MODEL_SCALE = (1.52 * L * DJ_BOOTH_SCALE_LEGACY) / 8;
-    const topW = 8 * DJ_NEW_MODEL_SCALE;
-    const topD = 4 * DJ_NEW_MODEL_SCALE;
+    /** Стол — прежняя широкая тумба; пульт/вертаки в единицах чертежа 8×4, масштаб под столешню */
+    const DJ_BOOTH_SCALE = 1.38 * 1.5;
+    const legH = 0.36 * L * DJ_BOOTH_SCALE;
+    const topTy = 0.1 * L * DJ_BOOTH_SCALE;
+    const topW = 1.52 * L * DJ_BOOTH_SCALE;
+    const topD = 0.58 * L * DJ_BOOTH_SCALE;
+    const legW = 0.2 * L * DJ_BOOTH_SCALE;
+    const legD = 0.44 * L * DJ_BOOTH_SCALE;
+    const lx = 0.41 * L * DJ_BOOTH_SCALE;
 
     const silverM = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
     const silver2 = new THREE.MeshLambertMaterial({ color: 0xd8d8d8 });
@@ -2704,57 +2708,6 @@
       color: 0x00ff66,
       emissive: new THREE.Color(0x00aa33),
     });
-    const tableTopM = new THREE.MeshLambertMaterial({ color: 0xb5ad96 });
-    const tableTrimM = new THREE.MeshLambertMaterial({ color: 0x9e9680 });
-    /** Без прозрачности: applyInteriorOpacity на группе иначе перезаписала бы opacity */
-    const grainM = new THREE.MeshLambertMaterial({ color: 0xa09880 });
-
-    function makeDJTable(parent, x, y, z) {
-      const TW = 8.0;
-      const TD = 4.0;
-      const TH = 0.11;
-      const LEG = 0.26;
-      const g = new THREE.Group();
-
-      const top = new THREE.Mesh(new THREE.BoxGeometry(TW, TH, TD), tableTopM);
-      top.position.y = LEG + TH / 2;
-      top.receiveShadow = true;
-      g.add(top);
-
-      for (let i = -1.5; i <= 1.5; i += 0.5) {
-        const grain = new THREE.Mesh(new THREE.BoxGeometry(TW - 0.1, 0.004, 0.01), grainM);
-        grain.position.set(0, LEG + TH + 0.002, i);
-        g.add(grain);
-      }
-
-      [[0, TD / 2 + 0.015], [0, -(TD / 2 + 0.015)]].forEach(([px, pz]) => {
-        const t = new THREE.Mesh(new THREE.BoxGeometry(TW + 0.04, TH + 0.015, 0.03), tableTrimM);
-        t.position.set(px, LEG + TH / 2, pz);
-        g.add(t);
-      });
-      [[TW / 2 + 0.015, 0], [-(TW / 2 + 0.015), 0]].forEach(([px, pz]) => {
-        const t = new THREE.Mesh(new THREE.BoxGeometry(0.03, TH + 0.015, TD + 0.04), tableTrimM);
-        t.position.set(px, LEG + TH / 2, pz);
-        g.add(t);
-      });
-
-      [
-        [-TW / 2 + 0.28, -TD / 2 + 0.25],
-        [TW / 2 - 0.28, -TD / 2 + 0.25],
-        [-TW / 2 + 0.28, TD / 2 - 0.25],
-        [TW / 2 - 0.28, TD / 2 - 0.25],
-      ].forEach(([lx, lz]) => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, LEG, 0.2), tableTrimM);
-        leg.position.set(lx, LEG / 2, lz);
-        leg.castShadow = true;
-        leg.receiveShadow = true;
-        g.add(leg);
-      });
-
-      g.position.set(x, y, z);
-      parent.add(g);
-      return g;
-    }
 
     function makeTechnics(parent, x, y, z, mirrorX) {
       const g = new THREE.Group();
@@ -3013,19 +2966,50 @@
 
     const lowDjBooth = new THREE.Group();
     lowDjBooth.name = 'lowDjBooth';
-    const djModelRoot = new THREE.Group();
-    djModelRoot.scale.setScalar(DJ_NEW_MODEL_SCALE);
-    lowDjBooth.add(djModelRoot);
 
-    const TABLE_SURFACE_LOCAL = 0.37;
-    makeDJTable(djModelRoot, 0, 0, 0);
-    makeTechnics(djModelRoot, -2.05, TABLE_SURFACE_LOCAL, 0, false);
-    makeTechnics(djModelRoot, 2.05, TABLE_SURFACE_LOCAL, 0, true);
-    makeEcler(djModelRoot, 0, TABLE_SURFACE_LOCAL, 0);
+    const benchTopMat = new THREE.MeshStandardMaterial({
+      color: 0xf3ead9,
+      roughness: 0.82,
+      metalness: 0.02,
+      envMap: scene.environment,
+      envMapIntensity: 0.55,
+    });
+    const benchLegMat = new THREE.MeshStandardMaterial({
+      color: 0xe7dac1,
+      roughness: 0.8,
+      metalness: 0.03,
+      envMap: scene.environment,
+      envMapIntensity: 0.52,
+    });
+    const topSlab = new THREE.Mesh(new THREE.BoxGeometry(topW, topTy, topD), benchTopMat);
+    topSlab.position.y = legH + 0.5 * topTy;
+    topSlab.castShadow = true;
+    topSlab.receiveShadow = true;
+    lowDjBooth.add(topSlab);
+    function addDjLeg(xLeg) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(legW, legH, legD), benchLegMat);
+      leg.position.set(xLeg, 0.5 * legH, 0);
+      leg.castShadow = true;
+      leg.receiveShadow = true;
+      lowDjBooth.add(leg);
+    }
+    addDjLeg(-lx);
+    addDjLeg(0);
+    addDjLeg(lx);
+
+    /** Чертёж 8×4 → масштаб так, чтобы сетап помещался на topW×topD; origin на верхней грани столешницы */
+    const slabTopY = legH + topTy;
+    const djGearRoot = new THREE.Group();
+    const gearScale = Math.min(topW / 8, topD / 4);
+    djGearRoot.position.set(0, slabTopY, 0);
+    djGearRoot.scale.setScalar(gearScale);
+    lowDjBooth.add(djGearRoot);
+    makeTechnics(djGearRoot, -2.05, 0, 0, false);
+    makeTechnics(djGearRoot, 2.05, 0, 0, true);
+    makeEcler(djGearRoot, 0, 0, 0);
 
     /**
-     * Раньше: центр по вертикали через ½ высоты только столешницы — при новой компактной модели
-     * низ (y=0 у группы) оказывался ниже настила (как у футонов: 0.036·L·invS) и пропадал в полу.
+     * Низ стола (ножки y=0) чуть выше настила интерьера — как у футонов 0.036·L·invS + запас.
      */
     const djTableBaseY = (0.036 + 0.045) * L * invS;
     lowDjBooth.position.set(
