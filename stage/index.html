@@ -1703,6 +1703,10 @@
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
   const djSpkCamPos = new THREE.Vector3();
+  const djSpkWorld = new THREE.Vector3();
+  const djSpkDir = new THREE.Vector3();
+  const djSpkParentQuat = new THREE.Quaternion();
+  const djSpkAlignQuat = new THREE.Quaternion();
 
   function makeSunDiscTexture() {
     const c = document.createElement('canvas');
@@ -2291,13 +2295,24 @@
         const spkEase = ss(uTable * 0.9);
         djSpeakersRiseGroup.position.y =
           -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
-        /** Решётка в локальном +Z; lookAt даёт −Z на камеру → rotateY(π) разворачивает «лицом» к зрителю */
+        /** Решётка вдоль локального +Z: lookAt+rotateY(π) ломались при наклонной камере — кватернион в мировых осях */
         camera.getWorldPosition(djSpkCamPos);
         djSpeakersRiseGroup.children.forEach((anchor) => {
           const spk = anchor.children[0];
           if (!spk || !spk.isObject3D) return;
-          spk.lookAt(djSpkCamPos);
-          spk.rotateY(Math.PI);
+          spk.getWorldPosition(djSpkWorld);
+          djSpkDir.copy(djSpkCamPos).sub(djSpkWorld);
+          if (djSpkDir.lengthSq() < 1e-12) return;
+          djSpkDir.normalize();
+          djSpkAlignQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), djSpkDir);
+          const par = spk.parent;
+          if (par) {
+            par.updateWorldMatrix(true, false);
+            par.getWorldQuaternion(djSpkParentQuat);
+            spk.quaternion.copy(djSpkParentQuat).invert().multiply(djSpkAlignQuat);
+          } else {
+            spk.quaternion.copy(djSpkAlignQuat);
+          }
         });
       }
 
