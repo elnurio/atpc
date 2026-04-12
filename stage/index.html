@@ -1809,10 +1809,10 @@
   const djSpkFaceDir = new THREE.Vector3();
   const djSpkBoothW = new THREE.Vector3();
   const djSpkCamW = new THREE.Vector3();
-  /** Поворот фронта колонок на 90° в XZ (мир), противоположный прежнему −45°: +90° вокруг Y */
+  /** После азимута стол→камера: +90° по Y, затем «назад» на 20° → итого +70° в XZ */
   const DJ_SPK_YAW_EXTRA = new THREE.Quaternion().setFromAxisAngle(
     new THREE.Vector3(0, 1, 0),
-    Math.PI / 2
+    Math.PI / 2 - (20 / 180) * Math.PI
   );
   const djSpkParentQuat = new THREE.Quaternion();
   const djSpkAlignQuat = new THREE.Quaternion();
@@ -2411,7 +2411,7 @@
         djSpeakersRiseGroup.position.y =
           -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
         /**
-         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ; затем +90° вокруг Y в плоскости пола.
+         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ; затем +70° вокруг Y в плоскости пола.
          * Фиксация базового направления после uTable>SPK_FACE_LOCK_U.
          */
         const SPK_FACE_LOCK_U = 0.62;
@@ -3333,7 +3333,7 @@
     /** Подъём якоря: крестовина и ножки стойки не утопают в полу, читаются в кадре */
     const SPK_ANCHOR_Y = 0.58 * gearScale;
     /** Глубже за линией стола (локаль lowDjBooth −Z — «назад» от столешницы к зрителю) */
-    const SPK_ANCHOR_Z = -1.22 * gearScale;
+    const SPK_ANCHOR_Z = -1.68 * gearScale;
     const spkScale = gearScale * SPK_MUL;
     const djSpkRise = new THREE.Group();
     djSpkRise.name = 'djSpeakersRise';
@@ -3346,7 +3346,7 @@
       anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, SPK_ANCHOR_Z);
       const spk = makeConcreteMonolithSpeaker(anchor, 0, 0, 0);
       spk.scale.setScalar(spkScale);
-      /** Азимут стол→камера (XZ) + 90° по Y; фиксация при uTable≥0.62; фронт — локальный +Z */
+      /** Азимут стол→камера (XZ) + 70° по Y; фиксация при uTable≥0.62; фронт — локальный +Z */
     });
     lowDjBooth.add(djSpkRise);
 
