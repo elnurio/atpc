@@ -38,7 +38,7 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   pointer-events: none;
   z-index: 1;
   transition: opacity 0.4s ease;
@@ -50,14 +50,14 @@ html, body {
 
 .particle-row {
   position: relative;
-  height: 24px;
-  width: 90px;
+  height: 36px;
+  width: 140px;
 }
 
 .particle {
   position: absolute;
-  width: 3px;
-  height: 3px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #000;
   bottom: 0;
@@ -65,21 +65,21 @@ html, body {
   animation: float-up 2.5s ease-in infinite;
 }
 
-.p1 { left: 5px;  animation-delay: 0s; }
-.p2 { left: 25px; animation-delay: 0.6s; }
-.p3 { left: 50px; animation-delay: 1.2s; }
-.p4 { left: 75px; animation-delay: 1.8s; }
+.p1 { left: 10px;  animation-delay: 0s; }
+.p2 { left: 42px; animation-delay: 0.6s; }
+.p3 { left: 78px; animation-delay: 1.2s; }
+.p4 { left: 114px; animation-delay: 1.8s; }
 
 @keyframes float-up {
   0%   { transform: translateY(0); opacity: 0; }
   15%  { opacity: 0.8; }
   80%  { opacity: 0.3; }
-  100% { transform: translateY(-22px); opacity: 0; }
+  100% { transform: translateY(-32px); opacity: 0; }
 }
 
 .hint-text {
-  font-size: 11px;
-  letter-spacing: 0.18em;
+  font-size: 16px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(0, 0, 0, 0.72);
   font-family: sans-serif;

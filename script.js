@@ -56,8 +56,12 @@ function unlockSoundtrack() {
   if (soundtrackUnlocked || !audio) return;
   soundtrackUnlocked = true;
   autoplayBlocked = false;
-  hideTapHint();
   playSoundtrackAudible();
+}
+
+function handleTapUnlock() {
+  hideTapHint();
+  unlockSoundtrack();
 }
 
 video.addEventListener('ended', () => {
@@ -82,6 +86,6 @@ video.addEventListener('ratechange', () => {
   audio.playbackRate = video.playbackRate || 1;
 });
 window.addEventListener('load', playSoundtrackMuted);
-document.addEventListener('pointerdown', unlockSoundtrack);
-document.addEventListener('touchstart', unlockSoundtrack, { passive: true });
+document.addEventListener('pointerdown', handleTapUnlock);
+document.addEventListener('touchstart', handleTapUnlock, { passive: true });
 document.addEventListener('keydown', unlockSoundtrack);
