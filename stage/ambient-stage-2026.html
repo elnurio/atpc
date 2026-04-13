@@ -29,10 +29,10 @@ body{background:#0e0e0e;overflow-x:hidden}
 .spine-stack{position:absolute;left:var(--spine-hole-left);top:var(--spine-hole-top);width:var(--spine-hole-width);z-index:2;display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box}
 .spine-slot{position:relative;width:100%;height:auto;aspect-ratio:16/9;max-width:none;box-sizing:border-box;background:transparent;overflow:hidden;flex:0 0 auto}
 .spine-screen{width:100%;height:100%;position:absolute;inset:0;overflow:hidden;background:transparent}
-.spine-caption{position:relative;left:auto;top:auto;width:100%;margin:0;box-sizing:border-box;padding:clamp(10px,1.4vh,14px) 0 0;font-family:'Jost',sans-serif;font-size:14px;font-weight:200;line-height:1.5;color:rgba(88,85,80,.92);text-align:left;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:3;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;flex:0 0 auto}
-@container spine (max-width:900px){.spine-caption{font-size:13px;padding-top:11px}}
-@container spine (max-width:640px){.spine-caption{font-size:12px;padding-top:10px}}
-@container spine (max-width:420px){.spine-caption{font-size:11px;padding-top:9px}}
+.spine-caption{position:relative;left:auto;top:auto;width:100%;margin:0;box-sizing:border-box;padding:clamp(10px,1.4vh,14px) 0 0;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:16px;font-weight:400;line-height:1.5;color:#757575;text-align:left;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:3;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;flex:0 0 auto}
+@container spine (max-width:900px){.spine-caption{font-size:15px;padding-top:11px}}
+@container spine (max-width:640px){.spine-caption{font-size:14px;padding-top:10px}}
+@container spine (max-width:420px){.spine-caption{font-size:13px;padding-top:9px}}
 .spine-fs-shell{position:absolute;inset:0;z-index:2;pointer-events:none;background:transparent}
 .spine-fs-shell .spine-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;display:block;background:transparent;z-index:0}
 .spine-fs-shell:fullscreen,.spine-fs-shell:-webkit-full-screen,.spine-fs-shell:-moz-full-screen{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#000;pointer-events:auto;box-sizing:border-box}
@@ -57,7 +57,10 @@ body{background:#0e0e0e;overflow-x:hidden}
 .soundcloud-heading{margin:-6px 0 40px;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:36px;font-weight:400;letter-spacing:.02em;color:#757575;text-align:center;line-height:1.35;text-transform:none}
 .page-wrap--audio.visible .soundcloud-slot{opacity:1;transform:translate(-50%,0)}
 .soundcloud-slot iframe{width:100%;height:166px;border:0;border-radius:2px}
-@media (max-width:540px){.soundcloud-slot{padding:0 12px;top:6.5%;width:min(94vw,100%)}.soundcloud-heading{font-size:30px;letter-spacing:.12em;margin:-4px 0 28px}}
+@media (max-width:540px){.soundcloud-slot{padding:0 12px;top:6.5%;width:min(94vw,100%)}.soundcloud-heading{font-size:30px;letter-spacing:.12em;margin:-4px 0 28px}.audio-stage-footer{padding:36px 16px max(48px,env(safe-area-inset-bottom,0px))}}
+.audio-stage-footer{position:absolute;left:0;right:0;bottom:0;z-index:3;text-align:center;padding:48px 20px max(64px,env(safe-area-inset-bottom,0px));pointer-events:auto;line-height:normal}
+.audio-stage-footer a{font-size:.85rem;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:#4d5863;text-decoration:none;opacity:.5;letter-spacing:.08em;transition:opacity .2s}
+.audio-stage-footer a:hover{opacity:1}
 @media (prefers-reduced-motion:reduce){.desktop-video-fs__close,.play-btn{transition:none}}
 @media (hover:none) and (pointer:coarse){.play-btn:active{transform:scale(.94)}}
 
