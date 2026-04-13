@@ -1963,31 +1963,19 @@
   const BCOL = 0xffe8b8;
 
   let isMobile = false;
-  let prefersNativeMomentumScroll = false;
   let targetFPS = 60;
   let cameraBaseFov = 48;
   let scrollEase = 0.038;
-  let phaseLockMs = 1100;
-  let maxScrollDownPx = 38;
 
   function detectMobileProfile() {
     return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
   }
 
-  function detectSafariScrollProfile() {
-    const ua = navigator.userAgent || '';
-    const vendor = navigator.vendor || '';
-    return /Safari/i.test(ua) && /Apple/i.test(vendor) && !/CriOS|Chrome|Chromium|EdgiOS|Edg|OPR|OPiOS|FxiOS|Firefox/i.test(ua);
-  }
-
   function applyDeviceProfile() {
     isMobile = detectMobileProfile();
-    prefersNativeMomentumScroll = isMobile || detectSafariScrollProfile();
     targetFPS = isMobile ? 45 : 60;
     cameraBaseFov = isMobile ? 58 : 48;
     scrollEase = isMobile ? 0.07 : 0.038;
-    phaseLockMs = isMobile ? 760 : 1100;
-    maxScrollDownPx = isMobile ? 86 : 38;
 
     if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     if (camera) {
@@ -1998,11 +1986,6 @@
 
   let clk = 0, rawSP = 0, sp = 0;
   let lastFrame = 0, firstFrame = true;
-
-  let scrollAllowedEnd = 1 / NSEG;
-  let scrollPhaseLock = false;
-  let scrollPhaseLockCapPx = 0;
-  let lastScrollY = -1;
 
   /** iOS Safari/Chrome: innerHeight меняется с панелью URL; visualViewport стабильнее для scroll range */
   function scrollViewportHeight() {
@@ -2023,67 +2006,11 @@
 
   function syncRawScrollProgress() {
     const max = scrollPageMax();
-    const maxProgress = prefersNativeMomentumScroll ? scrollAllowedEnd : 1;
-    rawSP = max > 0 ? clamp(window.scrollY / max, 0, maxProgress) : 0;
+    rawSP = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
   }
 
   function applyScrollPhaseControl() {
-    const max = scrollPageMax();
-    if (max <= 0) return;
-
-    let y = window.scrollY;
-    const capPx = scrollAllowedEnd * max;
-
-    if (lastScrollY < 0) lastScrollY = y;
-
-    if (scrollPhaseLock) {
-      const lockCapPx = scrollPhaseLockCapPx > 0 ? scrollPhaseLockCapPx : capPx;
-      if (y > lockCapPx + 1) window.scrollTo(0, lockCapPx);
-      lastScrollY = Math.min(window.scrollY, lockCapPx);
-      return;
-    }
-
-    /**
-     * Десктоп: ограничиваем шаг колёсика, чтобы не перепрыгивать сегменты.
-     * iOS/Android touch: инерция даёт большие скачки scrollY за кадр — кламп ломает прокрутку и «дёргает» страницу.
-     */
-    if (!prefersNativeMomentumScroll && !isMobile && y > lastScrollY + maxScrollDownPx) {
-      window.scrollTo(0, lastScrollY + maxScrollDownPx);
-      y = lastScrollY + maxScrollDownPx;
-    }
-
-    if (scrollAllowedEnd < 1 - 1e-6 && y > capPx + 1) {
-      if (prefersNativeMomentumScroll) {
-        scrollAllowedEnd = Math.min(1, scrollAllowedEnd + 1 / NSEG);
-        scrollPhaseLockCapPx = scrollAllowedEnd * max;
-        scrollPhaseLock = true;
-        if (y > scrollPhaseLockCapPx + 1) window.scrollTo(0, scrollPhaseLockCapPx);
-        window.setTimeout(() => {
-          scrollPhaseLock = false;
-          scrollPhaseLockCapPx = 0;
-        }, isMobile ? 220 : 280);
-        lastScrollY = Math.min(window.scrollY, scrollPhaseLockCapPx);
-        return;
-      }
-      scrollPhaseLockCapPx = capPx;
-      window.scrollTo(0, capPx);
-      scrollPhaseLock = true;
-      const atEnd = scrollAllowedEnd;
-      window.setTimeout(() => {
-        scrollAllowedEnd = Math.min(1, atEnd + 1 / NSEG);
-        scrollPhaseLock = false;
-        scrollPhaseLockCapPx = 0;
-      }, phaseLockMs);
-      y = capPx;
-    }
-
-    /** Вся дорожка открыта: не даём уехать ниже max (только назад к ранним сценам) */
-    if (scrollAllowedEnd >= 1 - 1e-6 && y > max + 0.5) {
-      window.scrollTo(0, max);
-      y = max;
-    }
-
-    lastScrollY = y;
+    // Native browser scroll drives the whole experience; the 3D scene only follows progress.
   }
 
   const SQ_CORNERS = [
@@ -3827,20 +3754,7 @@
 
     window.addEventListener('wheel', (e) => {
       if (!e.ctrlKey && Math.abs(e.deltaY) > 0.25) bumpScrollHintMotionFromWheel();
-      if (e.ctrlKey) return;
-      if (prefersNativeMomentumScroll) return;
-      const max = scrollPageMax();
-      if (max <= 0) return;
-      const capPx = scrollAllowedEnd * max;
-      const y = window.scrollY;
-      if (e.deltaY > 0 && scrollPhaseLock && y >= capPx - 6) {
-        e.preventDefault();
-      }
-      /** Финал / презентация: вниз за предел страницы нельзя, вверх — как в остальных фазах */
-      if (scrollAllowedEnd >= 1 - 1e-6 && e.deltaY > 0 && y >= max - 0.5) {
-        e.preventDefault();
-      }
-    }, { passive: false });
+    }, { passive: true });
 
     function syncRendererToViewport() {
       applyDeviceProfile();
