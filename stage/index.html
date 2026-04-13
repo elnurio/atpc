@@ -1983,6 +1983,13 @@
     }
   }
 
+  window.addEventListener('message', (event) => {
+    if (!assemblyIFrameEl || event.source !== assemblyIFrameEl.contentWindow) return;
+    if (!event.data || event.data.type !== 'ambient-stage-ready') return;
+    assemblyIFrameReady = true;
+    maybeReleaseBootLoader();
+  });
+
   window.setTimeout(() => maybeReleaseBootLoader(true), BOOT_LOADER_FAILSAFE_MS);
 
   function updateStageAudioToggle() {
@@ -2892,15 +2899,11 @@
     assemblyIFrameEl = document.getElementById('assemblyIFrame');
     if (assemblyIFrameEl) {
       assemblyIFrameEl.addEventListener('load', () => {
-        assemblyIFrameReady = true;
         resetEmbeddedAmbientScroll();
-        maybeReleaseBootLoader();
       });
       try {
         if (assemblyIFrameEl.contentDocument && assemblyIFrameEl.contentDocument.readyState === 'complete') {
-          assemblyIFrameReady = true;
           resetEmbeddedAmbientScroll();
-          maybeReleaseBootLoader();
         }
       } catch (err) {}
     } else {
