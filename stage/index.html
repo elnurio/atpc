@@ -118,7 +118,7 @@
       background: #1a1f1c;
       display: flex; align-items: center; justify-content: center;
       transition: opacity 0.9s ease;
-      pointer-events: none;
+      pointer-events: auto;
     }
     #loader.hide { opacity: 0; pointer-events: none; }
     #loader-dot {
@@ -351,7 +351,7 @@
 
   <div id="whiteBloom" aria-hidden="true"></div>
   <div id="assemblyShell">
-    <iframe id="assemblyIFrame" title="Ambient stage 2026" data-src="ambient-stage-2026.html"></iframe>
+    <iframe id="assemblyIFrame" title="Ambient stage 2026" src="ambient-stage-2026.html"></iframe>
   </div>
 
   <script type="module">
@@ -385,8 +385,6 @@
   let whiteBloomEl;
   let assemblyShellEl;
   let assemblyIFrameEl;
-  let assemblyIFramePrefetched = false;
-  let assemblyIFrameLoaded = false;
   /** Чтобы при повторном показе iframe снова сбрасывать скролл вложенной страницы (Safari) */
   let ambientRevealPrevT = 0;
 
@@ -422,8 +420,10 @@
     }
   }, { passive: true });
   window.addEventListener('load', () => {
+    windowLoadReady = true;
     updateStableScrollMetrics(true);
     syncRawScrollProgress();
+    maybeReleaseBootLoader();
     if (!hasUserInteractedWithStage) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -453,25 +453,6 @@
     } catch (err) {}
   }
 
-  function prefetchAssemblyIFrameDocument() {
-    if (assemblyIFramePrefetched || !assemblyIFrameEl) return;
-    const src = assemblyIFrameEl.dataset.src;
-    if (!src) return;
-    const link = document.createElement('link');
-    link.rel = 'prefetch';
-    link.as = 'document';
-    link.href = src;
-    document.head.appendChild(link);
-    assemblyIFramePrefetched = true;
-  }
-
-  function ensureAssemblyIFrameLoaded() {
-    if (assemblyIFrameLoaded || !assemblyIFrameEl) return;
-    const src = assemblyIFrameEl.dataset.src;
-    if (!src) return;
-    assemblyIFrameEl.src = src;
-    assemblyIFrameLoaded = true;
-  }
   let stageCanvasEl;
   /** Narrow key light through roof oculus (Sky phase) */
   let oculusSpot;
@@ -1956,8 +1937,6 @@
   ];
 
   const NSEG = 8;
-  const ASSEMBLY_PREFETCH_START_P = 3 / NSEG;
-  const ASSEMBLY_IFRAME_LOAD_START_P = 5 / NSEG;
   /** sl4 «Interior»: с p ≥ 4/8 — более тёмный серый UI (белый пол); до — светло-серый */
   const INTERIOR_UI_START_P = 4 / NSEG;
   /** Пол скрыт до середины Site; спуск с p = 0.5/NSEG до середины Structure p = 1.5/NSEG */
@@ -1990,6 +1969,21 @@
   let stageAudioWanted = true;
   let stageAudioUnlocked = false;
   let stageAudioAmbientSuppressed = false;
+  let stageFirstFrameReady = false;
+  let assemblyIFrameReady = false;
+  let windowLoadReady = document.readyState === 'complete';
+  let loaderReleased = false;
+  const BOOT_LOADER_FAILSAFE_MS = 15000;
+
+  function maybeReleaseBootLoader(force = false) {
+    if (!loader || loaderReleased) return;
+    if (force || (stageFirstFrameReady && assemblyIFrameReady && windowLoadReady)) {
+      loaderReleased = true;
+      requestAnimationFrame(() => loader.classList.add('hide'));
+    }
+  }
+
+  window.setTimeout(() => maybeReleaseBootLoader(true), BOOT_LOADER_FAILSAFE_MS);
 
   function updateStageAudioToggle() {
     if (!soundToggle || !stageAudio) return;
@@ -2344,9 +2338,6 @@
   }
 
   function updateScene(p) {
-    if (p >= ASSEMBLY_PREFETCH_START_P) prefetchAssemblyIFrameDocument();
-    if (p >= ASSEMBLY_IFRAME_LOAD_START_P) ensureAssemblyIFrameLoaded();
-
     const step = p * NSEG;
     const s = clamp(Math.floor(step), 0, NSEG - 1);
     const t = ss(step - s);
@@ -2860,7 +2851,8 @@
 
     if (firstFrame) {
       firstFrame = false;
-      setTimeout(() => loader.classList.add('hide'), 120);
+      stageFirstFrameReady = true;
+      maybeReleaseBootLoader();
     }
   }
 
@@ -2899,7 +2891,20 @@
     assemblyShellEl = document.getElementById('assemblyShell');
     assemblyIFrameEl = document.getElementById('assemblyIFrame');
     if (assemblyIFrameEl) {
-      assemblyIFrameEl.addEventListener('load', () => resetEmbeddedAmbientScroll());
+      assemblyIFrameEl.addEventListener('load', () => {
+        assemblyIFrameReady = true;
+        resetEmbeddedAmbientScroll();
+        maybeReleaseBootLoader();
+      });
+      try {
+        if (assemblyIFrameEl.contentDocument && assemblyIFrameEl.contentDocument.readyState === 'complete') {
+          assemblyIFrameReady = true;
+          resetEmbeddedAmbientScroll();
+          maybeReleaseBootLoader();
+        }
+      } catch (err) {}
+    } else {
+      assemblyIFrameReady = true;
     }
 
     sceneAmbient = new THREE.AmbientLight(0xeef2ea, 0.09);
