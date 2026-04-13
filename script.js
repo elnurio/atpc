@@ -1,8 +1,8 @@
 const video = document.getElementById('heroVideo');
 const title = document.getElementById('heroTitle');
 const audio = document.getElementById('heroAudio');
-let soundtrackEnabled = true;
 let autoplayBlocked = false;
+let soundtrackUnlocked = false;
 
 function syncAudioToVideo() {
   if (!audio || !video) return;
@@ -18,8 +18,9 @@ function pauseSoundtrack() {
   audio.pause();
 }
 
-function playSoundtrack() {
-  if (!audio || !soundtrackEnabled) return;
+function playSoundtrackMuted() {
+  if (!audio) return;
+  audio.muted = true;
   syncAudioToVideo();
   const playback = audio.play();
   if (playback && typeof playback.catch === 'function') {
@@ -29,10 +30,24 @@ function playSoundtrack() {
   }
 }
 
-function tryUnlockSoundtrack() {
-  if (!autoplayBlocked) return;
+function playSoundtrackAudible() {
+  if (!audio) return;
+  syncAudioToVideo();
+  audio.muted = false;
+  const playback = audio.play();
+  if (playback && typeof playback.catch === 'function') {
+    playback.catch(() => {
+      autoplayBlocked = true;
+      audio.muted = true;
+    });
+  }
+}
+
+function unlockSoundtrack() {
+  if (soundtrackUnlocked || !audio) return;
+  soundtrackUnlocked = true;
   autoplayBlocked = false;
-  playSoundtrack();
+  playSoundtrackAudible();
 }
 
 video.addEventListener('ended', () => {
@@ -40,7 +55,13 @@ video.addEventListener('ended', () => {
   title.classList.add('visible');
 });
 
-video.addEventListener('play', playSoundtrack);
+video.addEventListener('play', () => {
+  if (soundtrackUnlocked) {
+    playSoundtrackAudible();
+    return;
+  }
+  playSoundtrackMuted();
+});
 video.addEventListener('pause', pauseSoundtrack);
 video.addEventListener('seeking', syncAudioToVideo);
 video.addEventListener('seeked', syncAudioToVideo);
@@ -50,7 +71,7 @@ video.addEventListener('ratechange', () => {
   if (!audio) return;
   audio.playbackRate = video.playbackRate || 1;
 });
-window.addEventListener('load', playSoundtrack);
-document.addEventListener('pointerdown', tryUnlockSoundtrack);
-document.addEventListener('touchstart', tryUnlockSoundtrack, { passive: true });
-document.addEventListener('keydown', tryUnlockSoundtrack);
+window.addEventListener('load', playSoundtrackMuted);
+document.addEventListener('pointerdown', unlockSoundtrack);
+document.addEventListener('touchstart', unlockSoundtrack, { passive: true });
+document.addEventListener('keydown', unlockSoundtrack);
