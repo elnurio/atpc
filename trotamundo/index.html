@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="format-detection" content="telephone=no">
+  <script>
+    if (location.pathname === '/trotamundo') {
+      location.replace('/trotamundo/' + location.search + location.hash);
+    }
+  </script>
+  <title>Trotamundo — Generative Live</title>
+  <link rel="stylesheet" href="/trotamundo/style.css?v=33">
+  <link rel="stylesheet" href="/trotamundo/fs-grid.css">
+</head>
+<body>
+
+  <!-- Background layer — clouds injected by JS -->
+  <div class="bg-layer" aria-hidden="true">
+    <!-- Trotamundo bg logos -->
+    <div class="bg-logo bg-logo-1"><img src="/trotamundo/assets/trotamundo.png" alt=""></div>
+    <div class="bg-logo bg-logo-2"><img src="/trotamundo/assets/trotamundo.png" alt=""></div>
+    <div class="bg-logo bg-logo-3"><img src="/trotamundo/assets/trotamundo.png" alt=""></div>
+  </div>
+
+  <!-- Hero -->
+  <header class="hero">
+    <img class="hero-logo" src="/trotamundo/assets/trotamundo.png" alt="Trotamundo">
+  </header>
+
+  <!-- Artist sections -->
+  <main class="sets">
+
+    <section class="artist-block artist-block--multi">
+      <div class="artist-text">
+
+        <p class="artist-desc">A six-hour generative visual performance unfolding alongside Rhadoo's extended set at Trotamundo Festival.</p>
+      </div>
+      <div class="iphone-trio">
+
+        <div class="iphone">
+          <div class="iphone-frame">
+            <div class="iphone-btn vol-up"></div>
+            <div class="iphone-btn vol-dn"></div>
+            <div class="iphone-btn power"></div>
+            <div class="iphone-screen">
+              <div class="iphone-island"></div>
+              <div class="iphone-status">
+                <span>9:41</span>
+                <span class="st-icons">
+                  <svg width="14" height="10" viewBox="0 0 14 10"><rect x="0" y="4" width="3" height="6" rx="1" fill="currentColor"/><rect x="4" y="2.5" width="3" height="7.5" rx="1" fill="currentColor"/><rect x="8" y="1" width="3" height="9" rx="1" fill="currentColor"/></svg>
+                  <svg width="12" height="10" viewBox="0 0 12 10"><path d="M6 2C3.8 2 1.8 3 0.5 4.5L2 6C2.9 4.8 4.4 4 6 4s3.1.8 4 2l1.5-1.5C10.2 3 8.2 2 6 2z" fill="currentColor"/><path d="M6 5.5c-1 0-1.9.4-2.5 1.1L5 8.1c.3-.3.6-.6 1-.6s.7.3 1 .6l1.5-1.5C7.9 5.9 7 5.5 6 5.5z" fill="currentColor"/><circle cx="6" cy="9.5" r="1" fill="currentColor"/></svg>
+                  <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="1" width="18" height="8" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="18.5" y="3" width="2" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="11" height="5" rx="1" fill="currentColor"/></svg>
+                </span>
+              </div>
+              <img class="iphone-poster" src="/trotamundo/assets/cover/poster-1.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+              <div class="iphone-fs-shell">
+              <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+                <source src="/trotamundo/assets/IMG_5181.mp4" type="video/mp4">
+              </video>
+              </div>
+              <div class="iphone-overlay">
+                <button type="button" class="play-btn" aria-label="Play video">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="iphone">
+          <div class="iphone-frame">
+            <div class="iphone-btn vol-up"></div>
+            <div class="iphone-btn vol-dn"></div>
+            <div class="iphone-btn power"></div>
+            <div class="iphone-screen">
+              <div class="iphone-island"></div>
+              <div class="iphone-status">
+                <span>9:41</span>
+                <span class="st-icons">
+                  <svg width="14" height="10" viewBox="0 0 14 10"><rect x="0" y="4" width="3" height="6" rx="1" fill="currentColor"/><rect x="4" y="2.5" width="3" height="7.5" rx="1" fill="currentColor"/><rect x="8" y="1" width="3" height="9" rx="1" fill="currentColor"/></svg>
+                  <svg width="12" height="10" viewBox="0 0 12 10"><path d="M6 2C3.8 2 1.8 3 0.5 4.5L2 6C2.9 4.8 4.4 4 6 4s3.1.8 4 2l1.5-1.5C10.2 3 8.2 2 6 2z" fill="currentColor"/><path d="M6 5.5c-1 0-1.9.4-2.5 1.1L5 8.1c.3-.3.6-.6 1-.6s.7.3 1 .6l1.5-1.5C7.9 5.9 7 5.5 6 5.5z" fill="currentColor"/><circle cx="6" cy="9.5" r="1" fill="currentColor"/></svg>
+                  <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="1" width="18" height="8" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="18.5" y="3" width="2" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="11" height="5" rx="1" fill="currentColor"/></svg>
+                </span>
+              </div>
+              <img class="iphone-poster" src="/trotamundo/assets/cover/poster-2.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+              <div class="iphone-fs-shell">
+              <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+                <source src="/trotamundo/assets/JNLTE1245.mp4" type="video/mp4">
+              </video>
+              </div>
+              <div class="iphone-overlay">
+                <button type="button" class="play-btn" aria-label="Play video">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="iphone">
+          <div class="iphone-frame">
+            <div class="iphone-btn vol-up"></div>
+            <div class="iphone-btn vol-dn"></div>
+            <div class="iphone-btn power"></div>
+            <div class="iphone-screen">
+              <div class="iphone-island"></div>
+              <div class="iphone-status">
+                <span>9:41</span>
+                <span class="st-icons">
+                  <svg width="14" height="10" viewBox="0 0 14 10"><rect x="0" y="4" width="3" height="6" rx="1" fill="currentColor"/><rect x="4" y="2.5" width="3" height="7.5" rx="1" fill="currentColor"/><rect x="8" y="1" width="3" height="9" rx="1" fill="currentColor"/></svg>
+                  <svg width="12" height="10" viewBox="0 0 12 10"><path d="M6 2C3.8 2 1.8 3 0.5 4.5L2 6C2.9 4.8 4.4 4 6 4s3.1.8 4 2l1.5-1.5C10.2 3 8.2 2 6 2z" fill="currentColor"/><path d="M6 5.5c-1 0-1.9.4-2.5 1.1L5 8.1c.3-.3.6-.6 1-.6s.7.3 1 .6l1.5-1.5C7.9 5.9 7 5.5 6 5.5z" fill="currentColor"/><circle cx="6" cy="9.5" r="1" fill="currentColor"/></svg>
+                  <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="1" width="18" height="8" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="18.5" y="3" width="2" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="11" height="5" rx="1" fill="currentColor"/></svg>
+                </span>
+              </div>
+              <img class="iphone-poster" src="/trotamundo/assets/cover/poster-3.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+              <div class="iphone-fs-shell">
+              <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+                <source src="/trotamundo/assets/IMG_5180.mp4" type="video/mp4">
+              </video>
+              </div>
+              <div class="iphone-overlay">
+                <button type="button" class="play-btn" aria-label="Play video">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /iphone-trio -->
+    </section>
+
+    <!-- Landscape iPhone -->
+    <div class="iphone-landscape-wrap">
+      <p class="artist-desc ls-wrap-quote">Over the course of the set, the visual language transitioned gradually, maintaining a delicate balance between repetition and transformation.</p>
+      <div class="iphone-ls-stage">
+      <div class="iphone iphone--landscape">
+        <div class="iphone-frame">
+          <div class="iphone-btn vol-up"></div>
+          <div class="iphone-btn vol-dn"></div>
+          <div class="iphone-btn power"></div>
+          <div class="iphone-screen">
+            <div class="iphone-island"></div>
+            <img class="iphone-poster" src="/trotamundo/assets/cover/poster-4.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+            <div class="iphone-fs-shell">
+            <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+              <source src="/trotamundo/assets/SDFB4453.mp4" type="video/mp4">
+            </video>
+            </div>
+            <div class="iphone-overlay">
+              <button type="button" class="play-btn" aria-label="Play video">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+      <p class="artist-desc artist-desc--accent ls-wrap-quote">Micro-changes accumulated into larger movements, mirroring the hypnotic and minimal nature of the sound.</p>
+    </div>
+
+    <section class="artist-block artist-block--three-ls">
+      <div class="artist-text">
+        <p class="artist-desc">The following day, a seven-hour visual continuum accompanying a back-to-back set by Nicolas Lutz, Binh, and Masda.</p>
+      </div>
+
+      <div class="artist-ls-top">
+        <div class="iphone-ls-stage">
+          <div class="iphone iphone--landscape">
+            <div class="iphone-frame">
+              <div class="iphone-btn vol-up"></div>
+              <div class="iphone-btn vol-dn"></div>
+              <div class="iphone-btn power"></div>
+              <div class="iphone-screen">
+                <div class="iphone-island"></div>
+                <img class="iphone-poster" src="/trotamundo/assets/cover/poster-5.webp" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+                <div class="iphone-fs-shell">
+                <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+                  <source src="/trotamundo/assets/IMG_5192.mp4" type="video/mp4">
+                </video>
+                </div>
+                <div class="iphone-overlay">
+                  <button type="button" class="play-btn" aria-label="Play video">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="artist-ls-bottom">
+        <p class="artist-desc artist-ls-caption">Particle systems became the core language, forming drifting constellations, dense clusters, and unstable structures that kept reshaping themselves.</p>
+        <div class="iphone-ls-stage">
+          <div class="iphone iphone--landscape">
+            <div class="iphone-frame">
+              <div class="iphone-btn vol-up"></div>
+              <div class="iphone-btn vol-dn"></div>
+              <div class="iphone-btn power"></div>
+              <div class="iphone-screen">
+                <div class="iphone-island"></div>
+                <img class="iphone-poster" src="/trotamundo/assets/cover/poster-6.webp" alt="" aria-hidden="true" decoding="async">
+                <div class="iphone-fs-shell">
+                <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+                  <source src="/trotamundo/assets/EWCD7760.mp4" type="video/mp4">
+                </video>
+                </div>
+                <div class="iphone-overlay">
+                  <button type="button" class="play-btn" aria-label="Play video">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="artist-desc artist-ls-caption">The direction moved into more cosmic and psychedelic territory - less grounded, more expansive.</p>
+        <div class="iphone-ls-stage">
+          <div class="iphone iphone--landscape">
+            <div class="iphone-frame">
+              <div class="iphone-btn vol-up"></div>
+              <div class="iphone-btn vol-dn"></div>
+              <div class="iphone-btn power"></div>
+              <div class="iphone-screen">
+                <div class="iphone-island"></div>
+                <img class="iphone-poster" src="/trotamundo/assets/cover/poster-7.webp" alt="" aria-hidden="true" decoding="async">
+                <div class="iphone-fs-shell">
+                <video class="iphone-video" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload nofullscreen noplaybackrate noremoteplayback">
+                  <source src="/trotamundo/assets/IMG_5189.mp4" type="video/mp4">
+                </video>
+                </div>
+                <div class="iphone-overlay">
+                  <button type="button" class="play-btn" aria-label="Play video">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4.5L19.5 12L6 19.5V4.5Z" fill="currentColor"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <a href="/">← back home</a>
+  </footer>
+
+  <!-- Desktop “fullscreen”: real CSS contain (Chrome native FS crops video) -->
+  <div id="desktop-video-fs" class="desktop-video-fs" aria-hidden="true" hidden>
+    <button type="button" class="desktop-video-fs__close" aria-label="Close video">×</button>
+    <div class="desktop-video-fs__stage"></div>
+  </div>
+
+  <script>
+    // ─── Scroll trio to 2nd phone on load (mobile) ───────
+    (function () {
+      const trio = document.querySelector('.iphone-trio');
+      if (!trio) return;
+      function centerSecond() {
+        if (window.innerWidth > 700) return;
+        const phone = trio.querySelectorAll('.iphone')[0];
+        if (!phone) return;
+        const phoneW = phone.offsetWidth;
+        const gap = parseFloat(getComputedStyle(trio).gap) || 14;
+        trio.scrollLeft = phoneW + gap;
+      }
+      // Run after layout is painted
+      requestAnimationFrame(() => requestAnimationFrame(centerSecond));
+    })();
+  </script>
+
+  <script>
+    // ─── iPhone tilt — desktop pointer only; skip touch + reduced motion ──
+    (function () {
+      var mqReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+      var mqFine = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)');
+      if ((mqReduce && mqReduce.matches) || !mqFine || !mqFine.matches) return;
+
+      document.querySelectorAll('.iphone').forEach(function (phone) {
+        var trio = phone.closest('.iphone-trio');
+        var isMiddle = trio ? trio.querySelector('.iphone:nth-child(2)') === phone : false;
+        var isLandscape = phone.classList.contains('iphone--landscape');
+        var BASE_Y = isMiddle ? -16 : 0;
+
+        phone.addEventListener('mouseenter', function () {
+          phone.style.transition = 'transform 0.15s ease';
+        });
+
+        phone.addEventListener('mousemove', function (e) {
+          var rect = phone.getBoundingClientRect();
+          var rotY = ((e.clientX - rect.left - rect.width / 2) / (rect.width / 2)) * 9;
+          var rotX = -((e.clientY - rect.top - rect.height / 2) / (rect.height / 2)) * 6;
+          phone.style.transform = isLandscape
+            ? 'perspective(900px) rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg)'
+            : 'translateY(' + (BASE_Y - 12) + 'px) perspective(900px) rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg)';
+        });
+
+        phone.addEventListener('mouseleave', function () {
+          phone.style.transition = 'transform 0.55s cubic-bezier(0.16, 1, 0.3, 1)';
+          phone.style.transform = BASE_Y ? 'translateY(' + BASE_Y + 'px)' : '';
+        });
+      });
+    })();
+  </script>
+
+  <script>
+    // ─── Cloud generator v2 — flat cartoon style ──────────
+    (function () {
+      var layer = document.querySelector('.bg-layer');
+      if (!layer) return;
+
+      var rnd = function (min, max) { return min + Math.random() * (max - min); };
+      var rndInt = function (min, max) { return Math.floor(rnd(min, max + 1)); };
+
+      // Flat cartoon cloud: white top bumps + gray shadow bumps underneath
+      function cloudSVG() {
+        const numBumps = rndInt(2, 5);
+        const vw = 80 + numBumps * 52;
+        const vh = 72;
+
+        // White = #ffffff, shadow = soft blue-gray like reference
+        const W = '#ffffff';
+        const S = '#c8d8e4'; // gray-blue shadow
+
+        // Bump positions — spread evenly, slight vertical jitter
+        const bumps = [];
+        for (let i = 0; i < numBumps; i++) {
+          const frac = numBumps === 1 ? 0.5 : i / (numBumps - 1);
+          const cx = vw * (0.1 + frac * 0.8);
+          const cy = vh * rnd(0.30, 0.46);
+          // edge bumps smaller
+          const edgeFactor = (i === 0 || i === numBumps - 1) ? rnd(0.65, 0.82) : rnd(0.88, 1.0);
+          const r = vh * rnd(0.28, 0.44) * edgeFactor;
+          bumps.push({ cx, cy, r });
+        }
+
+        // Shadow bumps: same cx, shifted down, smaller, gray
+        const shadowBumps = bumps.map(b =>
+          `<circle cx="${b.cx.toFixed(1)}" cy="${(b.cy + b.r * 0.42).toFixed(1)}" r="${(b.r * 0.72).toFixed(1)}" fill="${S}"/>`
+        ).join('');
+
+        // White base ellipse covering the bottom gap
+        const baseY = vh * 0.70;
+        const base = `<ellipse cx="${(vw/2).toFixed(1)}" cy="${baseY.toFixed(1)}" rx="${(vw*0.46).toFixed(1)}" ry="${(vh*0.28).toFixed(1)}" fill="${W}"/>`;
+
+        // White top bumps
+        const whiteBumps = bumps.map(b =>
+          `<circle cx="${b.cx.toFixed(1)}" cy="${b.cy.toFixed(1)}" r="${b.r.toFixed(1)}" fill="${W}"/>`
+        ).join('');
+
+        return `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg">${shadowBumps}${base}${whiteBumps}</svg>`;
+      }
+
+      // Wait for layout so page height is known
+      function placeClouds() {
+        var pageH = document.documentElement.scrollHeight || 800;
+        var mqNarrow = window.matchMedia && window.matchMedia('(max-width: 700px)');
+        var narrow = mqNarrow ? mqNarrow.matches : false;
+        var count = narrow ? 22 : 42;
+
+        // Divide page into bands so coverage is even, then jitter within band
+        const bandH = pageH / count;
+
+        // Shuffle order so nearby clouds aren't same size
+        const indices = Array.from({length: count}, (_, i) => i).sort(() => Math.random() - 0.5);
+
+        indices.forEach((band, _) => {
+          const topPx  = band * bandH + rnd(0, bandH * 0.85);
+          const width  = rnd(70, 310);           // px — wide variety
+          const leftPc = rnd(-4, 88);            // allow slight bleed on edges
+          const opacity = rnd(0.55, 1.0);
+          // occasional very faint distant cloud
+          const finalOpacity = Math.random() < 0.15 ? rnd(0.2, 0.45) : opacity;
+
+          const div = document.createElement('div');
+          div.className = 'cloud';
+          div.innerHTML = cloudSVG();
+          div.style.cssText =
+            `top:${topPx.toFixed(0)}px;` +
+            `left:${leftPc.toFixed(1)}%;` +
+            `width:${width.toFixed(0)}px;` +
+            `opacity:${finalOpacity.toFixed(2)};`;
+
+          layer.appendChild(div);
+        });
+
+        // Sparkles scattered throughout
+        const sparkCount = narrow ? 6 : 12;
+        for (let i = 0; i < sparkCount; i++) {
+          const sp = document.createElement('span');
+          sp.className = 'spark';
+          sp.textContent = '✦';
+          const topPx = rnd(0, pageH * 0.95);
+          sp.style.cssText =
+            `top:${topPx.toFixed(0)}px;` +
+            `left:${rnd(3, 93).toFixed(1)}%;` +
+            `font-size:${rnd(0.6, 1.4).toFixed(2)}rem;` +
+            `animation-delay:${rnd(0, 3).toFixed(2)}s;`;
+          layer.appendChild(sp);
+        }
+      }
+
+      // Run after paint so scrollHeight is accurate
+      requestAnimationFrame(placeClouds);
+    })();
+  </script>
+
+  <script>
+    // ─── Play: iOS → webkit fullscreen; else → fixed overlay (contain, no crop) ───
+    (function () {
+      var layer = document.getElementById('desktop-video-fs');
+      var stage = layer ? layer.querySelector('.desktop-video-fs__stage') : null;
+      var closeBtn = layer ? layer.querySelector('.desktop-video-fs__close') : null;
+      var fsState = null;
+
+      function restoreIosAfterNativeFs(video) {
+        if (!video) return;
+        video.pause();
+        try { video.currentTime = 0; } catch (e) {}
+        var screen = video.closest('.iphone-screen');
+        if (screen) {
+          var poster = screen.querySelector('.iphone-poster');
+          if (poster) poster.classList.remove('is-hidden');
+        }
+      }
+
+      function useIosNativeVideoFs(video) {
+        return typeof video.webkitEnterFullscreen === 'function' &&
+          (/iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+      }
+
+      function closeDesktopFs() {
+        if (!fsState || !layer || !stage) return;
+        var video = fsState.video;
+        var shell = fsState.shell;
+        var screen = fsState.screen;
+        video.pause();
+        try { video.currentTime = 0; } catch (e) {}
+        video.removeAttribute('controls');
+        video.removeAttribute('tabindex');
+        shell.appendChild(video);
+        layer.classList.remove('is-open');
+        layer.hidden = true;
+        layer.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        if (screen) {
+          var poster = screen.querySelector('.iphone-poster');
+          if (poster) poster.classList.remove('is-hidden');
+        }
+        fsState = null;
+      }
+
+      function openDesktopFs(video, shell, screen) {
+        if (!layer || !stage) return;
+        if (fsState) closeDesktopFs();
+        fsState = { video: video, shell: shell, screen: screen };
+        /* Black layer first so we never paint one frame of video inside the phone mockup */
+        layer.hidden = false;
+        layer.setAttribute('aria-hidden', 'false');
+        layer.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+        stage.appendChild(video);
+        video.setAttribute('controls', '');
+        try {
+          video.setAttribute('tabindex', '-1');
+          video.focus();
+        } catch (err) {}
+        video.play().catch(function () {});
+      }
+
+      document.querySelectorAll('.iphone-video').forEach(function (video) {
+        video.addEventListener('webkitendfullscreen', function () {
+          restoreIosAfterNativeFs(video);
+        });
+      });
+
+      if (layer && stage) {
+        layer.addEventListener('click', function (e) {
+          if (e.target === layer || e.target === stage) closeDesktopFs();
+        });
+      }
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          closeDesktopFs();
+        });
+      }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && fsState) closeDesktopFs();
+      });
+
+      document.querySelectorAll('.iphone-overlay').forEach(function (overlay) {
+        overlay.addEventListener('click', function () {
+          var screen = overlay.closest('.iphone-screen');
+          if (!screen) return;
+          var poster = screen.querySelector('.iphone-poster');
+          var video = screen.querySelector('.iphone-video');
+          if (!video) return;
+          var shell = screen.querySelector('.iphone-fs-shell');
+          var src = video.querySelector('source') ? video.querySelector('source').getAttribute('src') : video.getAttribute('src');
+          if (!src || !shell) return;
+
+          if (useIosNativeVideoFs(video)) {
+            if (poster) poster.classList.add('is-hidden');
+            video.webkitEnterFullscreen();
+            video.play().catch(function () {});
+          } else {
+            /* Desktop: keep poster on the mockup; video only exists in the overlay */
+            openDesktopFs(video, shell, screen);
+          }
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

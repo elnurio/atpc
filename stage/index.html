@@ -2,16 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ATPC — Stage</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { background: #0a0a0c; }
+    html {
+      background: #1a1f1c;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overflow-anchor: none;
+    }
     body {
-      height: 480vh;
-      min-height: 480vh;
-      background: #0a0a0c;
+      min-height: 100vh;
+      background: #1a1f1c;
+      overflow-x: hidden;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
+      overflow-anchor: none;
+    }
+
+    #scrollRoot {
+      position: relative;
+      width: 100%;
+      min-height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      background: transparent;
+    }
+
+    #scrollRoot::-webkit-scrollbar {
+      display: none;
+    }
+
+    #scrollTrack {
+      position: relative;
+      width: 100%;
+      min-height: 768vh;
+      pointer-events: none;
+      opacity: 0;
     }
 
     canvas {
@@ -21,19 +51,79 @@
       width: 100%;
       height: 100%;
       display: block;
-      touch-action: pan-y;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    #whiteBloom {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      background: #fafbfc;
+      opacity: 0;
+    }
+
+    /**
+     * Финал Assembly: поверх WebGL — только белый слой + iframe; без карточки, тени и подложек.
+     * Полноэкранный чертёж после кроссфейда.
+     */
+    #assemblyShell {
+      position: fixed;
+      inset: 0;
+      z-index: 14;
+      margin: 0;
+      padding: 0;
+      display: block;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #assemblyShell.on { pointer-events: auto; }
+    #assemblyIFrame {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: #ffffff;
+      opacity: 0;
+    }
+
+    /** Конец перехода: чистая страница чертежа, без хрома сцены. */
+    html.atpc-drawing-end,
+    body.atpc-drawing-end {
+      background: #ffffff !important;
+    }
+    body.atpc-drawing-end #whiteBloom {
+      opacity: 0 !important;
+      visibility: hidden;
+    }
+    body.atpc-drawing-end .slabel,
+    body.atpc-drawing-end #scrollHint {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    body.atpc-drawing-end #back {
+      opacity: 0;
+      pointer-events: none;
     }
 
     #loader {
       position: fixed; inset: 0; z-index: 100;
-      background: #0a0a0c;
+      background: #1a1f1c;
       display: flex; align-items: center; justify-content: center;
       transition: opacity 0.9s ease;
+      pointer-events: none;
     }
     #loader.hide { opacity: 0; pointer-events: none; }
     #loader-dot {
       width: 5px; height: 5px; border-radius: 50%;
-      background: rgba(220, 210, 190, 0.35);
+      background: rgba(160, 160, 160, 0.4);
       animation: ldot 1.3s ease-in-out infinite;
     }
     @keyframes ldot {
@@ -43,12 +133,45 @@
 
     #back {
       position: fixed; top: 36px; left: 40px; z-index: 30;
-      color: rgba(240, 235, 220, 0.45);
-      font: 300 10px/1 'Helvetica Neue', sans-serif;
+      color: rgba(150, 150, 150, 0.65);
+      font: 300 10px/1 Helvetica, Arial, sans-serif;
       letter-spacing: .25em; text-transform: uppercase; text-decoration: none;
       transition: color .4s;
     }
-    #back:hover { color: rgba(240, 235, 220, 0.8); }
+    #back:hover { color: rgba(190, 190, 190, 0.95); }
+    /** С фазы Interior: тот же серый характер, но плотнее — читается на белом полу */
+    body.atpc-ui-dark #back {
+      color: rgba(82, 84, 88, 0.88);
+    }
+    body.atpc-ui-dark #back:hover {
+      color: rgba(54, 56, 60, 0.95);
+    }
+
+    #soundToggle {
+      position: fixed;
+      top: 36px;
+      right: 40px;
+      z-index: 30;
+      border: none;
+      background: transparent;
+      color: rgba(150, 150, 150, 0.65);
+      font: 300 10px/1 Helvetica, Arial, sans-serif;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color .4s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    #soundToggle:hover {
+      color: rgba(190, 190, 190, 0.95);
+    }
+    body.atpc-ui-dark #soundToggle {
+      color: rgba(82, 84, 88, 0.88);
+    }
+    body.atpc-ui-dark #soundToggle:hover {
+      color: rgba(54, 56, 60, 0.95);
+    }
 
     .slabel {
       position: fixed; bottom: 18vh; left: 50%;
@@ -59,56 +182,100 @@
     }
     .slabel.on { opacity: 1; transform: translateX(-50%) translateY(0); }
     .slabel h2 {
-      color: rgba(245, 240, 230, 0.9);
-      font: 200 clamp(22px, 4.2vw, 52px)/1 'Helvetica Neue', sans-serif;
-      letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
+      color: rgba(200, 200, 200, 0.92);
+      font: 200 clamp(22px, 4.2vw, 52px)/1 Helvetica, Arial, sans-serif;
+      letter-spacing: .14em; text-transform: uppercase;
+      transition: color 0.45s ease;
     }
-    .slabel p {
-      color: rgba(220, 210, 195, 0.45);
-      font: 300 10px/1.6 'Helvetica Neue', sans-serif;
-      letter-spacing: .22em; text-transform: uppercase;
+    body.atpc-ui-dark .slabel h2 {
+      color: rgba(58, 62, 68, 0.96);
     }
 
-    #hint {
-      position: fixed; bottom: 36px; left: 50%;
+    /** Сегмент Assembly: подпись не нужна */
+    #sl7 {
+      display: none !important;
+    }
+
+    .scroll-hint {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
       transform: translateX(-50%);
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
-      pointer-events: none; z-index: 20; transition: opacity .8s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      z-index: 999;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
     }
-    #hint.hide { opacity: 0; }
-    #hint span {
-      color: rgba(220, 210, 195, 0.35);
-      font: 300 9px/1 'Helvetica Neue', sans-serif;
-      letter-spacing: .3em; text-transform: uppercase;
+    .scroll-hint.hidden {
+      opacity: 0;
     }
-    #hint-line {
-      width: 1px; height: 32px;
-      background: linear-gradient(to bottom, rgba(220, 210, 195, 0.35), transparent);
-      animation: drip 2.2s ease-in-out infinite; transform-origin: top;
+    /** До Interior — светло-серый; с Interior — чуть темнее серый под белый пол */
+    .scroll-hint-text {
+      font-family: Arial, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      color: rgba(165, 165, 165, 0.92);
+      text-transform: uppercase;
+      transition: color 0.45s ease;
     }
-    @keyframes drip {
-      0%  { transform: scaleY(0); opacity: 1; }
-      60% { transform: scaleY(1); opacity: 1; }
-      100%{ transform: scaleY(1); opacity: 0; }
+    body.atpc-ui-dark .scroll-hint-text {
+      color: rgba(58, 62, 68, 0.96);
     }
-
-    #dots {
-      position: fixed; right: 28px; top: 50%; transform: translateY(-50%);
-      display: flex; flex-direction: column; gap: 11px;
-      z-index: 20; pointer-events: none;
+    .scroll-hint-chevrons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
     }
-    .dot {
-      width: 3px; height: 3px; border-radius: 50%;
-      background: rgba(220, 210, 195, 0.25); transition: background .4s, transform .4s;
+    .scroll-hint .chevron {
+      width: 14px;
+      height: 14px;
+      border-right: 2px solid rgba(165, 165, 165, 0.88);
+      border-bottom: 2px solid rgba(165, 165, 165, 0.88);
+      transform: rotate(45deg);
+      animation: scrollHintChevronBounce 1.4s ease-in-out infinite;
+      transition: border-color 0.45s ease;
     }
-    .dot.on { background: rgba(240, 235, 220, 0.65); transform: scale(1.8); }
+    body.atpc-ui-dark .scroll-hint .chevron {
+      border-right-color: rgba(58, 62, 68, 0.92);
+      border-bottom-color: rgba(58, 62, 68, 0.92);
+    }
+    .scroll-hint .chevron:nth-child(2) {
+      opacity: 0.5;
+      animation-delay: 0.18s;
+    }
+    .scroll-hint .chevron:nth-child(3) {
+      opacity: 0.2;
+      animation-delay: 0.36s;
+    }
+    @keyframes scrollHintChevronBounce {
+      0%, 100% {
+        transform: rotate(45deg) translateY(0);
+        opacity: inherit;
+      }
+      50% {
+        transform: rotate(45deg) translateY(5px);
+        opacity: 0.1;
+      }
+    }
 
     @media (max-width: 900px), (pointer: coarse) {
-      body { height: 560vh; min-height: 560vh; }
+      #scrollTrack {
+        min-height: 896vh;
+      }
 
       #back {
         top: calc(env(safe-area-inset-top, 0px) + 18px);
         left: 16px;
+        letter-spacing: .2em;
+      }
+
+      #soundToggle {
+        top: calc(env(safe-area-inset-top, 0px) + 18px);
+        right: 16px;
         letter-spacing: .2em;
       }
 
@@ -122,31 +289,10 @@
       .slabel h2 {
         font-size: clamp(18px, 8vw, 34px);
         letter-spacing: .1em;
-        margin-bottom: 8px;
       }
 
-      .slabel p {
-        font-size: 9px;
-        line-height: 1.5;
-        letter-spacing: .14em;
-      }
-
-      #hint {
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-        gap: 8px;
-      }
-
-      #hint span { letter-spacing: .2em; }
-      #hint-line { height: 24px; }
-
-      #dots {
-        left: 50%;
-        right: auto;
-        top: auto;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
-        transform: translateX(-50%);
-        flex-direction: row;
-        gap: 9px;
+      .scroll-hint {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
       }
     }
   </style>
@@ -160,51 +306,153 @@
   </script>
 </head>
 <body>
+  <div id="scrollRoot" aria-hidden="true">
+    <div id="scrollTrack"></div>
+  </div>
 
   <div id="loader"><div id="loader-dot"></div></div>
   <a href="../" id="back">← ATPC</a>
+  <button id="soundToggle" type="button" aria-pressed="false">sound off</button>
+  <audio id="stageAudio" src="atpc-stage.m4a" preload="auto" loop playsinline webkit-playsinline muted></audio>
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
-    <p>Minimal sand — fabric micro-city: diamond soft floor, tensile walls, floating ceiling fields</p>
   </div>
   <div class="slabel" id="sl1">
     <h2>Structure</h2>
-    <p>Diamond footprint anchors — guy lines to rim, corner posts at rhombus vertices</p>
   </div>
   <div class="slabel" id="sl2">
     <h2>Profile</h2>
-    <p>Layered floating tensile ceiling — sagging membrane fields, diagonal ties, hem above sand</p>
   </div>
   <div class="slabel" id="sl3">
     <h2>Light</h2>
-    <p>Amber shaft through the ring — projection from the crown</p>
   </div>
   <div class="slabel" id="sl4">
     <h2>Interior</h2>
-    <p>We move inside the shell</p>
+  </div>
+  <div class="slabel" id="sl5">
+    <h2>Space</h2>
+  </div>
+  <div class="slabel" id="sl6">
+    <h2>Sky</h2>
+  </div>
+  <div class="slabel" id="sl7">
+    <h2>Assembly</h2>
   </div>
 
-  <div id="hint"><span>Scroll</span><div id="hint-line"></div></div>
+  <div class="scroll-hint" id="scrollHint" aria-hidden="true">
+    <div class="scroll-hint-text">Scroll Down</div>
+    <div class="scroll-hint-chevrons">
+      <div class="chevron"></div>
+      <div class="chevron"></div>
+      <div class="chevron"></div>
+    </div>
+  </div>
 
-  <div id="dots">
-    <div class="dot on" id="d0"></div>
-    <div class="dot" id="d1"></div>
-    <div class="dot" id="d2"></div>
-    <div class="dot" id="d3"></div>
-    <div class="dot" id="d4"></div>
+  <div id="whiteBloom" aria-hidden="true"></div>
+  <div id="assemblyShell">
+    <iframe id="assemblyIFrame" title="Ambient stage 2026" src="ambient-stage-2026.html"></iframe>
   </div>
 
   <script type="module">
   import * as THREE from 'three';
-  import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+  import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
   let scene, camera, renderer;
   let canopyGroup, mastGroup, cableLines, cableGeo, cablePositions, cableMat;
+  /** Кромка купола для оттяжек к «якорным» деревьям (без мачт) */
+  let shelterCeilingRing = null;
   let oculus, oclMat;
   let shadowDisc, bGrp, bCoreMat, bHaloMat, pool, poolMat, rayGrp, rayMats;
+  let godSunGroup, godSunMat, godSunSprite;
+  const sunDirTmp = new THREE.Vector3();
   let interiorGroup;
-  let squareBedTentGroup, squareFabricMats, squareTentDiagMat;
+  let squareBedTentGroup, squareFabricRoofGroup, squareFabricMats, squareTentDiagMat, squareWallMesh, squareTentStakeMesh;
+  let hangingInteriorFabricGroup;
+  /** Пол дуба: скрыт до середины Site, спуск до середины Structure */
+  let tentFloorMesh;
+  /** Группа PA-колонок DJ: подъём снизу (фаза Light) */
+  let djSpeakersRiseGroup = null;
+  /** Текстуры/материалы concrete monolith speaker (ленивая инициализация) */
+  let concreteMonolithSpkCache = null;
+  let mainSun, hemiMain, fillSun;
+  let sceneAmbient;
+  let sceneBgOrig;
+  let fogColorOrig;
+  let sceneFogNearOrig;
+  let sceneFogFarOrig;
+  let blueprintGlow;
+  let whiteBloomEl;
+  let assemblyShellEl;
+  let assemblyIFrameEl;
+  /** Чтобы при повторном показе iframe снова сбрасывать скролл вложенной страницы (Safari) */
+  let ambientRevealPrevT = 0;
+
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  function resetStageScrollOnEntry() {
+    const scrollRoot = document.getElementById('scrollRoot');
+    if (scrollRoot) scrollRoot.scrollTop = 0;
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
+  let hasUserInteractedWithStage = false;
+
+  function markStageInteraction() {
+    hasUserInteractedWithStage = true;
+  }
+
+  resetStageScrollOnEntry();
+  window.addEventListener('pageshow', () => {
+    updateStableScrollMetrics(true);
+    if (!hasUserInteractedWithStage) {
+      resetStageScrollOnEntry();
+    }
+    syncRawScrollProgress();
+    if (!hasUserInteractedWithStage) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!hasUserInteractedWithStage) resetStageScrollOnEntry();
+        });
+      });
+    }
+  }, { passive: true });
+  window.addEventListener('load', () => {
+    updateStableScrollMetrics(true);
+    syncRawScrollProgress();
+    if (!hasUserInteractedWithStage) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!hasUserInteractedWithStage) resetStageScrollOnEntry();
+        });
+      });
+    }
+  }, { once: true });
+
+  function resetEmbeddedAmbientScroll() {
+    const el = assemblyIFrameEl;
+    if (!el) return;
+    const w = el.contentWindow;
+    if (!w) return;
+    try {
+      w.scrollTo(0, 0);
+      const d = w.document;
+      if (d) {
+        if (d.documentElement) d.documentElement.scrollTop = 0;
+        if (d.body) d.body.scrollTop = 0;
+      }
+      requestAnimationFrame(() => {
+        try {
+          w.scrollTo(0, 0);
+        } catch (err) {}
+      });
+    } catch (err) {}
+  }
+  let stageCanvasEl;
+  /** Narrow key light through roof oculus (Sky phase) */
+  let oculusSpot;
 
   /* Scale study from tent-japanese-concept.pdf; TENT_SCALE widens ring + height in lockstep */
   const TENT_SCALE = 24;
@@ -234,15 +482,17 @@
 
   /** Tensile canopy mast layout (asymmetric); oculus / beam align with main peak projection */
   const TENSILE_PEAK_SPEC = [
-    { nx: -0.31, nz: 0.19, yLift: 1.22, pinR: 0.24, pull: 1.35 },
-    { nx: 0.37, nz: -0.29, yLift: 0.38, pinR: 0.19, pull: 1.05 },
-    { nx: -0.11, nz: -0.46, yLift: 0.15, pinR: 0.15, pull: 0.72 },
+    { nx: -0.31, nz: 0.19, yLift: 1.38, pinR: 0.26, pull: 1.78 },
+    { nx: 0.37, nz: -0.29, yLift: 0.48, pinR: 0.2, pull: 1.32 },
+    { nx: -0.11, nz: -0.46, yLift: 0.22, pinR: 0.16, pull: 0.98 },
   ];
   const OCULUS_APERTURE_R = DIAMOND_R * 0.124;
   const OCULUS_TUBE = Math.max(0.05 * TENT_SCALE, OCULUS_APERTURE_R * 0.068);
   const OCULUS_MAJOR = OCULUS_APERTURE_R + OCULUS_TUBE;
   const OCULUS_CENTER_X = TENSILE_PEAK_SPEC[0].nx * DIAMOND_R;
   const OCULUS_CENTER_Z = TENSILE_PEAK_SPEC[0].nz * DIAMOND_R;
+  /** Plan radius for removing roof quads — slightly inside fabric torus for clean ring */
+  const ROOF_OCULUS_CUT_R = OCULUS_APERTURE_R * 0.94;
 
   const RAY_LEN_SKY = 72 * TENT_SCALE;
   const RAY_LEN_BELOW = 22 * TENT_SCALE;
@@ -252,11 +502,30 @@
 
   const CANOPY_Y_MIN = MAST_TOP_MAX - RIM_Y_LOCAL + 0.46 * TENT_SCALE;
 
-  /* Sheer fabric flies down during 0.4 → 0.6 scroll */
-  const FABRIC_SCROLL_START = 0.4;
-  const FABRIC_SCROLL_END = 0.6;
-  const FABRIC_FLY_OFFSET = 36 * TENT_SCALE;
-  /* Interior props fade in as you approach Light / Interior (scroll 0 → 1) */
+  /** Оттяжки к кольцу леса: мало линий, равный шаг по кромке, радиаль к якорю (без хаотичных пересечений) */
+  const NUM_TREE_GUYS = 12;
+  let treeGuyAnchors = [];
+  /** Индекс точки ceilingRing для каждого троса — задаётся в setupTreeGuyCablesFromRing */
+  let treeGuyRingIdx = [];
+
+  /** Купол/пол с первого кадра; боковые стены — только с фазы Structure (скролл) */
+  const WALLS_SCROLL_START = 1 / 7 + 0.02;
+  const WALLS_SCROLL_END = 1 / 7 + 0.14;
+  /** Индекс сегмента скролла «Profile» (sl2) — тканевый купол появляется только здесь */
+  const ROOF_PROFILE_SEG = 2;
+  /** Короткий ход «установки» купола (не большое падение — финал = штатная геометрия натяжения) */
+  const ROOF_DESCEND_Y = 0.26 * TENT_SCALE;
+  /**
+   * Подвесная вуаль под куполом: только финальный акцент Profile — скрыта большую часть сегмента,
+   * плавное появление в последних ~12% трека установки купола (синхрон с «посадкой» мембраны).
+   */
+  const HANGING_PROFILE_LATE_START = 0.875;
+  /** clk += 0.006/кадр — без множителя качание визуально «замерзает»; это даёт читаемый ветер */
+  const HANG_WIND_CLK = 46;
+  /** Tensile shell visible from first frame (structure phase); optional micro-settling only via group Y in updateScene */
+  /* Стол DJ — фаза Light (sl3): появляется от начала сегмента 3 и к концу Light уже полностью */
+  const INTERIOR_TABLE_LIGHT_SEG = 3;
+  /* Свет/атмосфера после появления мебели (лежаки теперь с фазой Light — см. uTable) */
   const INTERIOR_PROPS_START = 0.56;
   const INTERIOR_PROPS_FULL = 0.88;
   const INTERIOR_SCALE = 5;
@@ -264,6 +533,8 @@
   const INTERIOR_LAYOUT = 4;
   const INTERIOR_BURY_Y = 2.55 * INTERIOR_LAYOUT;
   const INTERIOR_STAGGER = 0.052;
+  /** Минимальный дополнительный зазор между лежаками (центр–центр), м; переводится в локаль интерьера */
+  const FUTON_MIN_SPACING_M = 0.05;
 
   function interiorRiseEase(t) {
     t = clamp(t, 0, 1);
@@ -271,8 +542,8 @@
     return Math.min(1, s + Math.sin(s * Math.PI) * 0.08);
   }
 
-  /** Soft sand grain for ground plane (minimal, no photo texture) */
-  function makeSandPlaneTexture() {
+  /** Forest clearing: soft daylight, ground, no empty-field read */
+  function makeForestGroundTexture() {
     const w = 512;
     const h = 512;
     const c = document.createElement('canvas');
@@ -282,42 +553,137 @@
     const img = ctx.createImageData(w, h);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
-      const n = (Math.random() - 0.5) * 18;
-      const v = 205 + n;
-      d[i] = v + (Math.random() - 0.5) * 8;
-      d[i + 1] = v - 12 + (Math.random() - 0.5) * 8;
-      d[i + 2] = v - 28 + (Math.random() - 0.5) * 6;
+      const px = (i / 4) % w;
+      const py = (i / 4 / w) | 0;
+      const n = (Math.sin(px * 0.08) + Math.sin(py * 0.07)) * 6;
+      const v = 118 + n + (Math.random() - 0.5) * 14;
+      d[i] = clamp(v - 8, 60, 200);
+      d[i + 1] = clamp(v + 18, 80, 220);
+      d[i + 2] = clamp(v - 22, 50, 160);
       d[i + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    for (let k = 0; k < 1200; k++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      ctx.fillRect(x, y, 1.2, 1.2);
-    }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
     return tex;
   }
 
-  function setupMinimalSandWorld(renderer, scene) {
-    scene.background = new THREE.Color(0xeae3d8);
-    const fogCol = 0xe6dfd4;
-    scene.fog = new THREE.Fog(fogCol, 85 * TENT_SCALE, 820 * TENT_SCALE);
+  function buildForestTreeRing() {
+    const grp = new THREE.Group();
+    /** Меньше экземпляров; клин по азимуту камеры Site (KF0/KF1) — в кадре не должно быть кроны «в лоб» */
+    const nCap = 80;
+    const nTarget = 52;
+    /** Высота уровня купола (SQ_ROOF_Y): ствол + крона */
+    const trunkH = 0.49 * MAST_MAIN_H;
+    const crownR = 0.33 * MAST_MAIN_H;
+    const trunkRBot = 0.48 * TENT_SCALE;
+    const trunkRTop = 0.32 * TENT_SCALE;
+    const trunkGeo = new THREE.CylinderGeometry(trunkRTop, trunkRBot, trunkH, 6, 1);
+    trunkGeo.translate(0, trunkH * 0.5, 0);
+    const crownGeo = new THREE.DodecahedronGeometry(crownR, 0);
+    crownGeo.translate(0, trunkH + crownR * 0.48, 0);
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x3a352c,
+      roughness: 0.94,
+      metalness: 0,
+      envMapIntensity: 0.16,
+    });
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0x2d4236,
+      roughness: 0.93,
+      metalness: 0,
+      envMapIntensity: 0.2,
+      flatShading: true,
+    });
+    const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, nCap);
+    const crowns = new THREE.InstancedMesh(crownGeo, crownMat, nCap);
+    const dummy = new THREE.Object3D();
+    const minR = DIAMOND_R * 1.44 + 38;
+    const maxR = 900;
+    const ringW = maxR - minR;
+    const openingBearings = [
+      Math.atan2(KF[0].pos[0], KF[0].pos[2]),
+      Math.atan2(KF[1].pos[0], KF[1].pos[2]),
+    ];
+    /** Полуширина клина (рад): шире для широкого FOV на мобиле; без деревьев в секторе «впереди» камеры */
+    const wedgeHalf = 1.14;
+    const minTreeCamDist = 428;
+    const camXZ = [
+      [KF[0].pos[0], KF[0].pos[2]],
+      [KF[1].pos[0], KF[1].pos[2]],
+    ];
+    function angDist(a, b) {
+      let d = Math.abs(a - b);
+      if (d > Math.PI) d = 2 * Math.PI - d;
+      return d;
+    }
+    function inOpeningWedge(treeBearing) {
+      for (let i = 0; i < openingBearings.length; i++) {
+        if (angDist(treeBearing, openingBearings[i]) < wedgeHalf) return true;
+      }
+      return false;
+    }
+    let placed = 0;
+    let tries = 0;
+    const maxTries = 5200;
+    while (placed < nTarget && tries < maxTries) {
+      tries++;
+      const ang = Math.random() * Math.PI * 2;
+      const rad = minR + Math.random() * ringW;
+      const x = Math.cos(ang) * rad;
+      const z = Math.sin(ang) * rad;
+      const b = Math.atan2(x, z);
+      if (inOpeningWedge(b)) continue;
+      let tooCloseToCam = false;
+      for (let ci = 0; ci < camXZ.length; ci++) {
+        const cx = camXZ[ci][0];
+        const cz = camXZ[ci][1];
+        if (Math.hypot(x - cx, z - cz) < minTreeCamDist) {
+          tooCloseToCam = true;
+          break;
+        }
+      }
+      if (tooCloseToCam) continue;
+      const sc = 0.86 + Math.random() * 0.22;
+      dummy.position.set(x, 0, z);
+      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.rotation.x = (Math.random() - 0.5) * 0.06;
+      dummy.rotation.z = (Math.random() - 0.5) * 0.05;
+      dummy.scale.setScalar(sc);
+      dummy.updateMatrix();
+      trunks.setMatrixAt(placed, dummy.matrix);
+      crowns.setMatrixAt(placed, dummy.matrix);
+      placed++;
+    }
+    trunks.count = placed;
+    crowns.count = placed;
+    trunks.instanceMatrix.needsUpdate = true;
+    crowns.instanceMatrix.needsUpdate = true;
+    trunks.castShadow = false;
+    crowns.castShadow = false;
+    grp.add(trunks, crowns);
+    return grp;
+  }
+
+  function setupForestClearingWorld(renderer, scene) {
+    scene.background = new THREE.Color(0xd4ddd4);
+    const fogCol = 0xc5d1c8;
+    scene.fog = new THREE.Fog(fogCol, 95 * TENT_SCALE, 780 * TENT_SCALE);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new THREE.Scene();
-    envScene.add(new THREE.AmbientLight(0xfff6ec, 0.62));
-    const ed = new THREE.DirectionalLight(0xfff2e0, 0.95);
-    ed.position.set(2.2, 3.5, 1.4);
+    envScene.add(new THREE.AmbientLight(0xeef4ea, 0.55));
+    const ed = new THREE.DirectionalLight(0xfff5e6, 0.72);
+    ed.position.set(2.4, 4.2, 1.2);
     envScene.add(ed);
+    envScene.add(new THREE.HemisphereLight(0xe8f0e8, 0x7a8f78, 0.35));
     envScene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(180, 36, 18),
+      new THREE.SphereGeometry(200, 32, 16),
       new THREE.MeshStandardMaterial({
-        color: 0xf2ece4,
+        color: 0xe2ebe4,
         roughness: 1,
         metalness: 0,
         side: THREE.BackSide,
@@ -326,20 +692,21 @@
     scene.environment = pmrem.fromScene(envScene, 0).texture;
     pmrem.dispose();
 
-    const sandMap = makeSandPlaneTexture();
-    sandMap.wrapS = sandMap.wrapT = THREE.RepeatWrapping;
-    sandMap.repeat.set(56, 56);
-    const sandMat = new THREE.MeshStandardMaterial({
-      color: 0xd4c4a8,
-      map: sandMap,
-      roughness: 0.93,
+    const groundMap = makeForestGroundTexture();
+    groundMap.repeat.set(48, 48);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x8f9a86,
+      map: groundMap,
+      roughness: 0.96,
       metalness: 0,
-      envMapIntensity: 0.28,
+      envMapIntensity: 0.22,
     });
-    const sand = new THREE.Mesh(new THREE.PlaneGeometry(6800, 6800, 1, 1), sandMat);
-    sand.rotation.x = -Math.PI / 2;
-    sand.position.y = -0.04;
-    scene.add(sand);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(7200, 7200, 1, 1), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.06;
+    scene.add(ground);
+
+    scene.add(buildForestTreeRing());
   }
 
   /** Procedural cotton / percale sheet look (diffuse + bump) */
@@ -412,12 +779,131 @@
     return { map, bumpMap };
   }
 
+  /** Лёгкий процедурный bump под фото-альбедо пола (микрошум). */
+  function makeTentInteriorFloorBumpMap() {
+    const cb = document.createElement('canvas');
+    cb.width = 256;
+    cb.height = 256;
+    const bx = cb.getContext('2d');
+    const id = bx.createImageData(256, 256);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const px = (i / 4) % 256;
+      const py = (i / 4 / 256) | 0;
+      const v =
+        200
+        + Math.sin(px * 0.21) * 14
+        + Math.sin(py * 0.17) * 12
+        + (Math.random() - 0.5) * 10;
+      const b = Math.max(160, Math.min(240, v));
+      d[i] = d[i + 1] = d[i + 2] = b;
+      d[i + 3] = 255;
+    }
+    bx.putImageData(id, 0, 0);
+    const bumpMap = new THREE.CanvasTexture(cb);
+    bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
+    bumpMap.repeat.set(10, 10);
+    bumpMap.colorSpace = THREE.NoColorSpace;
+    return bumpMap;
+  }
+
+  function makeBrutalistSmoothConcreteTex() {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 1024;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#c8c4bc';
+    ctx.fillRect(0, 0, 512, 1024);
+    for (let i = 0; i < 8000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 1024;
+      const s = 1 + Math.random() * 4;
+      const col = ~~(140 + Math.random() * 60);
+      ctx.fillStyle = `rgba(${col},${col - 4},${col - 8},${0.04 + Math.random() * 0.12})`;
+      ctx.fillRect(x, y, s, s);
+    }
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 1024;
+      const r = 10 + Math.random() * 45;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(80,78,74,${0.04 + Math.random() * 0.1})`);
+      g.addColorStop(1, 'rgba(80,78,74,0)');
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+    for (let i = 0; i < 6; i++) {
+      ctx.strokeStyle = `rgba(100,96,90,${0.06 + Math.random() * 0.08})`;
+      ctx.lineWidth = 0.5 + Math.random() * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * 512, 0);
+      ctx.lineTo(Math.random() * 512, 1024);
+      ctx.stroke();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
+  function makeRoughConcTex() {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 512;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#484440';
+    ctx.fillRect(0, 0, 256, 512);
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * 256;
+      const y = Math.random() * 512;
+      const s = 1 + Math.random() * 5;
+      const col = ~~(40 + Math.random() * 80);
+      ctx.fillStyle = `rgba(${col},${col - 4},${col - 6},${0.06 + Math.random() * 0.2})`;
+      ctx.fillRect(x, y, s, s);
+    }
+    for (let i = 0; i < 200; i++) {
+      const x = Math.random() * 256;
+      const y = Math.random() * 512;
+      const r = 2 + Math.random() * 8;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${130 + ~~(Math.random() * 80)},${125 + ~~(Math.random() * 60)},${110 + ~~(Math.random() * 50)},${0.3 + Math.random() * 0.5})`;
+      ctx.fill();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
+  function getConcreteMonolithSpkTextures() {
+    if (concreteMonolithSpkCache) return concreteMonolithSpkCache;
+    const concTex = makeBrutalistSmoothConcreteTex();
+    concTex.wrapS = concTex.wrapT = THREE.RepeatWrapping;
+    concTex.repeat.set(1, 1);
+    concTex.colorSpace = THREE.SRGBColorSpace;
+    const roughTex = makeRoughConcTex();
+    roughTex.wrapS = roughTex.wrapT = THREE.RepeatWrapping;
+    roughTex.colorSpace = THREE.SRGBColorSpace;
+    concreteMonolithSpkCache = {
+      concSmoothM: new THREE.MeshLambertMaterial({ map: concTex }),
+      concRoughM: new THREE.MeshLambertMaterial({ map: roughTex, color: 0x888880 }),
+      wooferRingM: new THREE.MeshLambertMaterial({ color: 0x282828 }),
+      wooferConeM: new THREE.MeshLambertMaterial({ color: 0x0d0d0d }),
+      wooferSurrM: new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+      dustCapM: new THREE.MeshLambertMaterial({ color: 0x080808 }),
+      cableM: new THREE.MeshLambertMaterial({ color: 0x111111 }),
+      innerExposedM: new THREE.MeshLambertMaterial({ color: 0x383430, map: roughTex }),
+      crackLineM: new THREE.MeshLambertMaterial({ color: 0x222220 }),
+      roughRingM: new THREE.MeshLambertMaterial({ color: 0x5a5852, map: roughTex }),
+      topDetailM: new THREE.MeshLambertMaterial({ color: 0xb8b4ac, map: concTex }),
+    };
+    return concreteMonolithSpkCache;
+  }
+
   /**
    * Perimeter anchor points (XZ diamond), fixed height — membrane edge attachment.
    */
   function createAnchors() {
     const R = DIAMOND_R;
-    const y = SQ_ROOF_Y - 0.065 * TENT_SCALE;
+    /** Верх периметра ближе к линии несущей рамы — нижний купол «надет» на контур */
+    const y = SQ_ROOF_Y - 0.03 * TENT_SCALE;
     const nPerEdge = 18;
     const corners = [
       new THREE.Vector3(0, y, -R),
@@ -473,6 +959,12 @@
     const dt = options.dt ?? 0.26;
     const damping = options.damping ?? 0.997;
     const gY = options.gravityY ?? -0.016 * TENT_SCALE;
+    /** Dimensionless convex lift vs flat IDW (tensioned inflated canopy) */
+    const convexBulgeAmp = options.convexBulgeAmp ?? 0;
+    /** Low undulation between peaks / perimeter (subtle height variation) */
+    const undulationAmp = options.undulationAmp ?? 0;
+    /** Per-iteration upward bias on interior (keeps volume under gravity) */
+    const inflateK = options.inflateK ?? 0;
     const uEps = 2.1 / Math.max(nu, nv);
     const anchorY = anchorPoints[0].y;
 
@@ -529,11 +1021,22 @@
         const ii = idx(i, j);
         const { x, z } = diamondUvToXz(u, v, R);
         const y0 = idwY(x, z);
+        const man = Math.abs(u - 0.5) + Math.abs(v - 0.5);
+        /** Softer falloff → bulge reaches further toward perimeter (fuller tensile silhouette). */
+        const centerLift = Math.pow(Math.max(0, 1 - man * 0.88), 1.08);
+        const convexY = convexBulgeAmp * TENT_SCALE * centerLift;
+        /** Long-wave sag/hill between peaks — smooth, not crinkled micro-folds. */
+        const und =
+          undulationAmp * TENT_SCALE * centerLift *
+          Math.sin(u * Math.PI * 2 * 1.22 + 0.28) *
+          Math.sin(v * Math.PI * 2 * 0.98 - 0.18);
         const b = ii * 3;
         pos[b] = x;
         pos[b + 1] = y0
-          + Math.sin(u * 6.4 + v * 2.1 + 0.62) * 0.014 * TENT_SCALE
-          + Math.cos(v * 5.8 - u * 1.7) * 0.011 * TENT_SCALE;
+          + convexY
+          + und
+          + Math.sin(u * 3.8 + v * 1.25 + 0.5) * 0.0022 * TENT_SCALE
+          + Math.cos(v * 3.4 - u * 1.1) * 0.0019 * TENT_SCALE;
         pos[b + 2] = z;
 
         let kind = 0;
@@ -624,6 +1127,19 @@
         acc[vi * 3 + 1] += gY;
       }
 
+      if (inflateK > 0) {
+        for (let vi = 0; vi < count; vi++) {
+          if (pinned[vi]) continue;
+          const i = vi % (nu + 1);
+          const j = (vi / (nu + 1)) | 0;
+          const uu = i / nu;
+          const vv = j / nv;
+          const manI = Math.abs(uu - 0.5) + Math.abs(vv - 0.5);
+          const wt = Math.pow(Math.max(0, 1 - manI * 0.88), 1.04);
+          acc[vi * 3 + 1] += inflateK * TENT_SCALE * wt;
+        }
+      }
+
       for (let vi = 0; vi < count; vi++) {
         if (pinned[vi]) continue;
         const b = vi * 3;
@@ -682,6 +1198,360 @@
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
+
+    /** Ordered rim from relaxed ceiling (v=0 → u=1 → v=1 → u=0) for wall top attachment — geometry unchanged above. */
+    function vecFromPos(ii) {
+      const b = ii * 3;
+      return new THREE.Vector3(pos[b], pos[b + 1], pos[b + 2]);
+    }
+    const ceilingRing = [];
+    for (let i = 0; i <= nu; i++) ceilingRing.push(vecFromPos(idx(i, 0)));
+    for (let j = 1; j <= nv; j++) ceilingRing.push(vecFromPos(idx(nu, j)));
+    for (let i = nu - 1; i >= 0; i--) ceilingRing.push(vecFromPos(idx(i, nv)));
+    for (let j = nv - 1; j >= 1; j--) ceilingRing.push(vecFromPos(idx(0, j)));
+
+    return { geometry: geo, vertexCount: count, ceilingRing };
+  }
+
+  /**
+   * Вдавленный «кратер» на нижнем слое купола: вогнутость + мягкий валик по контуру,
+   * слегка неровный край (угловая модуляция радиуса). Только геометрия Y + пересчёт нормалей.
+   */
+  function applyRoofCraterDisplacement(geometry) {
+    const pos = geometry.attributes.position;
+    if (!pos) return;
+    const cx = OCULUS_CENTER_X;
+    const cz = OCULUS_CENTER_Z;
+    const craterR = OCULUS_APERTURE_R * 2.12;
+    const depth = 0.056 * TENT_SCALE;
+    const rimH = 0.019 * TENT_SCALE;
+    const uCap = 1.05;
+    const bowlEdge = 0.74;
+
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const dx = x - cx;
+      const dz = z - cz;
+      const r = Math.hypot(dx, dz);
+      const ang = Math.atan2(dz, dx);
+      const edgeIrreg =
+        1 +
+        0.034 * Math.sin(3 * ang + 0.58) +
+        0.02 * Math.sin(5 * ang - 1.05);
+      const u = r / (craterR * edgeIrreg);
+      if (u > uCap + 0.2) continue;
+
+      const boundaryFade = ss(clamp((uCap + 0.12 - u) / 0.22, 0, 1));
+      const bowl = -depth * Math.pow(clamp(1 - u / bowlEdge, 0, 1), 1.62);
+      const rim = rimH * Math.exp(-Math.pow((u - 0.87) / 0.1, 2));
+      const disp = (bowl + rim) * boundaryFade;
+      pos.setY(i, y + disp);
+    }
+    pos.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }
+
+  /**
+   * Cuts triangles whose plan centroid lies inside a cylinder — one dominant circular opening (oculus).
+   * Keeps fabric ring / crater rim; call after applyRoofCraterDisplacement.
+   */
+  function removeRoofTrianglesInsideOpening(geometry, cx, cz, holeR) {
+    const index = geometry.index;
+    const pos = geometry.attributes.position;
+    if (!index || !pos) return;
+    const ia = index.array;
+    const next = [];
+    for (let i = 0; i < ia.length; i += 3) {
+      const i1 = ia[i];
+      const i2 = ia[i + 1];
+      const i3 = ia[i + 2];
+      const mx = (pos.getX(i1) + pos.getX(i2) + pos.getX(i3)) / 3;
+      const mz = (pos.getZ(i1) + pos.getZ(i2) + pos.getZ(i3)) / 3;
+      if (Math.hypot(mx - cx, mz - cz) < holeR) continue;
+      next.push(i1, i2, i3);
+    }
+    geometry.setIndex(next);
+    geometry.computeVertexNormals();
+  }
+
+  /**
+   * Ground stakes: same winding as ceilingRing — pulled outward and down to grade (tent guy tension).
+   */
+  function createWallGroundAnchors(ceilingRing) {
+    const yG = 0.015 * TENT_SCALE;
+    const pullBase = 0.34 * TENT_SCALE;
+    return ceilingRing.map((p) => {
+      const h = Math.hypot(p.x, p.z) + 1e-6;
+      const ox = p.x / h;
+      const oz = p.z / h;
+      const edge = Math.max(Math.abs(p.x), Math.abs(p.z)) / (DIAMOND_R + 1e-6);
+      const pull = pullBase * (0.92 + 0.14 * edge);
+      return new THREE.Vector3(p.x + ox * pull, yG, p.z + oz * pull);
+    });
+  }
+
+  /**
+   * Tensioned tent wall: rim → ground stakes, Verlet springs + outward/down guy logic.
+   * Reads as stretched fabric (camping / tensile stake-down), not a hanging curtain.
+   */
+  function generateWallMembrane(ceilingRing, groundAnchors, options = {}) {
+    const nU = ceilingRing.length;
+    const nV = options.nV ?? 32;
+    const kStruct = options.kStructural ?? 1.18;
+    const kShear = options.kShear ?? 0.52;
+    const iters = options.iterations ?? 210;
+    const dt = options.dt ?? 0.22;
+    const damping = options.damping ?? 0.997;
+    const gY = options.gravityY ?? -0.0018 * TENT_SCALE;
+    const outwardBias = options.outwardBias ?? 0.036 * TENT_SCALE;
+    const cableK = options.cableK ?? 0.11;
+    const chordK = options.chordK ?? 0.024;
+    const vRest = options.verticalRestScale ?? 0.87;
+
+    const widx = (u, v) => v * nU + u;
+    const count = nU * (nV + 1);
+    const pos = new Float32Array(count * 3);
+    const prev = new Float32Array(count * 3);
+    const pinned = new Uint8Array(count);
+    const pinTarget = new Float32Array(count * 3);
+
+    for (let v = 0; v <= nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const ii = widx(u, v);
+        const b = ii * 3;
+        const top = ceilingRing[u];
+        const bot = groundAnchors[u];
+        const t = v / nV;
+        if (v === 0) {
+          pos[b] = top.x;
+          pos[b + 1] = top.y;
+          pos[b + 2] = top.z;
+          pinned[ii] = 1;
+          pinTarget[b] = top.x;
+          pinTarget[b + 1] = top.y;
+          pinTarget[b + 2] = top.z;
+        } else if (v === nV) {
+          pos[b] = bot.x;
+          pos[b + 1] = bot.y;
+          pos[b + 2] = bot.z;
+          pinned[ii] = 1;
+          pinTarget[b] = bot.x;
+          pinTarget[b + 1] = bot.y;
+          pinTarget[b + 2] = bot.z;
+        } else {
+          let x = top.x + (bot.x - top.x) * t;
+          let y = top.y + (bot.y - top.y) * t;
+          let z = top.z + (bot.z - top.z) * t;
+          const hl = Math.hypot(x, z) + 1e-6;
+          const uAz = (u / nU) * Math.PI * 2;
+          const micro = 0.0055 * TENT_SCALE * Math.sin(uAz * 9 + t * 11);
+          const mid = Math.sin(Math.PI * t);
+          x += (x / hl) * micro * mid;
+          z += (z / hl) * micro * mid;
+          pos[b] = x;
+          pos[b + 1] = y;
+          pos[b + 2] = z;
+          pinned[ii] = 0;
+        }
+      }
+    }
+
+    prev.set(pos);
+
+    /** Virtual guy points along each stake line — pull fabric down-out, not inward sag */
+    const cableTargets = [];
+    const nCable = Math.min(64, Math.max(20, Math.floor(nU / 4)));
+    for (let c = 0; c < nCable; c++) {
+      const u = Math.floor((c + 0.5) * nU / nCable) % nU;
+      const top = ceilingRing[u];
+      const bot = groundAnchors[u];
+      const band = (c % 4) * 0.14;
+      const tv = 0.36 + band;
+      let cx = top.x + (bot.x - top.x) * tv;
+      let cy = top.y + (bot.y - top.y) * tv;
+      let cz = top.z + (bot.z - top.z) * tv;
+      const ch = Math.hypot(cx, cz) + 1e-6;
+      const outNudge = 0.026 * TENT_SCALE;
+      cx += (cx / ch) * outNudge;
+      cz += (cz / ch) * outNudge;
+      cableTargets.push({ x: cx, y: cy, z: cz });
+    }
+
+    const edges = [];
+    function pushEdge(a, b, k, restMul = 1) {
+      const ax = pos[a * 3];
+      const ay = pos[a * 3 + 1];
+      const az = pos[a * 3 + 2];
+      const bx = pos[b * 3];
+      const by = pos[b * 3 + 1];
+      const bz = pos[b * 3 + 2];
+      const rest = Math.hypot(bx - ax, by - ay, bz - az) * restMul;
+      edges.push({ a, b, rest, k });
+    }
+
+    for (let v = 0; v < nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const a = widx(u, v);
+        const b = widx((u + 1) % nU, v);
+        const c = widx(u, v + 1);
+        const d = widx((u + 1) % nU, v + 1);
+        pushEdge(a, b, kStruct * 1.06, 1);
+        pushEdge(a, c, kStruct * 1.14, vRest);
+        pushEdge(a, d, kShear * 1.05, 0.97);
+        pushEdge(b, c, kShear * 1.05, 0.97);
+      }
+    }
+
+    const acc = new Float32Array(count * 3);
+
+    for (let it = 0; it < iters; it++) {
+      acc.fill(0);
+      for (let e = 0, nE = edges.length; e < nE; e++) {
+        const ed = edges[e];
+        const ia = ed.a;
+        const ib = ed.b;
+        const ba = ia * 3;
+        const bb = ib * 3;
+        let dx = pos[bb] - pos[ba];
+        let dy = pos[bb + 1] - pos[ba + 1];
+        let dz = pos[bb + 2] - pos[ba + 2];
+        const len = Math.hypot(dx, dy, dz);
+        if (len < 1e-9) continue;
+        const s = ((len - ed.rest) / len) * ed.k;
+        dx *= s;
+        dy *= s;
+        dz *= s;
+        if (!pinned[ia]) {
+          acc[ba] += dx;
+          acc[ba + 1] += dy;
+          acc[ba + 2] += dz;
+        }
+        if (!pinned[ib]) {
+          acc[bb] -= dx;
+          acc[bb + 1] -= dy;
+          acc[bb + 2] -= dz;
+        }
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const b = vi * 3;
+        acc[b + 1] += gY;
+        const px = pos[b];
+        const pz = pos[b + 2];
+        const hl = Math.hypot(px, pz) + 1e-6;
+        const vRowG = (vi / nU) | 0;
+        const midArch = Math.sin((Math.PI * vRowG) / nV);
+        const radialOE = outwardBias * (0.16 + 0.84 * midArch * midArch);
+        acc[b] += (px / hl) * radialOE;
+        acc[b + 2] += (pz / hl) * radialOE;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const u = vi % nU;
+        const vRow = (vi / nU) | 0;
+        if (vRow === 0 || vRow === nV) continue;
+        const b = vi * 3;
+        const px = pos[b];
+        const py = pos[b + 1];
+        const pz = pos[b + 2];
+        const iCable = Math.floor((u / nU) * cableTargets.length) % cableTargets.length;
+        for (let k = -1; k <= 1; k++) {
+          const ct = cableTargets[(iCable + k + cableTargets.length) % cableTargets.length];
+          const dx = ct.x - px;
+          const dy = ct.y - py;
+          const dz = ct.z - pz;
+          const d2 = dx * dx + dy * dy + dz * dz + 280;
+          const w = k === 0 ? 1 : 0.42;
+          const f = (cableK * TENT_SCALE / d2) * w;
+          acc[b] += dx * f;
+          acc[b + 1] += dy * f;
+          acc[b + 2] += dz * f;
+        }
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const u = vi % nU;
+        const vRow = (vi / nU) | 0;
+        if (vRow === 0 || vRow === nV) continue;
+        const b = vi * 3;
+        const top = ceilingRing[u];
+        const bot = groundAnchors[u];
+        const t = vRow / nV;
+        const tx = top.x + (bot.x - top.x) * t;
+        const ty = top.y + (bot.y - top.y) * t;
+        const tz = top.z + (bot.z - top.z) * t;
+        const dx = tx - pos[b];
+        const dy = ty - pos[b + 1];
+        const dz = tz - pos[b + 2];
+        const ck = chordK * TENT_SCALE;
+        acc[b] += dx * ck;
+        acc[b + 1] += dy * ck;
+        acc[b + 2] += dz * ck;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (pinned[vi]) continue;
+        const b = vi * 3;
+        const px = pos[b];
+        const py = pos[b + 1];
+        const pz = pos[b + 2];
+        const qx = prev[b];
+        const qy = prev[b + 1];
+        const qz = prev[b + 2];
+        const nx = px + (px - qx) * damping + acc[b] * dt * dt;
+        const ny = py + (py - qy) * damping + acc[b + 1] * dt * dt;
+        const nz = pz + (pz - qz) * damping + acc[b + 2] * dt * dt;
+        prev[b] = px;
+        prev[b + 1] = py;
+        prev[b + 2] = pz;
+        pos[b] = nx;
+        pos[b + 1] = ny;
+        pos[b + 2] = nz;
+      }
+
+      for (let vi = 0; vi < count; vi++) {
+        if (!pinned[vi]) continue;
+        const b = vi * 3;
+        pos[b] = pinTarget[b];
+        pos[b + 1] = pinTarget[b + 1];
+        pos[b + 2] = pinTarget[b + 2];
+        prev[b] = pinTarget[b];
+        prev[b + 1] = pinTarget[b + 1];
+        prev[b + 2] = pinTarget[b + 2];
+      }
+    }
+
+    const verts = new Float32Array(count * 3);
+    verts.set(pos);
+    const uvs = new Float32Array(count * 2);
+    const indices = [];
+    for (let v = 0; v <= nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const ii = widx(u, v);
+        uvs[ii * 2] = u / nU;
+        uvs[ii * 2 + 1] = v / nV;
+      }
+    }
+    for (let v = 0; v < nV; v++) {
+      for (let u = 0; u < nU; u++) {
+        const a = widx(u, v);
+        const b = widx((u + 1) % nU, v);
+        const c = widx(u, v + 1);
+        const d = widx((u + 1) % nU, v + 1);
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
     return { geometry: geo, vertexCount: count };
   }
 
@@ -691,38 +1561,353 @@
     const anchorPoints = createAnchors();
     const mastData = createMasts();
     const tensile = generateTensileSurface(anchorPoints, mastData, {
-      nu: 78,
-      nv: 78,
-      iterations: 175,
+      nu: 82,
+      nv: 82,
+      iterations: 252,
+      gravityY: -0.00175 * TENT_SCALE,
+      kStructural: 0.97,
+      kShear: 0.37,
+      convexBulgeAmp: 0.128,
+      undulationAmp: 0.017,
+      inflateK: 0.0155,
+    });
+
+    const wallAnchors = createWallGroundAnchors(tensile.ceilingRing);
+    const wallMem = generateWallMembrane(tensile.ceilingRing, wallAnchors, {
+      nV: 38,
+      iterations: 228,
+      outwardBias: 0.041 * TENT_SCALE,
+      cableK: 0.125,
+      chordK: 0.029,
+      gravityY: -0.0014 * TENT_SCALE,
+      kStructural: 1.24,
+      kShear: 0.55,
+      verticalRestScale: 0.86,
     });
 
     const roofBumpRep = 3.2;
     const rBump = bedding.bumpMap.clone();
     rBump.wrapS = rBump.wrapT = THREE.RepeatWrapping;
     rBump.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
-    const roofMat = new THREE.MeshStandardMaterial({
-      color: 0xf5f0e6,
+    const wallBump = bedding.bumpMap.clone();
+    wallBump.wrapS = wallBump.wrapT = THREE.RepeatWrapping;
+    wallBump.repeat.set(roofBumpRep * 2.05, roofBumpRep * 2.12);
+    const wallMap = bedding.map.clone();
+    wallMap.wrapS = wallMap.wrapT = THREE.RepeatWrapping;
+    wallMap.repeat.set(5.4, 5.2);
+
+    const skinRoofMat = new THREE.MeshStandardMaterial({
+      color: 0xede8de,
       map: bedding.map,
       bumpMap: rBump,
-      bumpScale: 0.018 * (TENT_SCALE / 4),
-      roughness: 0.88,
+      bumpScale: 0.011 * (TENT_SCALE / 4),
+      roughness: 0.96,
       metalness: 0,
       envMap,
-      envMapIntensity: 0.42,
-      emissive: new THREE.Color(0x2a2418),
-      emissiveIntensity: 0.028,
+      envMapIntensity: 0.3,
+      emissive: new THREE.Color(0xf3ede4),
+      emissiveIntensity: 0.034,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.62,
+      opacity: 0.55,
       depthWrite: false,
     });
+    const skinWallMat = skinRoofMat.clone();
+    skinWallMat.color.setHex(0xeee6da);
+    skinWallMat.map = wallMap;
+    skinWallMat.bumpMap = wallBump;
+    skinWallMat.bumpScale = 0.0185 * (TENT_SCALE / 4);
+    skinWallMat.roughness = 0.94;
+    skinWallMat.envMapIntensity = 0.34;
+    skinWallMat.emissive.setHex(0xf2ebe0);
+    skinWallMat.emissiveIntensity = 0.042;
+    skinWallMat.opacity = 0.58;
 
-    const roofMesh = new THREE.Mesh(tensile.geometry, roofMat);
-    g.add(roofMesh);
+    const roofGeo = tensile.geometry.clone();
+    applyRoofCraterDisplacement(roofGeo);
+    removeRoofTrianglesInsideOpening(roofGeo, OCULUS_CENTER_X, OCULUS_CENTER_Z, ROOF_OCULUS_CUT_R);
+    const wallGeoForMerge = wallMem.geometry.clone();
+    const roofIndexCount = roofGeo.index.count;
+    const wallIndexCount = wallGeoForMerge.index.count;
+    let mergedSkinGeo = mergeGeometries([roofGeo, wallGeoForMerge], false);
+    mergedSkinGeo = mergeVertices(mergedSkinGeo, 3.6);
+    mergedSkinGeo.clearGroups();
+    mergedSkinGeo.addGroup(0, roofIndexCount, 0);
+    mergedSkinGeo.addGroup(roofIndexCount, wallIndexCount, 1);
+    mergedSkinGeo.computeVertexNormals();
 
-    const fabricMaterials = [roofMat];
+    const unifiedSkinMesh = new THREE.Mesh(mergedSkinGeo, [skinRoofMat, skinWallMat]);
+    unifiedSkinMesh.name = 'unifiedTentSkin';
+    unifiedSkinMesh.visible = false;
+    unifiedSkinMesh.frustumCulled = false;
+    g.add(unifiedSkinMesh);
 
-    return { group: g, fabricMaterials, diagMat: null, wallWindUniforms: null };
+    const roofVeilGeo = tensile.geometry.clone();
+    applyRoofCraterDisplacement(roofVeilGeo);
+    removeRoofTrianglesInsideOpening(roofVeilGeo, OCULUS_CENTER_X, OCULUS_CENTER_Z, ROOF_OCULUS_CUT_R);
+    const rBumpVeil = bedding.bumpMap.clone();
+    rBumpVeil.wrapS = rBumpVeil.wrapT = THREE.RepeatWrapping;
+    rBumpVeil.repeat.set(roofBumpRep * 2.0, roofBumpRep * 2.0);
+    const roofVeilMat = skinRoofMat.clone();
+    roofVeilMat.bumpMap = rBumpVeil;
+    roofVeilMat.opacity = 0.34;
+    roofVeilMat.emissiveIntensity = 0.048;
+    roofVeilMat.envMapIntensity = 0.26;
+    roofVeilMat.depthWrite = false;
+    roofVeilMat.side = THREE.DoubleSide;
+    const roofVeilMesh = new THREE.Mesh(roofVeilGeo, roofVeilMat);
+    /** Вторая мембрана заметно ниже основного купола — читается как реальный второй слой, не отдельный «летающий» лист */
+    roofVeilMesh.position.y = 1.52 * TENT_SCALE;
+    roofVeilMesh.scale.set(1.01, 1, 1.01);
+    roofVeilMesh.rotation.y = 0.011;
+
+    const fabricRoofGroup = new THREE.Group();
+    fabricRoofGroup.visible = false;
+    fabricRoofGroup.add(roofVeilMesh);
+    g.add(fabricRoofGroup);
+
+    const tentFloorBump = makeTentInteriorFloorBumpMap();
+    const fR = DIAMOND_R * 1.07;
+    const floorShape = new THREE.Shape();
+    floorShape.moveTo(0, -fR);
+    floorShape.lineTo(fR, 0);
+    floorShape.lineTo(0, fR);
+    floorShape.lineTo(-fR, 0);
+    floorShape.closePath();
+    const floorGeo = new THREE.ShapeGeometry(floorShape, 36);
+    floorGeo.rotateX(-Math.PI / 2);
+    const fPos = floorGeo.attributes.position;
+    const foldAmp = 0.06 * TENT_SCALE;
+    for (let i = 0; i < fPos.count; i++) {
+      const x = fPos.getX(i);
+      const y = fPos.getY(i);
+      const z = fPos.getZ(i);
+      const w = Math.sin(x * 0.0092 + z * 0.0076) * Math.cos(z * 0.011 - x * 0.004);
+      fPos.setY(i, y + foldAmp * w);
+    }
+    fPos.needsUpdate = true;
+    floorGeo.computeVertexNormals();
+    tentFloorBump.anisotropy = bedding.map.anisotropy || 1;
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: null,
+      bumpMap: tentFloorBump,
+      bumpScale: 0.018 * (TENT_SCALE / 4),
+      roughness: 0.92,
+      metalness: 0,
+      envMap,
+      envMapIntensity: 0.18,
+      emissive: new THREE.Color(0x000000),
+      emissiveIntensity: 0,
+      side: THREE.DoubleSide,
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 2,
+      polygonOffsetUnits: 2,
+    });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.name = 'tentInteriorFloor';
+    const floorBaseY = 0.2 * TENT_SCALE;
+    floorMesh.position.y = floorBaseY;
+    floorMesh.renderOrder = 1;
+    floorMesh.userData.floorBaseY = floorBaseY;
+    /** Старт у верхней зоны купола/неба, не чуть над столом — визуально спуск с неба */
+    floorMesh.userData.floorDropFromSky =
+      SQ_ROOF_Y - floorBaseY + 2.05 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
+    g.add(floorMesh);
+
+    const stakeEvery = Math.max(1, Math.floor(wallAnchors.length / 32));
+    let nStakes = 0;
+    for (let i = 0; i < wallAnchors.length; i += stakeEvery) nStakes++;
+    const stakeGeo = new THREE.CylinderGeometry(0.05 * TENT_SCALE, 0.065 * TENT_SCALE, 0.055 * TENT_SCALE, 6);
+    stakeGeo.translate(0, 0.028 * TENT_SCALE, 0);
+    const stakeMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3630,
+      roughness: 0.91,
+      metalness: 0.07,
+      envMap,
+      envMapIntensity: 0.2,
+    });
+    const stakeMesh = new THREE.InstancedMesh(stakeGeo, stakeMat, nStakes);
+    const stakeDummy = new THREE.Object3D();
+    let stakeIdx = 0;
+    for (let i = 0; i < wallAnchors.length; i += stakeEvery) {
+      stakeDummy.position.copy(wallAnchors[i]);
+      stakeDummy.rotation.set(0, 0, 0);
+      stakeDummy.scale.setScalar(1);
+      stakeDummy.updateMatrix();
+      stakeMesh.setMatrixAt(stakeIdx++, stakeDummy.matrix);
+    }
+    stakeMesh.instanceMatrix.needsUpdate = true;
+    stakeMesh.name = 'tentGroundStakes';
+    g.add(stakeMesh);
+
+    /**
+     * Внутренние подвесные полосы (вуаль): вертикальные полупрозрачные панели под куполом,
+     * не стены — глубина, проход сквозь слои, лёгкий крен в updateScene.
+     */
+    const hangingInteriorFabricGroup = new THREE.Group();
+    hangingInteriorFabricGroup.name = 'hangingInteriorFabric';
+    let hfSeed = 514229;
+    function hfRnd() {
+      hfSeed = (hfSeed * 16807 + 1013904223) >>> 0;
+      return hfSeed / 4294967296;
+    }
+    const hfPlaced = [];
+    const nHangPanels = 12;
+    const floorTopY = 0.2 * TENT_SCALE;
+    const minClearAboveFloor = 0.34 * TENT_SCALE;
+    const voileMat = new THREE.MeshStandardMaterial({
+      color: 0xfcfaf7,
+      roughness: 0.96,
+      metalness: 0,
+      envMap,
+      envMapIntensity: 0.38,
+      emissive: new THREE.Color(0xf6f4f0),
+      emissiveIntensity: 0.072,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false,
+    });
+    function hfDiamondOk(px, pz) {
+      return Math.abs(px) + Math.abs(pz) < DIAMOND_R * 0.84;
+    }
+    function hfOculusOk(px, pz) {
+      return Math.hypot(px - OCULUS_CENTER_X, pz - OCULUS_CENTER_Z) > ROOF_OCULUS_CUT_R * 1.25 + 0.045 * TENT_SCALE;
+    }
+    const hangPeakLift =
+      Math.max(...TENSILE_PEAK_SPEC.map((s) => s.yLift)) * TENT_SCALE;
+    /** Одна линия крепления для всех штор (без рандома по Y — верх ровный).
+     * При TENT_SCALE=24: ≈300 (было ≈307 при −0.19·T) */
+    const hangRailY =
+      SQ_ROOF_Y + hangPeakLift * 0.88 - 0.475 * TENT_SCALE;
+    for (let hi = 0; hi < nHangPanels; hi++) {
+      let px = 0;
+      let pz = 0;
+      let ok = false;
+      for (let att = 0; att < 90 && !ok; att++) {
+        const t = hfRnd() * Math.PI * 2 + hi * 0.73;
+        const rBias = 0.18 + hfRnd() * 0.82;
+        const rad = DIAMOND_R * (0.12 + rBias * 0.72) * (0.88 + 0.24 * Math.sin(t * 2.1 + hi));
+        px = Math.cos(t) * rad * (0.82 + hfRnd() * 0.36);
+        pz = Math.sin(t) * rad * (0.8 + hfRnd() * 0.38);
+        px += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
+        pz += (hfRnd() - 0.5) * 0.07 * DIAMOND_R;
+        const minD = (0.3 + hfRnd() * 0.2) * DIAMOND_R;
+        let spaced = true;
+        for (let i = 0; i < hfPlaced.length; i++) {
+          if (Math.hypot(hfPlaced[i].x - px, hfPlaced[i].z - pz) < minD) {
+            spaced = false;
+            break;
+          }
+        }
+        if (hfDiamondOk(px, pz) && hfOculusOk(px, pz) && spaced) ok = true;
+      }
+      if (!ok) continue;
+      hfPlaced.push({ x: px, z: pz });
+      const topY = hangRailY;
+      const maxLen = Math.max(0.22 * SQ_ROOF_Y, topY - floorTopY - minClearAboveFloor);
+      const wantLen = SQ_ROOF_Y * (0.42 + hfRnd() * 0.48);
+      const len = Math.max(0.28 * SQ_ROOF_Y, Math.min(wantLen, maxLen * (0.82 + hfRnd() * 0.2)));
+      const w = (0.175 + hfRnd() * 0.22) * DIAMOND_R;
+      /** Сегменты по ширине/высоте — широкие полосы, плотнее сетка по X для мягкого изгиба */
+      const stripGeo = new THREE.PlaneGeometry(w, len, 7, 32);
+      const mat = voileMat.clone();
+      mat.opacity = 0.5 + hfRnd() * 0.18;
+      mat.transparent = true;
+      mat.depthWrite = false;
+      mat.userData.hangBaseOpacity = mat.opacity;
+      const strip = new THREE.Mesh(stripGeo, mat);
+      strip.position.set(0, -0.5 * len, 0);
+      strip.renderOrder = 2;
+      const pa0 = stripGeo.attributes.position.array;
+      const hangRest = new Float32Array(pa0.length);
+      hangRest.set(pa0);
+      strip.userData.hangRestPos = hangRest;
+      strip.userData.hangLen = len;
+      const pivot = new THREE.Group();
+      pivot.position.set(px, topY, pz);
+      pivot.add(strip);
+      pivot.userData.panelSway = true;
+      pivot.userData.anchorPx = px;
+      pivot.userData.anchorPy = topY;
+      pivot.userData.anchorPz = pz;
+      pivot.userData.baseRy = hfRnd() * Math.PI * 2 + (hfRnd() - 0.5) * 0.85;
+      pivot.userData.swayPhase = hfRnd() * Math.PI * 2;
+      pivot.userData.swayPhase2 = hfRnd() * Math.PI * 2;
+      pivot.userData.swayPhase3 = hfRnd() * Math.PI * 2;
+      pivot.userData.windK = 0.55 + hfRnd() * 0.48;
+      pivot.userData.dfRx = 0.079 + hfRnd() * 0.068;
+      pivot.userData.dfRx2 = 0.048 + hfRnd() * 0.045;
+      pivot.userData.dfRx3 = 0.105 + hfRnd() * 0.092;
+      pivot.userData.dfRz = 0.088 + hfRnd() * 0.076;
+      pivot.userData.dfRz2 = 0.058 + hfRnd() * 0.052;
+      pivot.userData.dfRz3 = 0.132 + hfRnd() * 0.088;
+      pivot.userData.dfCr = 0.044 + hfRnd() * 0.039;
+      pivot.userData.dfLat = len * (0.010 + hfRnd() * 0.013) * (0.9 + hi * 0.004);
+      pivot.userData.dfLat2 = len * (0.0065 + hfRnd() * 0.0095);
+      pivot.userData.dfLat3 = len * (0.0045 + hfRnd() * 0.007);
+      pivot.userData.dfOut = len * (0.0085 + hfRnd() * 0.011);
+      pivot.userData.dfOut2 = len * (0.0058 + hfRnd() * 0.0088);
+      pivot.userData.dfOut3 = len * (0.004 + hfRnd() * 0.0065);
+      pivot.userData.dfCurl = len * (0.0055 + hfRnd() * 0.0075);
+      pivot.userData.dfShear = len * (0.0038 + hfRnd() * 0.0055);
+      pivot.userData.dfRowJ = 0.55 + hfRnd() * 1.2;
+      pivot.rotation.y = pivot.userData.baseRy;
+      hangingInteriorFabricGroup.add(pivot);
+    }
+    /** Убрать одну полосу прямо над зоной стола (окуляр): ближайшая к OCULUS_CENTER в XZ */
+    {
+      let victim = null;
+      let bestD = Infinity;
+      for (let ci = 0; ci < hangingInteriorFabricGroup.children.length; ci++) {
+        const piv = hangingInteriorFabricGroup.children[ci];
+        const d = Math.hypot(
+          piv.position.x - OCULUS_CENTER_X,
+          piv.position.z - OCULUS_CENTER_Z
+        );
+        if (d < bestD) {
+          bestD = d;
+          victim = piv;
+        }
+      }
+      if (victim) {
+        hangingInteriorFabricGroup.remove(victim);
+        victim.traverse((o) => {
+          if (o.isMesh) {
+            o.geometry?.dispose();
+            const m = o.material;
+            if (m) {
+              if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+              else m.dispose();
+            }
+          }
+        });
+      }
+    }
+    hangingInteriorFabricGroup.visible = false;
+    g.add(hangingInteriorFabricGroup);
+
+    const fabricMaterials = [skinRoofMat, roofVeilMat, skinWallMat, floorMat];
+
+    stakeMesh.visible = false;
+
+    return {
+      group: g,
+      fabricMaterials,
+      wallMesh: unifiedSkinMesh,
+      unifiedSkinMesh,
+      stakeMesh,
+      fabricRoofGroup,
+      hangingInteriorFabricGroup,
+      floorMesh,
+      ceilingRing: tensile.ceilingRing,
+      diagMat: null,
+      wallWindUniforms: null,
+    };
   }
 
   /* Camera path — independent of TENT_SCALE; enlarge shell only via TENT_SCALE above */
@@ -732,11 +1917,37 @@
     { pos: [580, 285, 600], look: [0, 108, 0], canopyY: 295, tFade: 0.72, beam: 0.02, rays: 0, shadow: 0, cable: 0.52, mast: 1, oculusOp: 0 },
     { pos: [700, 245, 140], look: [0, 115, 0], canopyY: 318, tFade: 0.98, beam: 0.03, rays: 0, shadow: 0, cable: 0.88, mast: 1, oculusOp: 0 },
     { pos: [600, 165, 520], look: [0, 72, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.03, rays: 0.06, shadow: 0.1, cable: 0.92, mast: 1, oculusOp: 0 },
-    { pos: [520, 220, 520], look: [0, 78, 0], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
-    { pos: [240, 72, 300], look: [0, 58, -140], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    { pos: [512, 216, 498], look: [6, 76, -18], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.75, rays: 0.95, shadow: 0.09, cable: 0.92, mast: 1, oculusOp: 1 },
+    /** Interior (финал): внутри ромба, кадр на low DJ booth (OCULUS_CENTER), взгляд на стол/пульты */
+    { pos: [-43, 73, 27], look: [-74, 15, 46], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.4, rays: 0.32, shadow: 0.06, cable: 0.88, mast: 1, oculusOp: 0.82 },
+    /**
+     * SKY (сегмент 5): только перестановка — угол шатра, взгляд остаётся по объёму (без купола).
+     * Координаты согласованы с бывш. skyInteriorCorner от DIAMOND_R и KF5 по Y.
+     */
+    { pos: [79, 76, -82], look: [-46, 37, 29], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.42, rays: 0.34, shadow: 0.055, cable: 0.86, mast: 1, oculusOp: 0.82 },
+    /** SPACE (сегмент 6): та же точка стояния, что после SKY — только наклон взгляда к окуляру */
+    { pos: [79, 76, -82], look: [-38, 248, 32], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 0.98, rays: 1, shadow: 0.03, cable: 0.62, mast: 1, oculusOp: 1 },
+    /**
+     * Assembly (сегмент 7): полёт в белый объём — лучи/кольцо у окуляра нарастают (см. volVis, KF7→8).
+     */
+    { pos: [48, 205, 108], look: [22, 168, 412], canopyY: CANOPY_Y_MIN, tFade: 1, beam: 1.24, rays: 1.45, shadow: 0, cable: 0, mast: 0, oculusOp: 0 },
   ];
 
-  const NSEG = 5;
+  const NSEG = 8;
+  /** sl4 «Interior»: с p ≥ 4/8 — более тёмный серый UI (белый пол); до — светло-серый */
+  const INTERIOR_UI_START_P = 4 / NSEG;
+  /** Пол скрыт до середины Site; спуск с p = 0.5/NSEG до середины Structure p = 1.5/NSEG */
+  const FLOOR_DESCENT_START_P = 0.5 / NSEG;
+  const FLOOR_DESCENT_END_P = 1.5 / NSEG;
+  /** >1 — медленнее в начале интервала спуска */
+  const FLOOR_DESCENT_SLOW_POW = 1.52;
+  /** Доп. высота старта пола над зоной крыши (× TENT_SCALE) — выше = длиннее «падение с неба» */
+  const FLOOR_SKY_DROP_EXTRA_SCALE = 7.15;
+  /** Assembly: после полёта в белый — кроссфейд (доля сегмента uLin 0→1) */
+  const ASSEMBLY_PAGE_CROSS_START = 0.5;
+  const ASSEMBLY_PAGE_CROSS_LEN = 0.38;
+  const ROOF_SCROLL_START = ROOF_PROFILE_SEG / NSEG;
+  const ROOF_SCROLL_END = (ROOF_PROFILE_SEG + 1) / NSEG;
   const LWIN = [];
   for (let i = 0; i < NSEG; i++) {
     const seg0 = i / NSEG;
@@ -745,24 +1956,184 @@
     LWIN.push([seg0 + span * 0.55, seg1 - 0.012]);
   }
 
-  const labels = [0, 1, 2, 3, 4].map(i => document.getElementById('sl' + i));
-  const dots = [0, 1, 2, 3, 4].map(i => document.getElementById('d' + i));
-  const hint = document.getElementById('hint');
+  const labels = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('sl' + i));
+  const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
+  const scrollRootEl = document.getElementById('scrollRoot');
+  const scrollTrackEl = document.getElementById('scrollTrack');
+  const stageAudio = document.getElementById('stageAudio');
+  const soundToggle = document.getElementById('soundToggle');
+  let stageAudioWanted = true;
+  let stageAudioUnlocked = false;
+  let stageAudioAmbientSuppressed = false;
+
+  function updateStageAudioToggle() {
+    if (!soundToggle || !stageAudio) return;
+    const soundOn =
+      stageAudioWanted
+      && stageAudioUnlocked
+      && !stageAudioAmbientSuppressed
+      && !stageAudio.paused
+      && !stageAudio.muted;
+    soundToggle.textContent = soundOn ? 'sound on' : 'sound off';
+    soundToggle.setAttribute('aria-pressed', String(soundOn));
+    soundToggle.setAttribute('aria-label', soundOn ? 'Turn sound off' : 'Turn sound on');
+  }
+
+  async function syncStageAudioPlayback() {
+    if (!stageAudio) return;
+    if (stageAudioAmbientSuppressed || !stageAudioWanted) {
+      stageAudio.pause();
+      updateStageAudioToggle();
+      return;
+    }
+    stageAudio.muted = !stageAudioUnlocked;
+    try {
+      await stageAudio.play();
+    } catch (err) {}
+    updateStageAudioToggle();
+  }
+
+  async function unlockStageAudio() {
+    if (!stageAudio || stageAudioUnlocked) return;
+    stageAudioUnlocked = true;
+    await syncStageAudioPlayback();
+  }
+
+  if (stageAudio) {
+    stageAudio.volume = 0.9;
+    syncStageAudioPlayback();
+    stageAudio.addEventListener('ended', updateStageAudioToggle);
+    stageAudio.addEventListener('pause', updateStageAudioToggle);
+    stageAudio.addEventListener('play', updateStageAudioToggle);
+  }
+
+  if (soundToggle) {
+    soundToggle.addEventListener('click', async () => {
+      markStageInteraction();
+      stageAudioWanted = !stageAudioWanted;
+      if (stageAudioWanted) {
+        stageAudioUnlocked = true;
+      }
+      await syncStageAudioPlayback();
+    });
+  }
+
+  window.addEventListener('touchstart', markStageInteraction, { passive: true });
+  window.addEventListener('pointerdown', markStageInteraction, { passive: true });
+  window.addEventListener('wheel', markStageInteraction, { passive: true });
+  window.addEventListener('keydown', markStageInteraction);
+  window.addEventListener('pointerdown', unlockStageAudio, { passive: true, once: true });
+  window.addEventListener('wheel', unlockStageAudio, { passive: true, once: true });
+  window.addEventListener('keydown', unlockStageAudio, { once: true });
+
+  /**
+   * Подсказка скролла: реагирует на скорость прокрутки (px/мс), с EMA и гистерезисом.
+   * Выше ACTIVE — скрыть; ниже IDLE удерживается IDLE_HOLD_MS — снова показать. Повторяется на всём пути.
+   */
+  const SCROLL_HINT_VEL_IDLE_PX_MS = 0.014;
+  const SCROLL_HINT_VEL_ACTIVE_PX_MS = 0.038;
+  const SCROLL_HINT_IDLE_HOLD_MS = 200;
+  const SCROLL_HINT_VEL_EMA = 0.78;
+  let scrollHintVelLastT = 0;
+  let scrollHintVelLastY = 0;
+  let scrollHintVelEma = 0;
+  let scrollHintIdleSinceT = null;
+  /** true = нет заметной прокрутки, можно показывать подсказку (если сцена не скрывает) */
+  let scrollHintScrollIdle = true;
+
+  function bumpScrollHintMotionFromWheel() {
+    scrollHintVelEma = Math.max(
+      scrollHintVelEma,
+      SCROLL_HINT_VEL_ACTIVE_PX_MS * 1.35
+    );
+    scrollHintScrollIdle = false;
+    scrollHintIdleSinceT = null;
+  }
+
+  function updateScrollHintVelocity(nowMs) {
+    const y = scrollPositionY();
+    if (scrollHintVelLastT === 0) {
+      scrollHintVelLastT = nowMs;
+      scrollHintVelLastY = y;
+      return;
+    }
+    const dtMs = Math.max(1, nowMs - scrollHintVelLastT);
+    const instVel = Math.abs(y - scrollHintVelLastY) / dtMs;
+    scrollHintVelLastT = nowMs;
+    scrollHintVelLastY = y;
+    scrollHintVelEma = scrollHintVelEma * SCROLL_HINT_VEL_EMA + instVel * (1 - SCROLL_HINT_VEL_EMA);
+
+    if (scrollHintVelEma >= SCROLL_HINT_VEL_ACTIVE_PX_MS) {
+      scrollHintScrollIdle = false;
+      scrollHintIdleSinceT = null;
+    } else if (scrollHintVelEma <= SCROLL_HINT_VEL_IDLE_PX_MS) {
+      const y = scrollPositionY();
+      const maxY = Math.max(1, scrollPageMax());
+      const atTop = y < 4 && y / maxY < 0.008;
+      if (atTop) {
+        scrollHintScrollIdle = true;
+        scrollHintIdleSinceT = null;
+      } else {
+        if (scrollHintIdleSinceT == null) scrollHintIdleSinceT = nowMs;
+        if (nowMs - scrollHintIdleSinceT >= SCROLL_HINT_IDLE_HOLD_MS) {
+          scrollHintScrollIdle = true;
+        }
+      }
+    } else {
+      scrollHintScrollIdle = false;
+      scrollHintIdleSinceT = null;
+    }
+  }
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function ss(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
+  /** Perlin-smooth 0–1 for cinematic camera / sky reveal */
+  function smootherstep(t) {
+    t = clamp(t, 0, 1);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
   const posA = new THREE.Vector3(), posB = new THREE.Vector3();
   const lkA = new THREE.Vector3(), lkB = new THREE.Vector3(), lkT = new THREE.Vector3();
+  const djSpkDir = new THREE.Vector3();
+  const djSpkFaceDir = new THREE.Vector3();
+  const djSpkBoothW = new THREE.Vector3();
+  const djSpkCamW = new THREE.Vector3();
+  /** После азимута стол→камера: +90° по Y, затем «назад» на 20° → итого +70° в XZ */
+  const DJ_SPK_YAW_EXTRA = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    Math.PI / 2 - (20 / 180) * Math.PI
+  );
+  const djSpkParentQuat = new THREE.Quaternion();
+  const djSpkAlignQuat = new THREE.Quaternion();
+
+  function makeSunDiscTexture() {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 256;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 126);
+    g.addColorStop(0, 'rgba(255, 255, 252, 1)');
+    g.addColorStop(0.12, 'rgba(255, 248, 220, 0.95)');
+    g.addColorStop(0.35, 'rgba(255, 228, 170, 0.45)');
+    g.addColorStop(0.62, 'rgba(255, 210, 140, 0.12)');
+    g.addColorStop(1, 'rgba(255, 200, 120, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  const BLUEPRINT_WHITE = new THREE.Color(0xf2f4f8);
+  const VOL_RAY_WHITE = new THREE.Color(0xffffff);
+  const volRayColorTmp = new THREE.Color();
+  const BCOL = 0xffe8b8;
 
   let isMobile = false;
   let targetFPS = 60;
   let cameraBaseFov = 48;
   let scrollEase = 0.038;
-  let phaseLockMs = 1100;
-  let maxScrollDownPx = 38;
 
   function detectMobileProfile() {
     return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
@@ -773,8 +2144,7 @@
     targetFPS = isMobile ? 45 : 60;
     cameraBaseFov = isMobile ? 58 : 48;
     scrollEase = isMobile ? 0.07 : 0.038;
-    phaseLockMs = isMobile ? 760 : 1100;
-    maxScrollDownPx = isMobile ? 86 : 38;
+    updateStableScrollMetrics();
 
     if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     if (camera) {
@@ -785,52 +2155,69 @@
 
   let clk = 0, rawSP = 0, sp = 0;
   let lastFrame = 0, firstFrame = true;
+  let stableScrollViewportHeight = 0;
+  let stableViewportProfileIsMobile = null;
+  const useInternalScrollRoot = false;
 
-  let scrollAllowedEnd = 1 / NSEG;
-  let scrollPhaseLock = false;
-  let lastScrollY = -1;
+  const DESKTOP_SCROLL_TRACK_VH = 7.68;
+  const MOBILE_SCROLL_TRACK_VH = 8.96;
+
+  function scrollPositionY() {
+    return useInternalScrollRoot && scrollRootEl ? scrollRootEl.scrollTop : window.scrollY;
+  }
+
+  /** Текущий viewport для рендера; может меняться из-за mobile browser chrome. */
+  function scrollViewportHeight() {
+    const vv = window.visualViewport;
+    if (vv && vv.height > 1) return vv.height;
+    return window.innerHeight;
+  }
+
+  function scrollViewportWidth() {
+    const vv = window.visualViewport;
+    if (vv && vv.width > 1) return vv.width;
+    return window.innerWidth;
+  }
+
+  /**
+   * Для scroll-progress используем стабильную высоту viewport:
+   * mobile browser chrome может уменьшать текущий viewport, но не должна
+   * менять длину дорожки и блокировать скролл при обратном свайпе.
+   */
+  function updateStableScrollMetrics(forceReset = false) {
+    const currentH = Math.max(1, scrollViewportHeight());
+    const profileChanged = stableViewportProfileIsMobile !== isMobile;
+    if (forceReset || profileChanged || stableScrollViewportHeight <= 1) {
+      stableScrollViewportHeight = currentH;
+    } else {
+      stableScrollViewportHeight = Math.max(stableScrollViewportHeight, currentH);
+    }
+    stableViewportProfileIsMobile = isMobile;
+
+    if (scrollTrackEl) {
+      const trackFactor = isMobile ? MOBILE_SCROLL_TRACK_VH : DESKTOP_SCROLL_TRACK_VH;
+      const trackPx = Math.max(1, Math.round(stableScrollViewportHeight * trackFactor));
+      scrollTrackEl.style.height = `${trackPx}px`;
+      scrollTrackEl.style.minHeight = `${trackPx}px`;
+    }
+  }
+
+  function scrollProgressViewportHeight() {
+    return stableScrollViewportHeight > 1 ? stableScrollViewportHeight : scrollViewportHeight();
+  }
 
   function scrollPageMax() {
-    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const trackHeight = scrollTrackEl ? scrollTrackEl.offsetHeight : document.documentElement.scrollHeight;
+    return Math.max(0, trackHeight - scrollProgressViewportHeight());
   }
 
   function syncRawScrollProgress() {
     const max = scrollPageMax();
-    rawSP = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
+    rawSP = max > 0 ? clamp(scrollPositionY() / max, 0, 1) : 0;
   }
 
   function applyScrollPhaseControl() {
-    const max = scrollPageMax();
-    if (max <= 0) return;
-
-    let y = window.scrollY;
-    const capPx = scrollAllowedEnd * max;
-
-    if (lastScrollY < 0) lastScrollY = y;
-
-    if (scrollPhaseLock) {
-      if (y > capPx + 1) window.scrollTo(0, capPx);
-      lastScrollY = window.scrollY;
-      return;
-    }
-
-    if (y > lastScrollY + maxScrollDownPx) {
-      window.scrollTo(0, lastScrollY + maxScrollDownPx);
-      y = lastScrollY + maxScrollDownPx;
-    }
-
-    if (scrollAllowedEnd < 1 - 1e-6 && y > capPx + 1) {
-      window.scrollTo(0, capPx);
-      scrollPhaseLock = true;
-      const atEnd = scrollAllowedEnd;
-      window.setTimeout(() => {
-        scrollAllowedEnd = Math.min(1, atEnd + 1 / NSEG);
-        scrollPhaseLock = false;
-      }, phaseLockMs);
-      y = capPx;
-    }
-
-    lastScrollY = y;
+    // Native browser scroll drives the whole experience; the 3D scene only follows progress.
   }
 
   const SQ_CORNERS = [
@@ -840,17 +2227,96 @@
     [-DIAMOND_R, 0],
   ];
 
-  function updateCables(canopyWorldY, cableOpacity) {
+  /**
+   * Равномерный шаг по периметру кромки + якорь в лесу по тому же азимуту → спицы без лишних перекрёстков.
+   */
+  function setupTreeGuyCablesFromRing(ceilingRing) {
+    if (!ceilingRing || ceilingRing.length < NUM_TREE_GUYS) return;
+    treeGuyAnchors = [];
+    treeGuyRingIdx = [];
+    const n = ceilingRing.length;
+    const trunkTieY = 0.51 * MAST_MAIN_H;
+    const treeR = DIAMOND_R * 1.52 + 58;
+    const phase = Math.floor(n / (NUM_TREE_GUYS * 2));
+    for (let i = 0; i < NUM_TREE_GUYS; i++) {
+      const ri = (Math.floor((i + 0.5) * n / NUM_TREE_GUYS) + phase) % n;
+      const p = ceilingRing[ri];
+      const h = Math.hypot(p.x, p.z) + 1e-8;
+      const ux = p.x / h;
+      const uz = p.z / h;
+      treeGuyRingIdx.push(ri);
+      treeGuyAnchors.push(new THREE.Vector3(ux * treeR, trunkTieY, uz * treeR));
+    }
+  }
+
+  function updateTreeGuyCables(cableOpacity, tentGroupY) {
     cableMat.opacity = cableOpacity;
-    const yRim = canopyWorldY + RIM_Y_LOCAL;
-    const yTop = SQ_POST_H;
+    if (!shelterCeilingRing || !shelterCeilingRing.length || !cablePositions) return;
+    if (treeGuyRingIdx.length !== NUM_TREE_GUYS || treeGuyAnchors.length !== NUM_TREE_GUYS) return;
     let ix = 0;
-    for (let i = 0; i < SQ_N; i++) {
-      const [cx, cz] = SQ_CORNERS[i];
-      cablePositions[ix++] = cx; cablePositions[ix++] = yTop; cablePositions[ix++] = cz;
-      cablePositions[ix++] = cx; cablePositions[ix++] = yRim; cablePositions[ix++] = cz;
+    for (let i = 0; i < NUM_TREE_GUYS; i++) {
+      const p = shelterCeilingRing[treeGuyRingIdx[i]];
+      const ax = p.x;
+      const ay = p.y + tentGroupY;
+      const az = p.z;
+      const t = treeGuyAnchors[i];
+      cablePositions[ix++] = ax;
+      cablePositions[ix++] = ay;
+      cablePositions[ix++] = az;
+      cablePositions[ix++] = t.x;
+      cablePositions[ix++] = t.y;
+      cablePositions[ix++] = t.z;
     }
     cableGeo.attributes.position.needsUpdate = true;
+  }
+
+  /**
+   * Подвесная вуаль: верх (y → +len/2 в локали полосы) зафиксирован, движение — смещения вершин к низу.
+   * Несинхронные частоты по высоте дают мягкий «тканевый» изгиб без качания всего листа как двери.
+   */
+  function deformHangStrip(mesh, u, tw, windGustX, windGustZ, mw, wk) {
+    const rest = mesh.userData.hangRestPos;
+    const len = mesh.userData.hangLen;
+    if (!rest || !len || !mesh.geometry || !mesh.geometry.attributes.position) return;
+    const geo = mesh.geometry;
+    const posAttr = geo.attributes.position;
+    const arr = posAttr.array;
+    const half = len * 0.5;
+    const ph = u.swayPhase;
+    const ph2 = u.swayPhase2;
+    const ph3 = u.swayPhase3;
+    const wkx = windGustX * wk * u.windK;
+    const wkz = windGustZ * wk * u.windK;
+    for (let i = 0; i < arr.length; i += 3) {
+      const x0 = rest[i];
+      const y0 = rest[i + 1];
+      const z0 = rest[i + 2];
+      const t = clamp((half - y0) / len, 0, 1);
+      const ssT = t * t * (3 - 2 * t);
+      const wght = Math.pow(ssT, 1.62) * mw;
+      const row = ssT;
+      const rj = u.dfRowJ;
+      const rowPh = row * Math.PI * 2 * rj;
+      let dx =
+        u.dfLat * Math.sin(tw * u.dfRx + ph + rowPh) * wght
+        + u.dfLat2 * Math.sin(tw * u.dfRx2 + ph2 + rowPh * 2.17 + y0 * 0.0018) * wght
+        + u.dfLat3 * Math.sin(tw * u.dfRx3 + ph3 + row * 5.5) * wght * (0.35 + 0.65 * row);
+      let dz =
+        u.dfOut * Math.sin(tw * u.dfRz + ph * 1.07 + rowPh * 1.55) * wght
+        + u.dfOut2 * Math.cos(tw * u.dfRz2 + ph2 * 0.93 + rowPh * 2.8) * wght
+        + u.dfOut3 * Math.sin(tw * u.dfRz3 + ph3 + row * 4.2) * wght * row;
+      dx += wght * wkx * len * 0.031;
+      dz += wght * wkz * len * 0.036;
+      dx += u.dfCurl * Math.sin(tw * u.dfCr + rowPh * 3.4 + ph2 * 0.5) * wght * row * row;
+      dz += u.dfShear * Math.sin(tw * u.dfCr * 1.3 + rowPh * 2.1 + ph * 0.7) * wght * row;
+      const xN = x0 + dx;
+      const zN = z0 + dz;
+      arr[i] = xN;
+      arr[i + 1] = y0;
+      arr[i + 2] = zN;
+    }
+    posAttr.needsUpdate = true;
+    geo.computeVertexNormals();
   }
 
   function updateScene(p) {
@@ -860,118 +2326,500 @@
     const A = KF[s], B = KF[s + 1];
 
     posA.set(...A.pos); posB.set(...B.pos);
-    camera.position.lerpVectors(posA, posB, t);
-    camera.position.x += Math.sin(clk * 0.14) * 0.06;
-    camera.position.y += Math.cos(clk * 0.1) * 0.05;
-
     lkA.set(...A.look); lkB.set(...B.look);
-    lkT.lerpVectors(lkA, lkB, t);
+
+    let upliftBoost;
+    /** Линейная доля сегмента по скроллу — равномерная скорость (без ss/cos/двойного smootherstep). */
+    const uLin = clamp(step - s, 0, 1);
+    /** Фаза Assembly: полёт в белый объём (3D); чертёж — отдельным кроссфейдом drawingPageT */
+    const blueprintT = s === 7 ? smootherstep(uLin) : 0;
+    const drawingPageT =
+      s === 7
+        ? ss(clamp((uLin - ASSEMBLY_PAGE_CROSS_START) / ASSEMBLY_PAGE_CROSS_LEN, 0, 1))
+        : 0;
+    const sceneWhiteMix = s === 7 ? blueprintT * (1 - 0.94 * drawingPageT) : 0;
+
+    /** Фаза Light (sl3): солнце + god-rays синхронно с появлением луча */
+    const lightSegA = INTERIOR_TABLE_LIGHT_SEG / NSEG;
+    const lightSegB = (INTERIOR_TABLE_LIGHT_SEG + 1) / NSEG;
+    const lightScrollU = clamp((p - lightSegA) / Math.max(1e-6, lightSegB - lightSegA), 0, 1);
+    const lightEase = ss(lightScrollU);
+
+    if (s === 5) {
+      /** Предпоследний сегмент: перенос + look — тот же приём, что на финале (uLin), без «рваного» нарастания */
+      camera.position.lerpVectors(posA, posB, uLin);
+      lkT.lerpVectors(lkA, lkB, uLin);
+      upliftBoost = 0;
+    } else if (s === 6) {
+      /** SPACE: наклон к окуляру; позиция KF6=KF7 */
+      camera.position.lerpVectors(posA, posB, uLin);
+      lkT.lerpVectors(lkA, lkB, uLin);
+      upliftBoost = uLin;
+    } else if (s === 7) {
+      /** Assembly: кинематографичный полёт вперёд в белый объём к «чертежному» горизонту */
+      const q = smootherstep(uLin);
+      camera.position.lerpVectors(posA, posB, q);
+      lkT.lerpVectors(lkA, lkB, q);
+      upliftBoost = (1 - q) * 0.22;
+    } else {
+      camera.position.lerpVectors(posA, posB, t);
+      lkT.lerpVectors(lkA, lkB, t);
+      upliftBoost = 0;
+    }
+
+    const oculusOpKF = lerp(A.oculusOp ?? 0, B.oculusOp ?? 0, t);
+    const interiorCamPhase = ss(clamp((p - 0.52) / 0.36, 0, 1));
+    let wobbleAmt = (1 - 0.82 * interiorCamPhase) * (1 - 0.94 * upliftBoost);
+    if (s === 7) wobbleAmt = 0;
+    camera.position.x += Math.sin(clk * 0.14) * 0.06 * wobbleAmt;
+    camera.position.y += Math.cos(clk * 0.1) * 0.05 * wobbleAmt;
+
     camera.lookAt(lkT);
+
+    let fovK = cameraBaseFov + upliftBoost * 2.5;
+    if (s === 7) {
+      fovK = lerp(fovK, 42, blueprintT * 0.88);
+    }
+    camera.fov = fovK;
+    camera.updateProjectionMatrix();
+
+    if (sceneBgOrig && scene.background && scene.background.isColor) {
+      scene.background.copy(sceneBgOrig).lerp(BLUEPRINT_WHITE, sceneWhiteMix);
+    }
+    if (scene.fog && fogColorOrig) {
+      scene.fog.color.copy(fogColorOrig).lerp(BLUEPRINT_WHITE, sceneWhiteMix * 0.94);
+      scene.fog.near = lerp(sceneFogNearOrig, 85, sceneWhiteMix);
+      scene.fog.far = lerp(sceneFogFarOrig, 5200, sceneWhiteMix);
+    }
+    if (blueprintGlow) {
+      blueprintGlow.intensity = 1.85 * blueprintT * (1 - 0.85 * drawingPageT);
+      blueprintGlow.position.set(22, 168, 412);
+    }
+    const bloomA =
+      s === 7 ? Math.min(1, 1.06 * blueprintT) * 0.92 * (1 - drawingPageT) : 0;
+    if (whiteBloomEl) whiteBloomEl.style.opacity = String(bloomA);
+    if (assemblyShellEl && assemblyIFrameEl && stageCanvasEl) {
+      assemblyShellEl.style.opacity = drawingPageT > 0.002 ? String(drawingPageT) : '0';
+      assemblyShellEl.style.background = '#ffffff';
+      const iframeReveal =
+        drawingPageT < 0.07 ? 0 : ss(clamp((drawingPageT - 0.07) / 0.86, 0, 1));
+      assemblyIFrameEl.style.opacity = String(iframeReveal);
+      assemblyShellEl.classList.toggle('on', drawingPageT > 0.055);
+      const suppressStageAudio = drawingPageT > 0.055;
+      if (stageAudioAmbientSuppressed !== suppressStageAudio) {
+        stageAudioAmbientSuppressed = suppressStageAudio;
+        syncStageAudioPlayback();
+      }
+      stageCanvasEl.style.opacity = String(1 - drawingPageT);
+      stageCanvasEl.style.pointerEvents = 'none';
+      /**
+       * Safari: вложенный ambient-stage-2026 иногда открывается с scroll внизу (restoration / ранний layout).
+       * Сбрасываем при первом заметном появлении чертежа и при повторном входе в зону после отката скролла родителя.
+       */
+      if (s === 7 && drawingPageT > 0.055 && ambientRevealPrevT <= 0.055) {
+        resetEmbeddedAmbientScroll();
+      }
+      if (s !== 7 || drawingPageT < 0.02) ambientRevealPrevT = 0;
+      else ambientRevealPrevT = drawingPageT;
+      const drawingEnd = s === 7 && drawingPageT > 0.93;
+      document.body.classList.toggle('atpc-drawing-end', drawingEnd);
+      document.documentElement.classList.toggle('atpc-drawing-end', drawingEnd);
+    } else if (stageCanvasEl) {
+      if (stageAudioAmbientSuppressed) {
+        stageAudioAmbientSuppressed = false;
+        syncStageAudioPlayback();
+      }
+      stageCanvasEl.style.opacity = '1';
+      stageCanvasEl.style.pointerEvents = 'none';
+    }
 
     const cy = lerp(A.canopyY, B.canopyY, t);
     const tf = lerp(A.tFade, B.tFade, t);
     canopyGroup.position.y = cy;
 
     if (squareBedTentGroup && squareFabricMats && squareFabricMats.length) {
-      if (p < FABRIC_SCROLL_START) {
-        squareBedTentGroup.visible = false;
-      } else {
-        squareBedTentGroup.visible = true;
-        let dropY = 0;
-        let flyFade = 1;
-        if (p < FABRIC_SCROLL_END) {
-          const uBlend = clamp((p - FABRIC_SCROLL_START) / (FABRIC_SCROLL_END - FABRIC_SCROLL_START), 0, 1);
-          const ue = ss(uBlend);
-          dropY = lerp(FABRIC_FLY_OFFSET, 0, ue);
-          flyFade = clamp(uBlend / 0.22, 0, 1);
+      squareBedTentGroup.visible = s < 7 || uLin < 0.04;
+      const settleFade = 1 - ss(clamp(p / 0.38, 0, 1));
+      const parentBob = Math.sin(clk * 0.52) * 0.18 * TENT_SCALE * settleFade;
+      squareBedTentGroup.position.y = parentBob;
+      const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
+      const wallReveal = ss(clamp((p - WALLS_SCROLL_START) / (WALLS_SCROLL_END - WALLS_SCROLL_START), 0, 1));
+      if (tentFloorMesh && tentFloorMesh.userData.floorBaseY != null) {
+        const fby = tentFloorMesh.userData.floorBaseY;
+        const drop =
+          tentFloorMesh.userData.floorDropFromSky
+          ?? SQ_ROOF_Y - fby + 2.05 * TENT_SCALE + FLOOR_SKY_DROP_EXTRA_SCALE * TENT_SCALE;
+        if (p < FLOOR_DESCENT_START_P) {
+          tentFloorMesh.visible = false;
+        } else {
+          const span = Math.max(1e-6, FLOOR_DESCENT_END_P - FLOOR_DESCENT_START_P);
+          const linear = clamp((p - FLOOR_DESCENT_START_P) / span, 0, 1);
+          const slowed = Math.pow(linear, FLOOR_DESCENT_SLOW_POW);
+          const landEase = slowed * slowed * (3 - 2 * slowed);
+          tentFloorMesh.visible = true;
+          tentFloorMesh.position.y = fby + (1 - landEase) * drop;
+          const sc = 0.965 + 0.035 * landEase;
+          tentFloorMesh.scale.set(sc, 1, sc);
         }
-        squareBedTentGroup.position.y = dropY;
-        const baseOp = clamp(0.34 + 0.52 * clamp(tf, 0.5, 1), 0.34, 0.78);
-        /** Sheer fabric canopy */
-        const roofSheer = 0.66;
-        squareFabricMats.forEach((m) => {
-          m.opacity = Math.min(1, baseOp * flyFade * roofSheer);
-          m.transparent = true;
-        });
-        if (squareTentDiagMat) {
-          squareTentDiagMat.opacity = 0.34 * baseOp * flyFade;
+      }
+      if (squareWallMesh) {
+        const wallsOn = wallReveal > 0.004;
+        squareWallMesh.visible = wallsOn || upliftBoost > 0.008;
+      }
+      const roofProg = clamp((p - ROOF_SCROLL_START) / (ROOF_SCROLL_END - ROOF_SCROLL_START), 0, 1);
+      const roofInstallEase = ss(ss(roofProg));
+      if (squareFabricRoofGroup) {
+        const roofOn = p >= ROOF_SCROLL_START - 1e-8;
+        squareFabricRoofGroup.visible = roofOn;
+        let roofLocalY;
+        if (!roofOn) {
+          roofLocalY = ROOF_DESCEND_Y;
+        } else if (p < ROOF_SCROLL_END) {
+          roofLocalY = (1 - roofInstallEase) * ROOF_DESCEND_Y;
+        } else {
+          roofLocalY = -parentBob;
+        }
+        squareFabricRoofGroup.position.y = roofLocalY;
+      }
+      const skyHold = upliftBoost;
+      const fabricSheer = [
+        0.64 + 0.24 * skyHold,
+        0.36 + 0.2 * skyHold,
+        0.5 + 0.46 * skyHold,
+        0.46,
+      ];
+      const roofGlow = 1 + 0.14 * upliftBoost;
+      squareFabricMats.forEach((m, mi) => {
+        if (mi === 3) {
+          /** Пол: фиксированный цвет/альфа — не привязываем к wallReveal / фазам (не затемнять) */
+          m.opacity = 1;
+          m.transparent = false;
+          return;
+        }
+        const sheer = fabricSheer[Math.min(mi, fabricSheer.length - 1)];
+        const wallMul = mi === 2
+          ? (skyHold > 0.008 ? Math.max(wallReveal, 0.22 + 0.78 * skyHold) : wallReveal)
+          : 1;
+        const topMul = mi <= 1 ? roofGlow : mi === 2 ? 1 + 0.22 * skyHold : 1;
+        let op = Math.min(1, baseOp * sheer * wallMul * topMul);
+        if (mi <= 1) {
+          if (p < ROOF_SCROLL_START) op = 0;
+          else op *= roofInstallEase;
+        }
+        m.opacity = op;
+        m.transparent = true;
+        if (mi === 0) {
+          m.emissiveIntensity = 0.034 * (1 + 0.9 * skyHold);
+        } else if (mi === 1) {
+          m.emissiveIntensity = 0.048 * (1 + 0.45 * skyHold);
+        } else if (mi === 2) {
+          m.emissiveIntensity = 0.042 * (1 + 1.1 * skyHold);
+        }
+      });
+      if (squareTentStakeMesh) {
+        squareTentStakeMesh.visible = wallReveal > 0.02;
+      }
+      if (squareTentDiagMat) {
+        squareTentDiagMat.opacity = 0.34 * baseOp;
+      }
+      if (hangingInteriorFabricGroup) {
+        let hangAccentT = 0;
+        if (p >= ROOF_SCROLL_START && p < ROOF_SCROLL_END) {
+          const uLate = clamp(
+            (roofProg - HANGING_PROFILE_LATE_START) / Math.max(1e-6, 1 - HANGING_PROFILE_LATE_START),
+            0,
+            1
+          );
+          hangAccentT = ss(uLate);
+        } else if (p >= ROOF_SCROLL_END) {
+          hangAccentT = 1;
+        }
+        const hangVis = hangAccentT > 0.008 && p >= ROOF_SCROLL_START - 1e-6 && wallReveal > 0.02;
+        hangingInteriorFabricGroup.visible = hangVis;
+        if (hangVis) {
+          const tw = clk * HANG_WIND_CLK;
+          /** Общий «порыв» для всех полос — ощущение одного потока воздуха в объёме */
+          const windGustX =
+            Math.sin(tw * 0.098 + 0.31) * 0.095
+            + Math.sin(tw * 0.171 + 1.12) * 0.042
+            + Math.sin(tw * 0.246 + 0.55) * 0.026;
+          const windGustZ =
+            Math.sin(tw * 0.084 + 0.18) * 0.118
+            + Math.cos(tw * 0.152 + 0.74) * 0.052
+            + Math.sin(tw * 0.203 + 2.1) * 0.028;
+          hangingInteriorFabricGroup.traverse((obj) => {
+            if (obj.isMesh && obj.material && obj.material.userData && obj.material.userData.hangBaseOpacity != null) {
+              const b = obj.material.userData.hangBaseOpacity;
+              obj.material.opacity = b * hangAccentT;
+              obj.material.transparent = true;
+            }
+            if (!obj.userData.panelSway) return;
+            const u = obj.userData;
+            const mw = Math.max(0.18, hangAccentT);
+            const wk = u.windK;
+            obj.position.set(u.anchorPx, u.anchorPy, u.anchorPz);
+            obj.rotation.x = 0;
+            obj.rotation.z = 0;
+            obj.rotation.y = u.baseRy + Math.sin(tw * 0.036 + u.swayPhase * 0.8) * 0.0075 * mw;
+            for (let ci = 0; ci < obj.children.length; ci++) {
+              const ch = obj.children[ci];
+              if (!ch.isMesh || !ch.userData.hangRestPos) continue;
+              ch.rotation.set(0, 0, 0);
+              deformHangStrip(ch, u, tw, windGustX, windGustZ, mw, wk);
+            }
+          });
         }
       }
     }
 
+    const bpDim = 1 - blueprintT * 0.9;
+    /** Assembly: объёмные лучи и «кратер» не гаснут с bpDim — контролируемый рост к финалу */
+    const volEase = s === 7 ? smootherstep(uLin) : 0;
+    const volVis = s === 7 ? lerp(0.44, 1.42, volEase) : bpDim;
+    const rayBoostEff = s === 7 ? lerp(1.05, 1.78, volEase) : (1 + 0.55 * upliftBoost);
+    const rayAperture = s === 7 ? lerp(0.82, 1.45, volEase) : (0.88 + 0.35 * oculusOpKF);
+    if (mainSun && hemiMain) {
+      const uDim = ss(clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START + 0.08), 0, 1));
+      const skyDim = upliftBoost * oculusOpKF;
+      let sunI = lerp(0.68, 0.48, uDim) + 0.38 * upliftBoost;
+      sunI *= 1 - 0.1 * skyDim;
+      sunI *= 1 + 0.26 * lightEase;
+      mainSun.intensity = Math.max(0.22, sunI) * bpDim;
+      let hemiI = (lerp(0.48, 0.38, uDim) + 0.08 * upliftBoost) * (1 - 0.18 * skyDim);
+      hemiI *= 1 + 0.1 * lightEase;
+      hemiMain.intensity = Math.max(0.12, hemiI) * bpDim;
+      if (fillSun) {
+        /** Луч/заливка остаются в кадре до конца SPACE — не гасим при взгляде вверх */
+        fillSun.intensity = 0.152 * (1 + 0.42 * lightEase) * bpDim;
+      }
+      mainSun.position.set(58, 132 + 48 * upliftBoost, 52);
+    }
+    if (sceneAmbient) {
+      sceneAmbient.intensity = 0.09 * (1 - 0.22 * upliftBoost * oculusOpKF) * (0.55 + 0.45 * bpDim);
+    }
+    if (oculusSpot) {
+      const sb = upliftBoost * oculusOpKF;
+      oculusSpot.visible = sb > 0.02;
+      oculusSpot.intensity = Math.max(2.95, 3.65 * sb) * bpDim;
+    }
+
     const mastS = lerp(A.mast, B.mast, t);
-    mastGroup.visible = mastS > 0.02;
+    mastGroup.visible = false;
     mastGroup.scale.setScalar(1);
     mastGroup.scale.y = Math.max(0.001, mastS);
 
     const sh = lerp(A.shadow, B.shadow, t);
-    shadowDisc.material.opacity = sh;
+    shadowDisc.material.opacity = sh * bpDim;
 
     const bA = lerp(A.beam, B.beam, t);
     const rA = lerp(A.rays, B.rays, t);
     const cab = lerp(A.cable, B.cable, t);
 
-    const pulse = bA > 0.02 ? 0.86 + Math.sin(clk * 0.24) * 0.14 : 0;
-    bCoreMat.opacity = 0.14 * bA * pulse;
-    bHaloMat.opacity = 0.055 * bA * pulse;
-    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18);
+    /** Плавное нарастание вместо порога bA>0.02 — иначе луч «щёлкает» кадрами */
+    const beamPulseAnim = 0.86 + Math.sin(clk * 0.24) * 0.14;
+    const beamStrengthSmooth = ss(clamp(bA / 0.16, 0, 1));
+    const pulse = beamPulseAnim * beamStrengthSmooth;
+    const beamLightBoost = 1 + 0.24 * lightEase;
+    bCoreMat.opacity = 0.14 * bA * pulse * rayBoostEff * volVis * beamLightBoost;
+    bHaloMat.opacity = 0.055 * bA * pulse * rayBoostEff * volVis * beamLightBoost;
+    poolMat.opacity = 0.32 * bA * (0.82 + Math.sin(clk * 0.33) * 0.18) * (1 + 0.45 * upliftBoost) * volVis * beamLightBoost;
 
     const oculusWorldY = SQ_ROOF_OCULUS_Y;
     bGrp.position.set(OCULUS_CENTER_X, oculusWorldY + 1.4 * TENT_SCALE, OCULUS_CENTER_Z);
 
-    const rayPulse = rA > 0.02 ? 0.8 + Math.sin(clk * 0.31) * 0.2 : 0;
+    const rayPulseAnim = 0.8 + Math.sin(clk * 0.31) * 0.2;
+    const rayStrengthSmooth = ss(clamp(rA / 0.2, 0, 1));
+    const rayPulse = rayPulseAnim * rayStrengthSmooth;
+    const godRayPack =
+      rA * rayPulse * rayBoostEff * rayAperture * volVis * (1 + 0.32 * lightEase);
+    const rayOpScale = s === 7 ? lerp(1, 1.22, volEase) : 1;
     rayGrp.position.set(0, 0, 0);
     const oW = oculusWorldY;
-    if (rayGrp.children[0]) {
-      rayGrp.children[0].position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
-      rayGrp.children[0].rotation.x = 0.062;
+    const rayColumn = rayGrp.getObjectByName('godRayColumn');
+    if (rayColumn) {
+      rayColumn.position.set(OCULUS_CENTER_X, oW, OCULUS_CENTER_Z);
+      rayColumn.rotation.x = 0.062;
     }
-    if (rayMats[0]) rayMats[0].opacity = 0.092 * rA * rayPulse;
+    if (rayMats.length) {
+      const opShell = Math.min(1, 0.048 * rayOpScale * godRayPack * 1.15);
+      const opCore = Math.min(1, 0.128 * rayOpScale * godRayPack * 1.35);
+      const opFin = Math.min(1, 0.036 * rayOpScale * godRayPack * 1.08);
+      if (rayMats[0]) rayMats[0].opacity = opShell;
+      if (rayMats[1]) rayMats[1].opacity = opCore;
+      for (let ri = 2; ri < rayMats.length; ri++) rayMats[ri].opacity = opFin;
+    }
+    if (godSunGroup && godSunMat && godSunSprite) {
+      sunDirTmp.set(58, 132 + 48 * upliftBoost, 52).normalize();
+      const sunLift = RAY_LEN_SKY * 0.9 + 1040;
+      godSunGroup.position.set(
+        OCULUS_CENTER_X + sunDirTmp.x * sunLift,
+        SQ_ROOF_OCULUS_Y + sunDirTmp.y * sunLift,
+        OCULUS_CENTER_Z + sunDirTmp.z * sunLift
+      );
+      const sunStrength = clamp(
+        Math.max(lightEase * 0.98, rA * 0.9 + upliftBoost * 0.3) * (1 - blueprintT * 0.94),
+        0,
+        1
+      );
+      godSunGroup.visible = sunStrength > 0.002;
+      godSunMat.opacity = ss(clamp(sunStrength * 1.25, 0, 1)) * 0.88;
+      const sc = (TENT_SCALE / 24) * (320 + 110 * sunStrength);
+      godSunSprite.scale.set(sc, sc, 1);
+    }
+    if (s === 7) {
+      volRayColorTmp.setHex(BCOL).lerp(VOL_RAY_WHITE, volEase * 0.52);
+      bCoreMat.color.copy(volRayColorTmp);
+      bHaloMat.color.copy(volRayColorTmp);
+      poolMat.color.copy(volRayColorTmp);
+      for (let ri = 0; ri < rayMats.length; ri++) rayMats[ri].color.copy(volRayColorTmp);
+    } else {
+      bCoreMat.color.setHex(BCOL);
+      bHaloMat.color.setHex(BCOL);
+      poolMat.color.setHex(BCOL);
+      const cCore = 0xfff6e0;
+      const cFin = 0xffefcc;
+      if (rayMats[0]) rayMats[0].color.setHex(BCOL);
+      if (rayMats[1]) rayMats[1].color.setHex(cCore);
+      for (let ri = 2; ri < rayMats.length; ri++) rayMats[ri].color.setHex(cFin);
+    }
 
-    updateCables(canopyGroup.position.y, cab * 0.55);
+    updateTreeGuyCables(
+      cab * 0.62 * bpDim,
+      squareBedTentGroup ? squareBedTentGroup.position.y : 0
+    );
 
-    const oOp = lerp(A.oculusOp, B.oculusOp, t);
-    oculus.material.opacity = oOp;
-    oculus.visible = oOp > 0.03;
+    const oculusShow = upliftBoost * oculusOpKF;
+    if (oculus && oclMat) {
+      oculus.visible = oculusShow > 0.035;
+      oclMat.opacity = oculus.visible ? 0.18 + 0.52 * oculusShow : 0;
+      oclMat.transparent = oclMat.opacity < 0.995;
+    }
 
     LWIN.forEach(([inAt, outAt], i) => {
       labels[i].classList.toggle('on', p >= inAt && p <= outAt);
     });
 
-    const activeDot = clamp(Math.floor(p * 5 + 0.08), 0, 4);
-    dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
+    document.body.classList.toggle('atpc-ui-dark', p >= INTERIOR_UI_START_P);
 
-    hint.classList.toggle('hide', p > 0.06);
+    if (scrollHint) {
+      /** Только финал Assembly (белый объём / чертёж) — не глушить подсказку на всём скролле (раньше p>0.06 отключал её почти сразу) */
+      const sceneHide = blueprintT > 0.22;
+      scrollHint.classList.toggle('hidden', sceneHide || !scrollHintScrollIdle);
+    }
 
     if (interiorGroup) {
-      const u = clamp((p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START), 0, 1);
-      interiorGroup.visible = u > 0.006;
-      const scG = (0.9 + 0.1 * ss(u)) * INTERIOR_SCALE;
+      const tableSegStart = INTERIOR_TABLE_LIGHT_SEG / NSEG;
+      const tableSegEnd = (INTERIOR_TABLE_LIGHT_SEG + 1) / NSEG;
+      const uTable = clamp(
+        (p - tableSegStart) / Math.max(1e-6, tableSegEnd - tableSegStart),
+        0,
+        1
+      );
+      const uProps = clamp(
+        (p - INTERIOR_PROPS_START) / (INTERIOR_PROPS_FULL - INTERIOR_PROPS_START),
+        0,
+        1
+      );
+      const uGroup = Math.max(uTable, uProps);
+      interiorGroup.visible =
+        (p >= tableSegStart - 1e-5 || uProps > 0.006) && (s < 7 || uLin < 0.035);
+      const scG = (0.9 + 0.1 * ss(uGroup)) * INTERIOR_SCALE;
       interiorGroup.scale.setScalar(scG);
 
-      const riseSpan = 0.52;
-      interiorGroup.children.forEach((mesh) => {
-        const ud = mesh.userData;
+      if (djSpeakersRiseGroup && djSpeakersRiseGroup.userData.riseLift != null) {
+        const spkEase = ss(uTable * 0.9);
+        djSpeakersRiseGroup.position.y =
+          -djSpeakersRiseGroup.userData.riseLift * (1 - spkEase);
+        /**
+         * Фронт колонок +Z: азимут — из центра lowDjBooth к камере в XZ; затем +70° вокруг Y в плоскости пола.
+         * Фиксация базового направления после uTable>SPK_FACE_LOCK_U.
+         */
+        const SPK_FACE_LOCK_U = 0.62;
+        const sud = djSpeakersRiseGroup.userData;
+        if (!sud.faceDirLocked) {
+          const booth = djSpeakersRiseGroup.parent;
+          if (booth) booth.getWorldPosition(djSpkBoothW);
+          else djSpeakersRiseGroup.getWorldPosition(djSpkBoothW);
+          camera.getWorldPosition(djSpkCamW);
+          djSpkDir.copy(djSpkCamW).sub(djSpkBoothW);
+          djSpkDir.y = 0;
+          if (djSpkDir.lengthSq() < 1e-12) djSpkDir.set(0, 0, 1);
+          else djSpkDir.normalize();
+          if (uTable >= SPK_FACE_LOCK_U) sud.faceDirLocked = djSpkDir.clone();
+        } else {
+          djSpkDir.copy(sud.faceDirLocked);
+        }
+        djSpkFaceDir.copy(djSpkDir).applyQuaternion(DJ_SPK_YAW_EXTRA);
+        djSpkFaceDir.y = 0;
+        if (djSpkFaceDir.lengthSq() < 1e-12) djSpkFaceDir.set(0, 0, 1);
+        else djSpkFaceDir.normalize();
+        djSpeakersRiseGroup.children.forEach((anchor) => {
+          const spk = anchor.children[0];
+          if (!spk || !spk.isObject3D) return;
+          djSpkAlignQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), djSpkFaceDir);
+          const par = spk.parent;
+          if (par) {
+            par.updateWorldMatrix(true, false);
+            par.getWorldQuaternion(djSpkParentQuat);
+            spk.quaternion.copy(djSpkParentQuat).invert().multiply(djSpkAlignQuat);
+          } else {
+            spk.quaternion.copy(djSpkAlignQuat);
+          }
+        });
+      }
+
+      /** Напольные подушки: короче окно подъёма — заметны уже в ходе Light */
+      const riseSpanDefault = 0.52;
+      /** uNode ≤ 1; большие interiorDelay давали t0=0. Масштабируем задержки в [0 … riseDelayCap], порядок сохраняем */
+      const riseDelayCap = 0.34;
+      const interiorDelayRef = 2.4;
+      function applyInteriorOpacity(root, ti, futonFade) {
+        const op = clamp(ti * 1.08 * futonFade, 0, 1);
+        root.traverse((obj) => {
+          if (obj.isMesh && obj.material && obj.material.opacity !== undefined) {
+            obj.material.opacity = op;
+            obj.material.transparent = obj.material.opacity < 0.995;
+          }
+        });
+      }
+      interiorGroup.children.forEach((node) => {
+        const ud = node.userData;
         if (!ud.interiorBase) return;
-        const t0 = clamp((u - ud.interiorDelay) / riseSpan, 0, 1);
+        const uNode =
+          node.name === 'lowDjBooth' || node.userData.interiorReveal === 'table'
+            ? uTable
+            : node.userData.interiorReveal === 'lounge'
+              ? uGroup
+              : uProps;
+        const dEff = Math.min(
+          riseDelayCap * (ud.interiorDelay / interiorDelayRef),
+          riseDelayCap
+        );
+        const riseSpan = ud.interiorReveal === 'lounge' ? 0.36 : riseSpanDefault;
+        const t0 = clamp((uNode - dEff) / riseSpan, 0, 1);
         const ti = interiorRiseEase(t0);
         const { bx, by, bz } = ud.interiorBase;
-        mesh.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
+        node.position.set(bx, by - INTERIOR_BURY_Y * (1 - ti), bz);
         const scM = 0.18 + 0.82 * ti;
-        mesh.scale.setScalar(scM);
-        if (mesh.material && mesh.material.opacity !== undefined) {
-          mesh.material.opacity = clamp(ti * 1.08, 0, 1);
-          mesh.material.transparent = mesh.material.opacity < 0.995;
+        node.scale.setScalar(scM);
+        const futonFade = 1 - 0.4 * upliftBoost;
+        if (node.isMesh && node.material && node.material.opacity !== undefined) {
+          node.material.opacity = clamp(ti * 1.08 * futonFade, 0, 1);
+          node.material.transparent = node.material.opacity < 0.995;
+        } else {
+          applyInteriorOpacity(node, ti, futonFade);
         }
         const baseRy = ud.interiorRotY ?? 0;
         const tw = ud.interiorTwist ?? 0;
-        mesh.rotation.y = baseRy + tw * (1 - ti);
+        node.rotation.y = baseRy + tw * (1 - ti);
       });
     }
   }
 
   function tick(now) {
     requestAnimationFrame(tick);
+    updateScrollHintVelocity(now);
+
     if (now - lastFrame < 1000 / targetFPS) return;
     lastFrame = now;
 
@@ -994,25 +2842,63 @@
 
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(scrollViewportWidth(), scrollViewportHeight());
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    renderer.toneMappingExposure = 0.96;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    document.body.insertBefore(renderer.domElement, document.body.firstChild);
+    stageCanvasEl = renderer.domElement;
+    document.body.insertBefore(stageCanvasEl, document.body.firstChild);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 14000);
+    camera = new THREE.PerspectiveCamera(
+      cameraBaseFov,
+      scrollViewportWidth() / Math.max(1, scrollViewportHeight()),
+      0.5,
+      14000
+    );
 
-    setupMinimalSandWorld(renderer, scene);
+    setupForestClearingWorld(renderer, scene);
+    sceneBgOrig = scene.background.clone();
+    if (scene.fog) {
+      fogColorOrig = scene.fog.color.clone();
+      sceneFogNearOrig = scene.fog.near;
+      sceneFogFarOrig = scene.fog.far;
+    }
+    blueprintGlow = new THREE.PointLight(0xffffff, 0, 3200, 1.9);
+    blueprintGlow.position.set(22, 168, 412);
+    scene.add(blueprintGlow);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.07));
-    scene.add(new THREE.HemisphereLight(0xf2f0ec, 0xd2c4b0, 0.42));
-    const sun = new THREE.DirectionalLight(0xfff4e8, 0.88);
-    sun.position.set(76, 144, 44);
-    scene.add(sun);
-    const fillSun = new THREE.DirectionalLight(0xe8ecf0, 0.12);
-    fillSun.position.set(-36, 56, -28);
+    whiteBloomEl = document.getElementById('whiteBloom');
+    assemblyShellEl = document.getElementById('assemblyShell');
+    assemblyIFrameEl = document.getElementById('assemblyIFrame');
+    if (assemblyIFrameEl) {
+      assemblyIFrameEl.addEventListener('load', () => resetEmbeddedAmbientScroll());
+      try {
+        if (assemblyIFrameEl.contentDocument && assemblyIFrameEl.contentDocument.readyState === 'complete') {
+          resetEmbeddedAmbientScroll();
+        }
+      } catch (err) {}
+    }
+
+    sceneAmbient = new THREE.AmbientLight(0xeef2ea, 0.09);
+    scene.add(sceneAmbient);
+    hemiMain = new THREE.HemisphereLight(0xeef2ea, 0xa8b8a5, 0.48);
+    scene.add(hemiMain);
+    mainSun = new THREE.DirectionalLight(0xfff6e8, 0.68);
+    mainSun.position.set(58, 132, 52);
+    scene.add(mainSun);
+    fillSun = new THREE.DirectionalLight(0xd8eadc, 0.16);
+    fillSun.position.set(-42, 62, -32);
     scene.add(fillSun);
+
+    oculusSpot = new THREE.SpotLight(0xfff2e0, 0, 1200, 0.36, 0.5, 1.55);
+    oculusSpot.position.set(OCULUS_CENTER_X, SQ_ROOF_Y + 1.25 * TENT_SCALE, OCULUS_CENTER_Z);
+    const spotTgt = new THREE.Object3D();
+    spotTgt.position.set(OCULUS_CENTER_X, 0.04 * TENT_SCALE, OCULUS_CENTER_Z);
+    oculusSpot.target = spotTgt;
+    oculusSpot.visible = false;
+    scene.add(spotTgt);
+    scene.add(oculusSpot);
 
     canopyGroup = new THREE.Group();
     scene.add(canopyGroup);
@@ -1022,15 +2908,25 @@
     bedding.map.anisotropy = maxAni;
     const sqTent = createMicroCityFabricEnclosure(bedding, scene.environment);
     squareBedTentGroup = sqTent.group;
+    squareFabricRoofGroup = sqTent.fabricRoofGroup;
+    hangingInteriorFabricGroup = sqTent.hangingInteriorFabricGroup;
+    tentFloorMesh = sqTent.floorMesh;
     squareFabricMats = sqTent.fabricMaterials;
     squareTentDiagMat = sqTent.diagMat;
+    squareWallMesh = sqTent.wallMesh;
+    squareTentStakeMesh = sqTent.stakeMesh;
+    shelterCeilingRing = sqTent.ceilingRing;
+    setupTreeGuyCablesFromRing(shelterCeilingRing);
     scene.add(squareBedTentGroup);
 
     oclMat = new THREE.MeshLambertMaterial({
-      color: 0xc9a06a,
+      color: 0xd8b080,
+      emissive: 0x2a1a0c,
+      emissiveIntensity: 0.22,
       transparent: true,
       opacity: 0,
       depthWrite: true,
+      side: THREE.DoubleSide,
     });
     oculus = new THREE.Mesh(new THREE.TorusGeometry(OCULUS_MAJOR, OCULUS_TUBE, 10, 40), oclMat);
     oculus.position.set(OCULUS_CENTER_X, SQ_ROOF_OCULUS_Y, OCULUS_CENTER_Z);
@@ -1039,10 +2935,10 @@
     scene.add(oculus);
 
     const mastStd = {
-      color: 0x9a9590,
-      roughness: 0.55,
-      metalness: 0.35,
-      envMapIntensity: 0.72,
+      color: 0x4a4744,
+      roughness: 0.62,
+      metalness: 0.22,
+      envMapIntensity: 0.38,
     };
     mastGroup = new THREE.Group();
     const postRadT = mastRadTop[0];
@@ -1066,14 +2962,15 @@
       cap.lookAt(0, topY, 0);
       mastGroup.add(cap);
     }
+    mastGroup.visible = false;
     scene.add(mastGroup);
 
     cableMat = new THREE.LineBasicMaterial({
-      color: 0x3a3835,
+      color: 0x4a564c,
       transparent: true,
       opacity: 0,
     });
-    cablePositions = new Float32Array(SQ_N * 6);
+    cablePositions = new Float32Array(NUM_TREE_GUYS * 6);
     cableGeo = new THREE.BufferGeometry();
     cableGeo.setAttribute('position', new THREE.BufferAttribute(cablePositions, 3));
     cableLines = new THREE.LineSegments(cableGeo, cableMat);
@@ -1102,7 +2999,6 @@
     shadowDisc.position.y = 0.025;
     scene.add(shadowDisc);
 
-    const BCOL = 0xffe8b8;
     bGrp = new THREE.Group();
     bHaloMat = new THREE.MeshBasicMaterial({
       color: BCOL,
@@ -1143,6 +3039,22 @@
     pool.position.set(OCULUS_CENTER_X, 0.035, OCULUS_CENTER_Z);
     scene.add(pool);
 
+    godSunGroup = new THREE.Group();
+    godSunMat = new THREE.SpriteMaterial({
+      map: makeSunDiscTexture(),
+      color: 0xfffaee,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    godSunSprite = new THREE.Sprite(godSunMat);
+    godSunSprite.frustumCulled = false;
+    godSunSprite.renderOrder = 5;
+    godSunGroup.add(godSunSprite);
+    scene.add(godSunGroup);
+
     interiorGroup = new THREE.Group();
     const invS = 1 / INTERIOR_SCALE;
     const L = INTERIOR_LAYOUT;
@@ -1154,21 +3066,119 @@
       transparent: true,
       opacity: 0,
     });
-    const futonMatBase = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.88,
-      metalness: 0,
-      envMapIntensity: 0.5,
-      transparent: true,
-      opacity: 0,
-    });
-    function registerInteriorRise(mesh, delaySteps, twist = 0, mat = intMatBase) {
+    function registerInteriorRise(mesh, delaySteps, twist = 0, mat = intMatBase, reveal = 'props') {
       mesh.material = mat.clone();
       mesh.userData.interiorBase = { bx: mesh.position.x, by: mesh.position.y, bz: mesh.position.z };
       mesh.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
       mesh.userData.interiorRotY = mesh.rotation.y;
+      mesh.userData.interiorReveal = reveal;
       if (twist) mesh.userData.interiorTwist = twist;
       mesh.scale.setScalar(0.18);
+    }
+    function registerInteriorRiseGroup(group, delaySteps, twist = 0, reveal = 'props') {
+      group.traverse((obj) => {
+        if (obj.isMesh && obj.material && obj.material.clone) {
+          obj.material = obj.material.clone();
+        }
+      });
+      group.userData.interiorBase = { bx: group.position.x, by: group.position.y, bz: group.position.z };
+      group.userData.interiorDelay = delaySteps * INTERIOR_STAGGER;
+      group.userData.interiorRotY = group.rotation.y;
+      group.userData.interiorReveal = reveal;
+      if (twist) group.userData.interiorTwist = twist;
+      group.scale.setScalar(0.18);
+    }
+
+    /** Скруглённый «матрас» (сфероид), ~м → локаль интерьера шатра */
+    function makeRoundedBox(W, H, D) {
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+      const ws = 24;
+      const hs = 12;
+      for (let iy = 0; iy <= hs; iy++) {
+        const v = iy / hs;
+        for (let ix = 0; ix <= ws; ix++) {
+          const u = ix / ws;
+          const theta = u * Math.PI * 2;
+          const phi = v * Math.PI;
+          const sx = Math.sin(phi) * Math.cos(theta);
+          const sy = Math.cos(phi);
+          const sz = Math.sin(phi) * Math.sin(theta);
+          positions.push(
+            Math.sign(sx) * Math.pow(Math.abs(sx), 0.65) * W / 2,
+            Math.sign(sy) * Math.pow(Math.abs(sy), 0.55) * H / 2,
+            Math.sign(sz) * Math.pow(Math.abs(sz), 0.65) * D / 2
+          );
+          normals.push(sx, sy, sz);
+          uvs.push(u, 1 - v);
+        }
+      }
+      for (let iy = 0; iy < hs; iy++) {
+        for (let ix = 0; ix < ws; ix++) {
+          const a = iy * (ws + 1) + ix;
+          const b = a + 1;
+          const c = (iy + 1) * (ws + 1) + ix + 1;
+          const d = (iy + 1) * (ws + 1) + ix;
+          indices.push(a, b, d, b, c, d);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    /**
+     * Подушка-суперэллипсоид: меньшие показатели px/pz → пышнее «бочкообразный» объём,
+     * py побольше — менее сплюснута по вертикали, выпуклее сверху/снизу.
+     */
+    function makePillowGeo(W, H, D, pows = { px: 0.6, py: 0.45, pz: 0.6 }) {
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+      const ws = 18;
+      const hs = 12;
+      const { px, py, pz } = pows;
+      for (let iy = 0; iy <= hs; iy++) {
+        const v = iy / hs;
+        for (let ix = 0; ix <= ws; ix++) {
+          const u = ix / ws;
+          const theta = u * Math.PI * 2;
+          const phi = v * Math.PI;
+          const sx = Math.sin(phi) * Math.cos(theta);
+          const sy = Math.cos(phi);
+          const sz = Math.sin(phi) * Math.sin(theta);
+          positions.push(
+            Math.sign(sx) * Math.pow(Math.abs(sx), px) * W / 2,
+            Math.sign(sy) * Math.pow(Math.abs(sy), py) * H / 2,
+            Math.sign(sz) * Math.pow(Math.abs(sz), pz) * D / 2
+          );
+          normals.push(sx, sy, sz);
+          uvs.push(u, 1 - v);
+        }
+      }
+      for (let iy = 0; iy < hs; iy++) {
+        for (let ix = 0; ix < ws; ix++) {
+          const a = iy * (ws + 1) + ix;
+          const b = a + 1;
+          const c = (iy + 1) * (ws + 1) + ix + 1;
+          const d = (iy + 1) * (ws + 1) + ix;
+          indices.push(a, b, d, b, c, d);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      return geo;
     }
     let rngState = 20260410;
     function rnd() {
@@ -1179,63 +3189,682 @@
       return a + rnd() * (b - a);
     }
 
-    const lowTable = new THREE.Mesh(new THREE.BoxGeometry(1.15 * L, 0.19 * L, 0.72 * L), intMatBase);
-    lowTable.position.set(0, 0.095 * L * invS, 0);
-    registerInteriorRise(lowTable, 0, -0.06);
-    interiorGroup.add(lowTable);
+    /** Стол — прежняя широкая тумба; пульт/вертаки в единицах чертежа 8×4, масштаб под столешню */
+    const DJ_BOOTH_SCALE = 1.38 * 1.5;
+    const legH = 0.36 * L * DJ_BOOTH_SCALE;
+    const topTy = 0.1 * L * DJ_BOOTH_SCALE;
+    const topW = 1.52 * L * DJ_BOOTH_SCALE;
+    const topD = 0.58 * L * DJ_BOOTH_SCALE;
+    const legW = 0.2 * L * DJ_BOOTH_SCALE;
+    const legD = 0.44 * L * DJ_BOOTH_SCALE;
+    const lx = 0.41 * L * DJ_BOOTH_SCALE;
 
-    const futonGeo = new THREE.BoxGeometry(2.05 * L, 0.1 * L, 1.05 * L);
-    const futonL = new THREE.Mesh(futonGeo, futonMatBase);
-    futonL.position.set(
-      (-4.35 + rndRange(-0.2, 0.2)) * L * invS,
-      0.05 * L * invS,
-      (2.95 + rndRange(-0.28, 0.28)) * L * invS
-    );
-    futonL.rotation.y = 0.35 + rndRange(-0.12, 0.12);
-    registerInteriorRise(futonL, 1, 0.08, futonMatBase);
-    interiorGroup.add(futonL);
+    const silverM = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
+    const silver2 = new THREE.MeshLambertMaterial({ color: 0xd8d8d8 });
+    const darkM = new THREE.MeshLambertMaterial({ color: 0x1e1e1e });
+    const blackBase = new THREE.MeshLambertMaterial({ color: 0x0d0d0d });
+    const slipmatM = new THREE.MeshLambertMaterial({ color: 0x0a0a0a });
+    const chromeM = new THREE.MeshLambertMaterial({ color: 0xd8d8d8 });
+    const rubberM = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+    const redM = new THREE.MeshLambertMaterial({
+      color: 0xff2200,
+      emissive: new THREE.Color(0x880000),
+    });
+    const woodM = new THREE.MeshLambertMaterial({ color: 0xb07830 });
+    const woodDarkM = new THREE.MeshLambertMaterial({ color: 0x8a5a20 });
+    const eclerBlk = new THREE.MeshLambertMaterial({ color: 0x0e0e0e });
+    const knobDarkM = new THREE.MeshLambertMaterial({ color: 0x222222 });
+    const knobSilM = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+    const greenLED = new THREE.MeshLambertMaterial({
+      color: 0x00ff66,
+      emissive: new THREE.Color(0x00aa33),
+    });
 
-    const futonR = new THREE.Mesh(futonGeo, futonMatBase);
-    futonR.position.set(
-      (4.35 + rndRange(-0.2, 0.2)) * L * invS,
-      0.05 * L * invS,
-      (-2.95 + rndRange(-0.28, 0.28)) * L * invS
-    );
-    futonR.rotation.y = Math.PI - 0.35 + rndRange(-0.12, 0.12);
-    registerInteriorRise(futonR, 2, -0.08, futonMatBase);
-    interiorGroup.add(futonR);
+    function makeTechnics(parent, x, y, z, mirrorX) {
+      const g = new THREE.Group();
+      const mx = mirrorX ? -1 : 1;
 
-    const cMul = 0.34;
-    const cRadT = 0.36 * L * cMul;
-    const cRadB = 0.42 * L * cMul;
-    const cHt = 0.2 * L * cMul;
-    const cY = 0.5 * cHt * invS;
-    const cushionGeo = new THREE.CylinderGeometry(cRadT, cRadB, cHt, 12);
-    const cushionA = new THREE.Mesh(cushionGeo, intMatBase);
-    cushionA.position.set(
-      (-4.55 + rndRange(-0.18, 0.18)) * L * invS,
-      cY,
-      (3.95 + rndRange(-0.22, 0.22)) * L * invS
-    );
-    cushionA.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushionA, 3, 0.1);
-    interiorGroup.add(cushionA);
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.22, 2.25), blackBase);
+      chassis.position.set(0, 0.11, 0);
+      chassis.castShadow = true;
+      chassis.receiveShadow = true;
+      g.add(chassis);
 
-    const cushionB = new THREE.Mesh(cushionGeo, intMatBase);
-    cushionB.position.set(
-      (4.5 + rndRange(-0.18, 0.18)) * L * invS,
-      cY,
-      (-4.05 + rndRange(-0.22, 0.22)) * L * invS
+      [[-0.95, -0.9], [0.95, -0.9], [-0.95, 0.9], [0.95, 0.9]].forEach(([fx, fz]) => {
+        const f = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.06, 16), rubberM);
+        f.position.set(fx, -0.01, fz);
+        g.add(f);
+      });
+
+      const topPanel = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.06, 2.2), silverM);
+      topPanel.position.set(0, 0.25, 0);
+      topPanel.castShadow = true;
+      topPanel.receiveShadow = true;
+      g.add(topPanel);
+
+      const recess = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.94, 0.94, 0.015, 64),
+        new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+      );
+      recess.position.set(-0.08 * mx, 0.275, 0.02);
+      g.add(recess);
+
+      const platter = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.04, 64), darkM);
+      platter.position.set(-0.08 * mx, 0.29, 0.02);
+      g.add(platter);
+
+      const sm = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.012, 64), slipmatM);
+      sm.position.set(-0.08 * mx, 0.312, 0.02);
+      g.add(sm);
+
+      const dotM = new THREE.MeshLambertMaterial({ color: 0x888888 });
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const d = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.005, 6), dotM);
+        d.position.set(-0.08 * mx + 0.88 * Math.sin(a), 0.316, 0.02 + 0.88 * Math.cos(a));
+        g.add(d);
+      }
+
+      const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.06, 12), chromeM);
+      sp.position.set(-0.08 * mx, 0.335, 0.02);
+      g.add(sp);
+
+      const wk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.04, 20), chromeM);
+      wk.position.set(-1.0 * mx, 0.275, -0.82);
+      g.add(wk);
+
+      const abx = 0.82 * mx;
+      const abz = -0.68;
+      const ab = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.09, 20), chromeM);
+      ab.position.set(abx, 0.3, abz);
+      g.add(ab);
+      const abCap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 16), darkM);
+      abCap.position.set(abx, 0.35, abz);
+      g.add(abCap);
+
+      const cw = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.1, 16), darkM);
+      cw.rotation.z = Math.PI / 2;
+      cw.position.set(abx + 0.12 * mx, 0.335, abz);
+      g.add(cw);
+
+      const pts = [
+        new THREE.Vector3(abx, 0.34, abz),
+        new THREE.Vector3(abx * 0.7, 0.35, abz + 0.22),
+        new THREE.Vector3(abx * 0.4, 0.34, abz + 0.52),
+        new THREE.Vector3(abx * 0.15, 0.32, abz + 0.78),
+        new THREE.Vector3(abx * 0.05, 0.3, abz + 0.98),
+      ];
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.016, 8, false),
+        chromeM
+      );
+      g.add(tube);
+
+      const hs = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.035, 0.09), chromeM);
+      hs.position.set(abx * 0.04, 0.296, abz + 1.0);
+      g.add(hs);
+      const cart = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.028, 0.07), darkM);
+      cart.position.set(abx * 0.04, 0.278, abz + 1.04);
+      g.add(cart);
+      const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.002, 0.05, 6), darkM);
+      needle.rotation.x = Math.PI / 8;
+      needle.position.set(abx * 0.04, 0.255, abz + 1.11);
+      g.add(needle);
+
+      const lift = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 8), chromeM);
+      lift.position.set(0.72 * mx, 0.29, abz + 0.55);
+      g.add(lift);
+
+      const ssBtn = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.025, 0.09), darkM);
+      ssBtn.position.set(-0.55 * mx, 0.113, 0.92);
+      g.add(ssBtn);
+
+      const led = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.015, 10), redM);
+      led.position.set(-0.95 * mx, 0.113, 0.78);
+      g.add(led);
+
+      const b33 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.07), darkM);
+      b33.position.set(-0.22 * mx, 0.113, 0.92);
+      g.add(b33);
+      const b45 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.07), darkM);
+      b45.position.set(-0.08 * mx, 0.113, 0.92);
+      g.add(b45);
+
+      const pitchTrack = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.85), silver2);
+      pitchTrack.position.set(1.0 * mx, 0.262, 0.1);
+      g.add(pitchTrack);
+      const pitchFader = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.065), silver2);
+      pitchFader.position.set(1.0 * mx, 0.272, -0.05);
+      g.add(pitchFader);
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    }
+
+    function makeEcler(parent, x, y, z) {
+      const g = new THREE.Group();
+
+      [-0.66, 0.66].forEach((wx) => {
+        const s = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 1.8), woodM);
+        s.position.set(wx, 0.25, 0);
+        s.receiveShadow = true;
+        g.add(s);
+        [[0.06, -0.16], [0.06, 0.16], [-0.06, -0.16], [-0.06, 0.16]].forEach(([dz, dy]) => {
+          const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.01, 8), woodDarkM);
+          sc.rotation.z = Math.PI / 2;
+          sc.position.set(wx + (wx > 0 ? 0.1 : -0.1), 0.25 + dy, dz);
+          g.add(sc);
+        });
+      });
+
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.8), eclerBlk);
+      chassis.position.set(0, 0.25, 0);
+      chassis.receiveShadow = true;
+      g.add(chassis);
+
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(1.08, 0.005, 1.78),
+        new THREE.MeshLambertMaterial({ color: 0x181818 })
+      );
+      panel.position.set(0, 0.503, 0);
+      g.add(panel);
+
+      [-0.18, 0.18].forEach((dx) => {
+        const d = new THREE.Mesh(
+          new THREE.BoxGeometry(0.005, 0.003, 1.7),
+          new THREE.MeshLambertMaterial({ color: 0x333333 })
+        );
+        d.position.set(dx, 0.506, 0);
+        g.add(d);
+      });
+
+      function knob(gp, kx, ky, kz, r) {
+        const km = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.04, 20), knobDarkM);
+        km.position.set(kx, ky, kz);
+        gp.add(km);
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.58, r * 0.58, 0.012, 16), knobSilM);
+        cap.position.set(kx, ky + 0.026, kz);
+        gp.add(cap);
+        const mk = new THREE.Mesh(
+          new THREE.BoxGeometry(0.006, 0.014, 0.004),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        mk.position.set(kx, ky + 0.033, kz - r * 0.5);
+        gp.add(mk);
+      }
+
+      [-0.3, 0, 0.3].forEach((cx) => {
+        knob(g, cx, 0.522, -0.62, 0.055);
+        knob(g, cx, 0.524, -0.38, 0.062);
+        knob(g, cx, 0.524, -0.14, 0.062);
+        knob(g, cx, 0.524, 0.1, 0.062);
+        const pfl = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.018, 12), knobSilM);
+        pfl.position.set(cx, 0.514, 0.28);
+        g.add(pfl);
+        const fx = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.03, 16), knobDarkM);
+        fx.position.set(cx, 0.518, 0.38);
+        g.add(fx);
+      });
+
+      [-0.32, 0, 0.32].forEach((cx) => {
+        knob(g, cx, 0.528, 0.62, 0.085);
+      });
+
+      [-0.36, 0.36].forEach((cx) => {
+        const vm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.065, 24), knobDarkM);
+        vm.position.set(cx, 0.532, 0.82);
+        g.add(vm);
+        const vc = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.018, 20), knobSilM);
+        vc.position.set(cx, 0.556, 0.82);
+        g.add(vc);
+        const vmk = new THREE.Mesh(
+          new THREE.BoxGeometry(0.007, 0.018, 0.004),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        vmk.position.set(cx, 0.566, 0.82 - 0.065);
+        g.add(vmk);
+      });
+
+      const vuBg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.005, 0.35),
+        new THREE.MeshLambertMaterial({ color: 0x060606 })
+      );
+      vuBg.position.set(0, 0.506, 0.76);
+      g.add(vuBg);
+      const vuCols = [0x22cc44, 0x22cc44, 0x22cc44, 0x22cc44, 0xffaa00, 0xff2200];
+      [-0.04, 0.04].forEach((vx) => {
+        vuCols.forEach((col, i) => {
+          const em = new THREE.Color(col);
+          em.multiplyScalar(0.25);
+          const bar = new THREE.Mesh(
+            new THREE.BoxGeometry(0.032, 0.006, 0.03),
+            new THREE.MeshLambertMaterial({ color: col, emissive: em })
+          );
+          bar.position.set(vx, 0.51, 0.68 - i * 0.038);
+          g.add(bar);
+        });
+      });
+
+      const onLed = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.01, 10), greenLED);
+      onLed.position.set(0, 0.507, -0.84);
+      g.add(onLed);
+
+      const hj1 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), darkM);
+      hj1.rotation.x = Math.PI / 2;
+      hj1.position.set(-0.3, 0.24, 0.912);
+      g.add(hj1);
+      const hj2 = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.04, 12), darkM);
+      hj2.rotation.x = Math.PI / 2;
+      hj2.position.set(-0.2, 0.24, 0.912);
+      g.add(hj2);
+
+      [0.05, 0.22].forEach((fx) => {
+        const fk = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 20), knobDarkM);
+        fk.rotation.x = Math.PI / 2;
+        fk.position.set(fx, 0.24, 0.912);
+        g.add(fk);
+        const fkc = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.014, 16), knobSilM);
+        fkc.rotation.x = Math.PI / 2;
+        fkc.position.set(fx, 0.24, 0.919);
+        g.add(fkc);
+      });
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    }
+
+    /**
+     * Concrete brutalist monolith — parent.add; азимут в updateScene (фронт с динамиками — локальный +Z).
+     */
+    function makeConcreteMonolithSpeaker(parent, x, y, z) {
+      const M = getConcreteMonolithSpkTextures();
+      const {
+        concSmoothM,
+        concRoughM,
+        wooferRingM,
+        wooferConeM,
+        wooferSurrM,
+        dustCapM,
+        cableM,
+        innerExposedM,
+        crackLineM,
+        roughRingM,
+        topDetailM,
+      } = M;
+      const g = new THREE.Group();
+      const CW = 0.52;
+      const CH = 1.35;
+      const CD = 0.38;
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(CW, CH, CD), concSmoothM);
+      body.position.set(0, CH / 2, 0);
+      body.castShadow = true;
+      body.receiveShadow = true;
+      g.add(body);
+
+      const crackZone = new THREE.Mesh(new THREE.BoxGeometry(0.06, CH * 0.85, CD * 0.18), concRoughM);
+      crackZone.position.set(CW / 2 - 0.01, CH * 0.52, 0);
+      crackZone.rotation.y = 0.15;
+      g.add(crackZone);
+
+      const crackFragments = [
+        { x: CW / 2 + 0.018, y: CH * 0.78, z: 0.02, rx: 0.2, ry: 0.3, s: [0.055, 0.12, 0.08] },
+        { x: CW / 2 + 0.028, y: CH * 0.65, z: -0.04, rx: -0.1, ry: -0.2, s: [0.08, 0.09, 0.12] },
+        { x: CW / 2 + 0.012, y: CH * 0.52, z: 0.06, rx: 0.3, ry: 0.15, s: [0.045, 0.14, 0.07] },
+        { x: CW / 2 + 0.035, y: CH * 0.42, z: -0.02, rx: -0.2, ry: 0.25, s: [0.07, 0.08, 0.1] },
+        { x: CW / 2 + 0.022, y: CH * 0.3, z: 0.03, rx: 0.15, ry: -0.18, s: [0.06, 0.11, 0.09] },
+        { x: CW / 2 + 0.015, y: CH * 0.22, z: -0.05, rx: 0.25, ry: 0.1, s: [0.05, 0.07, 0.08] },
+        { x: CW / 2 - 0.015, y: CH * 0.7, z: 0.08, rx: -0.1, ry: 0.2, s: [0.04, 0.18, 0.06] },
+        { x: CW / 2 + 0.008, y: CH * 0.58, z: -0.07, rx: 0.1, ry: -0.1, s: [0.05, 0.09, 0.05] },
+      ];
+      crackFragments.forEach((f) => {
+        const frag = new THREE.Mesh(new THREE.BoxGeometry(f.s[0], f.s[1], f.s[2]), concRoughM);
+        frag.position.set(f.x, f.y, f.z);
+        frag.rotation.set(f.rx, f.ry, f.rx * 0.5);
+        frag.castShadow = true;
+        g.add(frag);
+      });
+
+      const innerExposed = new THREE.Mesh(new THREE.BoxGeometry(0.04, CH * 0.72, CD * 0.55), innerExposedM);
+      innerExposed.position.set(CW / 2 - 0.005, CH * 0.5, 0);
+      innerExposed.rotation.y = -0.05;
+      g.add(innerExposed);
+
+      const crackLine = new THREE.Mesh(new THREE.BoxGeometry(0.012, CH * 0.82, 0.012), crackLineM);
+      crackLine.position.set(CW / 2 - 0.024, CH * 0.52, 0);
+      crackLine.rotation.y = 0.08;
+      g.add(crackLine);
+
+      const fz = CD / 2;
+      const wooferPositions = [
+        { y: CH * 0.76, r: 0.095 },
+        { y: CH * 0.5, r: 0.115 },
+        { y: CH * 0.24, r: 0.105 },
+      ];
+      wooferPositions.forEach(({ y, r }) => {
+        const wx = -CW * 0.06;
+
+        const roughRing = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.032, r + 0.032, 0.025, 32), roughRingM);
+        roughRing.rotation.x = Math.PI / 2;
+        roughRing.position.set(wx, y, fz + 0.005);
+        g.add(roughRing);
+
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.018, 36), wooferRingM);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(wx, y, fz + 0.01);
+        g.add(ring);
+
+        const surr = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.022, 36), wooferSurrM);
+        surr.rotation.x = Math.PI / 2;
+        surr.position.set(wx, y, fz + 0.014);
+        g.add(surr);
+
+        const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.025, r - 0.01, 0.06, 36), wooferConeM);
+        cone.rotation.x = -Math.PI / 2;
+        cone.position.set(wx, y, fz + 0.018);
+        g.add(cone);
+
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(0.024, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2),
+          dustCapM
+        );
+        dome.rotation.x = Math.PI / 2;
+        dome.position.set(wx, y, fz + 0.046);
+        g.add(dome);
+
+        for (let i = 0; i < 5; i++) {
+          const angle = (i / 5) * Math.PI * 2 + Math.random() * 0.5;
+          const dist = r + 0.025 + Math.random() * 0.025;
+          const chip = new THREE.Mesh(
+            new THREE.BoxGeometry(0.02 + Math.random() * 0.035, 0.015 + Math.random() * 0.025, 0.012),
+            concRoughM
+          );
+          chip.position.set(
+            wx + Math.cos(angle) * dist,
+            y + Math.sin(angle) * dist,
+            fz + 0.012 + Math.random() * 0.01
+          );
+          chip.rotation.set(Math.random() * 0.4, Math.random() * 0.4, angle);
+          g.add(chip);
+        }
+      });
+
+      const cablePts = [
+        new THREE.Vector3(-CW * 0.06, 0.04, fz),
+        new THREE.Vector3(-CW * 0.06, 0.02, fz + 0.05),
+        new THREE.Vector3(-CW * 0.14, 0.01, fz + 0.12),
+        new THREE.Vector3(-CW * 0.28, 0.008, fz + 0.18),
+        new THREE.Vector3(-CW * 0.55, 0.006, fz + 0.22),
+        new THREE.Vector3(-CW * 0.8, 0.005, fz + 0.25),
+      ];
+      const cable = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cablePts), 20, 0.009, 8, false),
+        cableM
+      );
+      g.add(cable);
+
+      const topDetail = new THREE.Mesh(new THREE.BoxGeometry(CW + 0.004, 0.018, CD + 0.004), topDetailM);
+      topDetail.position.set(0, CH, 0);
+      g.add(topDetail);
+
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    }
+
+    const lowDjBooth = new THREE.Group();
+    lowDjBooth.name = 'lowDjBooth';
+
+    const benchTopMat = new THREE.MeshStandardMaterial({
+      color: 0xf3ead9,
+      roughness: 0.82,
+      metalness: 0.02,
+      envMap: scene.environment,
+      envMapIntensity: 0.55,
+    });
+    const benchLegMat = new THREE.MeshStandardMaterial({
+      color: 0xe7dac1,
+      roughness: 0.8,
+      metalness: 0.03,
+      envMap: scene.environment,
+      envMapIntensity: 0.52,
+    });
+    const topSlab = new THREE.Mesh(new THREE.BoxGeometry(topW, topTy, topD), benchTopMat);
+    topSlab.position.y = legH + 0.5 * topTy;
+    topSlab.castShadow = true;
+    topSlab.receiveShadow = true;
+    lowDjBooth.add(topSlab);
+    function addDjLeg(xLeg) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(legW, legH, legD), benchLegMat);
+      leg.position.set(xLeg, 0.5 * legH, 0);
+      leg.castShadow = true;
+      leg.receiveShadow = true;
+      lowDjBooth.add(leg);
+    }
+    addDjLeg(-lx);
+    addDjLeg(0);
+    addDjLeg(lx);
+
+    /** Чертёж 8×4 → масштаб так, чтобы сетап помещался на topW×topD; origin на верхней грани столешницы */
+    const slabTopY = legH + topTy;
+    const djGearRoot = new THREE.Group();
+    const gearScale = Math.min(topW / 8, topD / 4);
+    djGearRoot.position.set(0, slabTopY, 0);
+    djGearRoot.scale.setScalar(gearScale);
+    lowDjBooth.add(djGearRoot);
+    makeTechnics(djGearRoot, -2.05, 0, 0, false);
+    makeTechnics(djGearRoot, 2.05, 0, 0, true);
+    makeEcler(djGearRoot, 0, 0, 0);
+
+    /**
+     * Бетонный монолит: масштаб gearScale × SPK_MUL (корпус ~0.52×1.35 m в чертеже).
+     * Подъём снизу — djSpeakersRise, позиция.y в updateScene по uTable.
+     */
+    const SPK_MUL = 5.45;
+    /** Полуразмас по X от центра стола (ед. чертежа × gearScale); больше — шире стойка */
+    const SPK_SIDE_X = 8.45;
+    /** Подъём якоря: крестовина и ножки стойки не утопают в полу, читаются в кадре */
+    const SPK_ANCHOR_Y = 0.58 * gearScale;
+    /**
+     * За столом в локали lowDjBooth (+Z от центра столешницы); было 0.58·topD — удвоено.
+     */
+    const SPK_ANCHOR_Z = topD * 1.16;
+    const spkScale = gearScale * SPK_MUL;
+    const djSpkRise = new THREE.Group();
+    djSpkRise.name = 'djSpeakersRise';
+    djSpkRise.userData.riseLift = 4.5 * spkScale;
+    djSpkRise.userData.faceDirLocked = null;
+    djSpkRise.position.y = -djSpkRise.userData.riseLift;
+    [-1, 1].forEach((side) => {
+      const anchor = new THREE.Group();
+      djSpkRise.add(anchor);
+      anchor.position.set(side * SPK_SIDE_X * gearScale, SPK_ANCHOR_Y, SPK_ANCHOR_Z);
+      const spk = makeConcreteMonolithSpeaker(anchor, 0, 0, 0);
+      spk.scale.setScalar(spkScale);
+      /** Азимут стол→камера (XZ) + 70° по Y; фиксация при uTable≥0.62; фронт — локальный +Z */
+    });
+    lowDjBooth.add(djSpkRise);
+
+    /**
+     * Низ стола (ножки y=0) чуть выше настила интерьера — как у футонов 0.036·L·invS + запас.
+     */
+    const djTableBaseY = (0.036 + 0.045) * L * invS;
+    lowDjBooth.position.set(
+      OCULUS_CENTER_X / INTERIOR_SCALE,
+      djTableBaseY,
+      OCULUS_CENTER_Z / INTERIOR_SCALE
     );
-    cushionB.rotation.y = rndRange(0, Math.PI * 2);
-    registerInteriorRise(cushionB, 4, -0.1);
-    interiorGroup.add(cushionB);
+    lowDjBooth.rotation.y = Math.atan2(OCULUS_CENTER_X, OCULUS_CENTER_Z) + rndRange(-0.1, 0.1);
+    registerInteriorRiseGroup(lowDjBooth, 0, -0.06);
+    interiorGroup.add(lowDjBooth);
+    djSpeakersRiseGroup = lowDjBooth.getObjectByName('djSpeakersRise');
+
+    /** Чертёж: 1 ед ≈ 1 м → локаль interiorGroup (ромб шатра) */
+    const M2I = 3.52;
+    /** Толщина матраса (м), было 0.38 — чуть выше для объёма */
+    const FUTON_H_M = 0.47;
+    const intFloorY = 0.036 * L * invS;
+    const intEnv = scene.environment;
+    const futonMatOpts = {
+      roughness: 0.86,
+      metalness: 0,
+      envMap: intEnv,
+      envMapIntensity: 0.5,
+      transparent: true,
+      opacity: 0,
+    };
+    const futonColors = [0xa8c8d8, 0xb2ccdc, 0xbdd5df, 0x96bccf, 0xc8e2ee];
+    const futonMats = futonColors.map((c) => new THREE.MeshStandardMaterial({ ...futonMatOpts, color: c }));
+    const pillowMats = [
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe5e7e9 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe5e7e9 }),
+      new THREE.MeshStandardMaterial({ ...futonMatOpts, color: 0xe5e7e9 }),
+    ];
+    const quiltMat = new THREE.MeshStandardMaterial({
+      ...futonMatOpts,
+      color: 0x6888a0,
+      opacity: 0,
+      transparent: true,
+      depthWrite: false,
+    });
+    /** Отдельные напольные подушки + единый тон с подушками на футонах */
+    const floorCushionMat = new THREE.MeshStandardMaterial({
+      ...futonMatOpts,
+      color: 0xe5e7e9,
+      emissive: 0x2a2b2e,
+      emissiveIntensity: 0.028,
+    });
+
+    const mattGeo = makeRoundedBox(2.0 * M2I, FUTON_H_M * M2I, 3.2 * M2I);
+    const pillPlump = { px: 0.52, py: 0.56, pz: 0.52 };
+    const pillGeoSm = makePillowGeo(0.86 * M2I, 0.34 * M2I, 0.6 * M2I, pillPlump);
+    const pillGeoWide = makePillowGeo(1.76 * M2I, 0.32 * M2I, 0.6 * M2I, pillPlump);
+    /** Напольные: выше и пышнее, без «блина» */
+    const floorPlump = { px: 0.5, py: 0.58, pz: 0.5 };
+    const floorCushionGeo = makePillowGeo(1.22 * M2I, 0.48 * M2I, 1.22 * M2I, floorPlump);
+
+    function makeFutonAssembly(xm, zm, rotY, mi, pillows, delaySteps, twist = 0) {
+      const group = new THREE.Group();
+      group.name = 'futonAssembly';
+      const matt = new THREE.Mesh(mattGeo, futonMats[mi % futonMats.length].clone());
+      matt.position.y = (FUTON_H_M * 0.5) * M2I;
+      matt.castShadow = true;
+      matt.receiveShadow = true;
+      group.add(matt);
+
+      const quiltY = (FUTON_H_M - 0.006) * M2I;
+      [-0.85 * M2I, 0, 0.85 * M2I].forEach((zi) => {
+        const q = new THREE.Mesh(
+          new THREE.BoxGeometry(1.85 * M2I, 0.008 * M2I, 0.014 * M2I),
+          quiltMat.clone()
+        );
+        q.position.set(0, quiltY, zi);
+        group.add(q);
+      });
+      [-0.55 * M2I, 0, 0.55 * M2I].forEach((xi) => {
+        const q = new THREE.Mesh(
+          new THREE.BoxGeometry(0.014 * M2I, 0.008 * M2I, 3.05 * M2I),
+          quiltMat.clone()
+        );
+        q.position.set(xi, quiltY, 0);
+        group.add(q);
+      });
+
+      const pillowTopY = (FUTON_H_M + 0.13) * M2I;
+      const pm = pillowMats[mi % pillowMats.length].clone();
+      if (pillows === 'two') {
+        [-0.52 * M2I, 0.52 * M2I].forEach((px) => {
+          const p = new THREE.Mesh(pillGeoSm, pm.clone());
+          p.position.set(px, pillowTopY, -1.26 * M2I);
+          p.castShadow = true;
+          group.add(p);
+        });
+      } else {
+        const p = new THREE.Mesh(pillGeoWide, pm.clone());
+        p.position.set(0, pillowTopY, -1.26 * M2I);
+        p.castShadow = true;
+        group.add(p);
+      }
+
+      group.position.set(xm * M2I, intFloorY, zm * M2I);
+      group.rotation.y = rotY;
+      registerInteriorRiseGroup(group, delaySteps, twist, 'table');
+      interiorGroup.add(group);
+    }
+
+    /**
+     * Напольные подушки в зоне отдыха: фаза Light (uTable) + дальше uGroup; без DJ и без пересечения с футонами.
+     */
+    function addFloorCushion(xLoc, zLoc, delaySteps, twist = 0, rotY = 0) {
+      const mesh = new THREE.Mesh(floorCushionGeo, floorCushionMat);
+      mesh.name = 'floorCushion';
+      mesh.position.set(xLoc, intFloorY + 0.24 * M2I, zLoc);
+      mesh.rotation.y = rotY;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      registerInteriorRise(mesh, delaySteps, twist, floorCushionMat, 'lounge');
+      interiorGroup.add(mesh);
+    }
+
+    makeFutonAssembly(-6.2, -4.5, Math.PI * 0.1, 0, 'two', 2, rndRange(-0.06, 0.06));
+    makeFutonAssembly(1.2, -5.5, Math.PI * 0.5, 1, 'one', 3, rndRange(-0.05, 0.05));
+    makeFutonAssembly(6.2, -3.0, Math.PI * -0.15, 2, 'two', 4, rndRange(-0.07, 0.07));
+    /** (-5.2, 2.8) в локали интерьера совпадал с зоной DJ-стола (окуляр) — убран */
+    makeFutonAssembly(4.8, 3.2, Math.PI * -0.33, 4, 'one', 5, rndRange(-0.06, 0.06));
+
+    const futonBlockLocal = [
+      { x: -6.2 * M2I, z: -4.5 * M2I, r: 2.45 * M2I },
+      { x: 1.2 * M2I, z: -5.5 * M2I, r: 2.45 * M2I },
+      { x: 6.2 * M2I, z: -3.0 * M2I, r: 2.45 * M2I },
+      { x: 4.8 * M2I, z: 3.2 * M2I, r: 2.45 * M2I },
+    ];
+    const djCxLoc = OCULUS_CENTER_X / INTERIOR_SCALE;
+    const djCzLoc = OCULUS_CENTER_Z / INTERIOR_SCALE;
+    const djClearR = Math.hypot(topW, topD) * 0.52 + 2.35 * M2I;
+    const cushFootR = 0.62 * M2I;
+    const minCushGap = 1.12 * M2I;
+    const loungeManhattan = (DIAMOND_R / INTERIOR_SCALE) * 0.82;
+
+    const placedCush = [];
+    function okFloorCushionSpot(x, z) {
+      if (Math.abs(x) + Math.abs(z) > loungeManhattan) return false;
+      const dDj = Math.hypot(x - djCxLoc, z - djCzLoc);
+      if (dDj < djClearR + cushFootR) return false;
+      for (const f of futonBlockLocal) {
+        if (Math.hypot(x - f.x, z - f.z) < f.r + cushFootR) return false;
+      }
+      for (const [px, pz] of placedCush) {
+        if (Math.hypot(x - px, z - pz) < minCushGap) return false;
+      }
+      return true;
+    }
+
+    const targetFloorCushions = 16;
+    let tries = 0;
+    while (placedCush.length < targetFloorCushions && tries < 900) {
+      tries++;
+      const x = rndRange(-loungeManhattan * 0.88, loungeManhattan * 0.88);
+      const z = rndRange(-loungeManhattan * 0.88, loungeManhattan * 0.88);
+      if (!okFloorCushionSpot(x, z)) continue;
+      placedCush.push([x, z]);
+      const delaySteps = 1 + Math.floor(rnd() * 6);
+      addFloorCushion(
+        x + rndRange(-0.22, 0.22) * M2I,
+        z + rndRange(-0.22, 0.22) * M2I,
+        delaySteps,
+        rndRange(-0.05, 0.05),
+        rnd() * Math.PI * 2
+      );
+    }
     interiorGroup.visible = false;
     scene.add(interiorGroup);
 
     rayGrp = new THREE.Group();
-    const raySegs = 28;
-    const rayMat = new THREE.MeshBasicMaterial({
+    const raySegs = 40;
+
+    const rayShellMat = new THREE.MeshBasicMaterial({
       color: BCOL,
       transparent: true,
       opacity: 0,
@@ -1243,54 +3872,123 @@
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    rayMats = [rayMat];
 
-    const lower = new THREE.CylinderGeometry(
-      RAY_R_IN_BASE,
-      RAY_R_IN_FLOOR,
+    const lowerSh = new THREE.CylinderGeometry(
+      RAY_R_IN_BASE * 1.1,
+      RAY_R_IN_FLOOR * 1.14,
       RAY_LEN_BELOW,
       raySegs, 1, true
     );
-    lower.translate(0, -RAY_LEN_BELOW / 2, 0);
+    lowerSh.translate(0, -RAY_LEN_BELOW / 2, 0);
 
-    const upper = new THREE.CylinderGeometry(
-      RAY_R_SKY,
-      RAY_R_IN_BASE,
+    const upperSh = new THREE.CylinderGeometry(
+      RAY_R_SKY * 1.08,
+      RAY_R_IN_BASE * 1.1,
       RAY_LEN_SKY,
       raySegs, 1, true
     );
-    upper.translate(0, RAY_LEN_SKY / 2, 0);
+    upperSh.translate(0, RAY_LEN_SKY / 2, 0);
 
-    const rayGeo = mergeGeometries([lower, upper], false);
-    lower.dispose();
-    upper.dispose();
+    const rayShellGeo = mergeGeometries([lowerSh, upperSh], false);
+    lowerSh.dispose();
+    upperSh.dispose();
 
-    rayGrp.add(new THREE.Mesh(rayGeo, rayMat));
+    const rayCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xfff6e0,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const lowerCr = new THREE.CylinderGeometry(
+      RAY_R_IN_BASE * 0.5,
+      RAY_R_IN_FLOOR * 0.46,
+      RAY_LEN_BELOW,
+      raySegs, 1, true
+    );
+    lowerCr.translate(0, -RAY_LEN_BELOW / 2, 0);
+
+    const upperCr = new THREE.CylinderGeometry(
+      RAY_R_SKY * 0.36,
+      RAY_R_IN_BASE * 0.5,
+      RAY_LEN_SKY,
+      raySegs, 1, true
+    );
+    upperCr.translate(0, RAY_LEN_SKY / 2, 0);
+
+    const rayCoreGeo = mergeGeometries([lowerCr, upperCr], false);
+    lowerCr.dispose();
+    upperCr.dispose();
+
+    const rayColumn = new THREE.Group();
+    rayColumn.name = 'godRayColumn';
+
+    const shellMesh = new THREE.Mesh(rayShellGeo, rayShellMat);
+    shellMesh.renderOrder = 0;
+    rayColumn.add(shellMesh);
+
+    const coreMesh = new THREE.Mesh(rayCoreGeo, rayCoreMat);
+    coreMesh.renderOrder = 2;
+    rayColumn.add(coreMesh);
+
+    const finH = RAY_LEN_SKY + RAY_LEN_BELOW;
+    const finW = RAY_R_SKY * 2.8;
+    const sharedFinGeo = new THREE.PlaneGeometry(finW, finH, 1, 56);
+    sharedFinGeo.translate(0, (RAY_LEN_SKY - RAY_LEN_BELOW) * 0.5, 0);
+
+    const finMats = [];
+    const nFins = 10;
+    for (let fi = 0; fi < nFins; fi++) {
+      const finMat = new THREE.MeshBasicMaterial({
+        color: 0xffefcc,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      finMats.push(finMat);
+      const fin = new THREE.Mesh(sharedFinGeo, finMat);
+      fin.rotation.y = (fi / nFins) * Math.PI + fi * 0.031;
+      fin.renderOrder = 1;
+      rayColumn.add(fin);
+    }
+
+    rayColumn.rotation.order = 'YXZ';
+    rayGrp.add(rayColumn);
     rayGrp.position.set(0, 0, 0);
     scene.add(rayGrp);
 
-    window.addEventListener('scroll', () => {
+    rayMats = [rayShellMat, rayCoreMat, ...finMats];
+
+    const scrollEventTarget = useInternalScrollRoot && scrollRootEl ? scrollRootEl : window;
+    scrollEventTarget.addEventListener('scroll', () => {
+      if (scrollPositionY() > 0.5) markStageInteraction();
       applyScrollPhaseControl();
       syncRawScrollProgress();
     }, { passive: true });
 
     window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) return;
-      const max = scrollPageMax();
-      if (max <= 0) return;
-      const capPx = scrollAllowedEnd * max;
-      const y = window.scrollY;
-      if (e.deltaY > 0 && scrollPhaseLock && y >= capPx - 6) {
-        e.preventDefault();
-      }
-    }, { passive: false });
+      if (!e.ctrlKey && Math.abs(e.deltaY) > 0.25) bumpScrollHintMotionFromWheel();
+    }, { passive: true });
 
-    window.addEventListener('resize', () => {
+    function syncRendererToViewport() {
       applyDeviceProfile();
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const w = scrollViewportWidth();
+      const h = Math.max(1, scrollViewportHeight());
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+      renderer.setSize(w, h);
+      syncRawScrollProgress();
+    }
+
+    window.addEventListener('resize', syncRendererToViewport);
+    /** Только resize: подписка на visualViewport.scroll даёт лишние setSize на iOS Safari и ломает инерцию скролла. */
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncRendererToViewport);
+    }
 
     requestAnimationFrame(tick);
   }
