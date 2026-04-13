@@ -24,13 +24,16 @@
     #scrollRoot {
       position: fixed;
       inset: 0;
-      z-index: 1;
+      z-index: 12;
       overflow-x: hidden;
-      overflow-y: auto;
+      overflow-y: scroll;
       -webkit-overflow-scrolling: touch;
-      overscroll-behavior-y: contain;
+      overscroll-behavior-y: none;
       touch-action: pan-y pinch-zoom;
+      pointer-events: auto;
       background: transparent;
+      transform: translateZ(0);
+      will-change: scroll-position;
     }
 
     #scrollRoot::-webkit-scrollbar {
@@ -59,7 +62,7 @@
     #whiteBloom {
       position: fixed;
       inset: 0;
-      z-index: 9;
+      z-index: 13;
       pointer-events: none;
       background: #fafbfc;
       opacity: 0;
@@ -72,7 +75,7 @@
     #assemblyShell {
       position: fixed;
       inset: 0;
-      z-index: 14;
+      z-index: 24;
       margin: 0;
       padding: 0;
       display: block;
