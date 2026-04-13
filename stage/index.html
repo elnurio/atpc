@@ -124,6 +124,32 @@
       color: rgba(54, 56, 60, 0.95);
     }
 
+    #soundToggle {
+      position: fixed;
+      top: 36px;
+      right: 40px;
+      z-index: 30;
+      border: none;
+      background: transparent;
+      color: rgba(150, 150, 150, 0.65);
+      font: 300 10px/1 Helvetica, Arial, sans-serif;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color .4s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    #soundToggle:hover {
+      color: rgba(190, 190, 190, 0.95);
+    }
+    body.atpc-ui-dark #soundToggle {
+      color: rgba(82, 84, 88, 0.88);
+    }
+    body.atpc-ui-dark #soundToggle:hover {
+      color: rgba(54, 56, 60, 0.95);
+    }
+
     .slabel {
       position: fixed; bottom: 18vh; left: 50%;
       transform: translateX(-50%) translateY(12px);
@@ -227,6 +253,12 @@
         letter-spacing: .2em;
       }
 
+      #soundToggle {
+        top: calc(env(safe-area-inset-top, 0px) + 18px);
+        right: 16px;
+        letter-spacing: .2em;
+      }
+
       .slabel {
         bottom: calc(env(safe-area-inset-bottom, 0px) + 14vh);
         width: min(88vw, 480px);
@@ -257,6 +289,8 @@
 
   <div id="loader"><div id="loader-dot"></div></div>
   <a href="../" id="back">← ATPC</a>
+  <button id="soundToggle" type="button" aria-pressed="false">sound off</button>
+  <audio id="stageAudio" src="atpc-stage.m4a" preload="auto" loop playsinline webkit-playsinline muted></audio>
 
   <div class="slabel" id="sl0">
     <h2>Site</h2>
@@ -330,6 +364,27 @@
   let assemblyIFrameEl;
   /** Чтобы при повторном показе iframe снова сбрасывать скролл вложенной страницы (Safari) */
   let ambientRevealPrevT = 0;
+
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  function resetStageScrollOnEntry() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
+  resetStageScrollOnEntry();
+  window.addEventListener('pageshow', () => {
+    resetStageScrollOnEntry();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resetStageScrollOnEntry);
+    });
+  }, { passive: true });
+  window.addEventListener('load', () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resetStageScrollOnEntry);
+    });
+  }, { once: true });
 
   function resetEmbeddedAmbientScroll() {
     const el = assemblyIFrameEl;
@@ -1859,6 +1914,67 @@
   const labels = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('sl' + i));
   const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
+  const stageAudio = document.getElementById('stageAudio');
+  const soundToggle = document.getElementById('soundToggle');
+  let stageAudioWanted = true;
+  let stageAudioUnlocked = false;
+  let stageAudioAmbientSuppressed = false;
+
+  function updateStageAudioToggle() {
+    if (!soundToggle || !stageAudio) return;
+    const soundOn =
+      stageAudioWanted
+      && stageAudioUnlocked
+      && !stageAudioAmbientSuppressed
+      && !stageAudio.paused
+      && !stageAudio.muted;
+    soundToggle.textContent = soundOn ? 'sound on' : 'sound off';
+    soundToggle.setAttribute('aria-pressed', String(soundOn));
+    soundToggle.setAttribute('aria-label', soundOn ? 'Turn sound off' : 'Turn sound on');
+  }
+
+  async function syncStageAudioPlayback() {
+    if (!stageAudio) return;
+    if (stageAudioAmbientSuppressed || !stageAudioWanted) {
+      stageAudio.pause();
+      updateStageAudioToggle();
+      return;
+    }
+    stageAudio.muted = !stageAudioUnlocked;
+    try {
+      await stageAudio.play();
+    } catch (err) {}
+    updateStageAudioToggle();
+  }
+
+  async function unlockStageAudio() {
+    if (!stageAudio || stageAudioUnlocked) return;
+    stageAudioUnlocked = true;
+    await syncStageAudioPlayback();
+  }
+
+  if (stageAudio) {
+    stageAudio.volume = 0.9;
+    syncStageAudioPlayback();
+    stageAudio.addEventListener('ended', updateStageAudioToggle);
+    stageAudio.addEventListener('pause', updateStageAudioToggle);
+    stageAudio.addEventListener('play', updateStageAudioToggle);
+  }
+
+  if (soundToggle) {
+    soundToggle.addEventListener('click', async () => {
+      stageAudioWanted = !stageAudioWanted;
+      if (stageAudioWanted) {
+        stageAudioUnlocked = true;
+      }
+      await syncStageAudioPlayback();
+    });
+  }
+
+  window.addEventListener('pointerdown', unlockStageAudio, { passive: true, once: true });
+  window.addEventListener('wheel', unlockStageAudio, { passive: true, once: true });
+  window.addEventListener('keydown', unlockStageAudio, { once: true });
+
   /**
    * Подсказка скролла: реагирует на скорость прокрутки (px/мс), с EMA и гистерезисом.
    * Выше ACTIVE — скрыть; ниже IDLE удерживается IDLE_HOLD_MS — снова показать. Повторяется на всём пути.
@@ -2198,6 +2314,11 @@
         drawingPageT < 0.07 ? 0 : ss(clamp((drawingPageT - 0.07) / 0.86, 0, 1));
       assemblyIFrameEl.style.opacity = String(iframeReveal);
       assemblyShellEl.classList.toggle('on', drawingPageT > 0.055);
+      const suppressStageAudio = drawingPageT > 0.055;
+      if (stageAudioAmbientSuppressed !== suppressStageAudio) {
+        stageAudioAmbientSuppressed = suppressStageAudio;
+        syncStageAudioPlayback();
+      }
       stageCanvasEl.style.opacity = String(1 - drawingPageT);
       stageCanvasEl.style.pointerEvents = 'none';
       /**
@@ -2213,6 +2334,10 @@
       document.body.classList.toggle('atpc-drawing-end', drawingEnd);
       document.documentElement.classList.toggle('atpc-drawing-end', drawingEnd);
     } else if (stageCanvasEl) {
+      if (stageAudioAmbientSuppressed) {
+        stageAudioAmbientSuppressed = false;
+        syncStageAudioPlayback();
+      }
       stageCanvasEl.style.opacity = '1';
       stageCanvasEl.style.pointerEvents = 'none';
     }
