@@ -118,6 +118,7 @@
       background: #1a1f1c;
       display: flex; align-items: center; justify-content: center;
       transition: opacity 0.9s ease;
+      pointer-events: none;
     }
     #loader.hide { opacity: 0; pointer-events: none; }
     #loader-dot {
@@ -397,21 +398,37 @@
     document.body.scrollTop = 0;
   }
 
+  let hasUserInteractedWithStage = false;
+
+  function markStageInteraction() {
+    hasUserInteractedWithStage = true;
+  }
+
   resetStageScrollOnEntry();
   window.addEventListener('pageshow', () => {
     updateStableScrollMetrics(true);
-    resetStageScrollOnEntry();
+    if (!hasUserInteractedWithStage) {
+      resetStageScrollOnEntry();
+    }
     syncRawScrollProgress();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(resetStageScrollOnEntry);
-    });
+    if (!hasUserInteractedWithStage) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!hasUserInteractedWithStage) resetStageScrollOnEntry();
+        });
+      });
+    }
   }, { passive: true });
   window.addEventListener('load', () => {
     updateStableScrollMetrics(true);
     syncRawScrollProgress();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(resetStageScrollOnEntry);
-    });
+    if (!hasUserInteractedWithStage) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!hasUserInteractedWithStage) resetStageScrollOnEntry();
+        });
+      });
+    }
   }, { once: true });
 
   function resetEmbeddedAmbientScroll() {
@@ -1993,6 +2010,7 @@
 
   if (soundToggle) {
     soundToggle.addEventListener('click', async () => {
+      markStageInteraction();
       stageAudioWanted = !stageAudioWanted;
       if (stageAudioWanted) {
         stageAudioUnlocked = true;
@@ -2001,6 +2019,10 @@
     });
   }
 
+  window.addEventListener('touchstart', markStageInteraction, { passive: true });
+  window.addEventListener('pointerdown', markStageInteraction, { passive: true });
+  window.addEventListener('wheel', markStageInteraction, { passive: true });
+  window.addEventListener('keydown', markStageInteraction);
   window.addEventListener('pointerdown', unlockStageAudio, { passive: true, once: true });
   window.addEventListener('wheel', unlockStageAudio, { passive: true, once: true });
   window.addEventListener('keydown', unlockStageAudio, { once: true });
@@ -3943,6 +3965,7 @@
 
     const scrollEventTarget = useInternalScrollRoot && scrollRootEl ? scrollRootEl : window;
     scrollEventTarget.addEventListener('scroll', () => {
+      if (scrollPositionY() > 0.5) markStageInteraction();
       applyScrollPhaseControl();
       syncRawScrollProgress();
     }, { passive: true });
