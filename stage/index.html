@@ -77,7 +77,6 @@
       opacity: 0 !important;
       visibility: hidden;
     }
-    body.atpc-drawing-end #dots,
     body.atpc-drawing-end .slabel,
     body.atpc-drawing-end #scrollHint {
       visibility: hidden !important;
@@ -211,17 +210,6 @@
       }
     }
 
-    #dots {
-      position: fixed; right: 28px; top: 50%; transform: translateY(-50%);
-      display: flex; flex-direction: column; gap: 11px;
-      z-index: 20; pointer-events: none;
-    }
-    .dot {
-      width: 3px; height: 3px; border-radius: 50%;
-      background: rgba(140, 140, 140, 0.3); transition: background .4s, transform .4s;
-    }
-    .dot.on { background: rgba(190, 190, 190, 0.7); transform: scale(1.8); }
-
     @media (max-width: 900px), (pointer: coarse) {
       body { height: 896vh; min-height: 896vh; }
 
@@ -250,16 +238,6 @@
 
       .scroll-hint {
         bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
-      }
-
-      #dots {
-        left: 50%;
-        right: auto;
-        top: auto;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
-        transform: translateX(-50%);
-        flex-direction: row;
-        gap: 9px;
       }
     }
   </style>
@@ -314,17 +292,6 @@
   <div id="whiteBloom" aria-hidden="true"></div>
   <div id="assemblyShell">
     <iframe id="assemblyIFrame" title="Ambient stage 2026" src="ambient-stage-2026.html"></iframe>
-  </div>
-
-  <div id="dots">
-    <div class="dot on" id="d0"></div>
-    <div class="dot" id="d1"></div>
-    <div class="dot" id="d2"></div>
-    <div class="dot" id="d3"></div>
-    <div class="dot" id="d4"></div>
-    <div class="dot" id="d5"></div>
-    <div class="dot" id="d6"></div>
-    <div class="dot" id="d7"></div>
   </div>
 
   <script type="module">
@@ -1865,7 +1832,6 @@
   }
 
   const labels = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('sl' + i));
-  const dots = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('d' + i));
   const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
   /**
@@ -2515,9 +2481,6 @@
     });
 
     document.body.classList.toggle('atpc-ui-dark', p >= INTERIOR_UI_START_P);
-
-    const activeDot = clamp(Math.floor(p * NSEG + 0.08), 0, NSEG - 1);
-    dots.forEach((d, i) => d.classList.toggle('on', i === activeDot));
 
     if (scrollHint) {
       /** Только финал Assembly (белый объём / чертёж) — не глушить подсказку на всём скролле (раньше p>0.06 отключал её почти сразу) */
