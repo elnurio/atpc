@@ -4,12 +4,13 @@ const audio = document.getElementById('heroAudio');
 const tapHint = document.getElementById('tapHint');
 let autoplayBlocked = false;
 let soundtrackUnlocked = false;
+let lastSyncAt = 0;
 
 function syncAudioToVideo() {
   if (!audio || !video) return;
   if (audio.readyState === 0) return;
   if (!Number.isFinite(video.currentTime)) return;
-  if (Math.abs(audio.currentTime - video.currentTime) > 0.35) {
+  if (Math.abs(audio.currentTime - video.currentTime) > 0.45) {
     audio.currentTime = video.currentTime;
   }
 }
@@ -17,18 +18,6 @@ function syncAudioToVideo() {
 function pauseSoundtrack() {
   if (!audio) return;
   audio.pause();
-}
-
-function playSoundtrackMuted() {
-  if (!audio) return;
-  audio.muted = true;
-  syncAudioToVideo();
-  const playback = audio.play();
-  if (playback && typeof playback.catch === 'function') {
-    playback.catch(() => {
-      autoplayBlocked = true;
-    });
-  }
 }
 
 function playSoundtrackAudible() {
@@ -70,22 +59,24 @@ video.addEventListener('ended', () => {
 });
 
 video.addEventListener('play', () => {
-  if (soundtrackUnlocked) {
-    playSoundtrackAudible();
-    return;
-  }
-  playSoundtrackMuted();
+  if (!soundtrackUnlocked) return;
+  playSoundtrackAudible();
 });
 video.addEventListener('pause', pauseSoundtrack);
 video.addEventListener('seeking', syncAudioToVideo);
 video.addEventListener('seeked', syncAudioToVideo);
-video.addEventListener('timeupdate', syncAudioToVideo);
+video.addEventListener('timeupdate', () => {
+  if (!soundtrackUnlocked) return;
+  const now = performance.now();
+  if (now - lastSyncAt < 500) return;
+  lastSyncAt = now;
+  syncAudioToVideo();
+});
 audio.addEventListener('loadedmetadata', syncAudioToVideo);
 video.addEventListener('ratechange', () => {
   if (!audio) return;
   audio.playbackRate = video.playbackRate || 1;
 });
-window.addEventListener('load', playSoundtrackMuted);
 document.addEventListener('pointerdown', handleTapUnlock);
 document.addEventListener('touchstart', handleTapUnlock, { passive: true });
 document.addEventListener('keydown', unlockSoundtrack);
