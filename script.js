@@ -1,6 +1,7 @@
 const video = document.getElementById('heroVideo');
 const title = document.getElementById('heroTitle');
 const audio = document.getElementById('heroAudio');
+const tapHint = document.getElementById('tapHint');
 let autoplayBlocked = false;
 let soundtrackUnlocked = false;
 
@@ -43,10 +44,19 @@ function playSoundtrackAudible() {
   }
 }
 
+function hideTapHint() {
+  if (!tapHint || tapHint.classList.contains('is-hidden')) return;
+  tapHint.classList.add('is-hidden');
+  window.setTimeout(() => {
+    tapHint.remove();
+  }, 400);
+}
+
 function unlockSoundtrack() {
   if (soundtrackUnlocked || !audio) return;
   soundtrackUnlocked = true;
   autoplayBlocked = false;
+  hideTapHint();
   playSoundtrackAudible();
 }
 
