@@ -2001,6 +2001,7 @@
 
   let scrollAllowedEnd = 1 / NSEG;
   let scrollPhaseLock = false;
+  let scrollPhaseLockCapPx = 0;
   let lastScrollY = -1;
 
   /** iOS Safari/Chrome: innerHeight меняется с панелью URL; visualViewport стабильнее для scroll range */
@@ -2036,8 +2037,9 @@
     if (lastScrollY < 0) lastScrollY = y;
 
     if (scrollPhaseLock) {
-      if (!prefersNativeMomentumScroll && y > capPx + 1) window.scrollTo(0, capPx);
-      lastScrollY = window.scrollY;
+      const lockCapPx = scrollPhaseLockCapPx > 0 ? scrollPhaseLockCapPx : capPx;
+      if (y > lockCapPx + 1) window.scrollTo(0, lockCapPx);
+      lastScrollY = Math.min(window.scrollY, lockCapPx);
       return;
     }
 
@@ -2053,15 +2055,24 @@
     if (scrollAllowedEnd < 1 - 1e-6 && y > capPx + 1) {
       if (prefersNativeMomentumScroll) {
         scrollAllowedEnd = Math.min(1, scrollAllowedEnd + 1 / NSEG);
-        lastScrollY = y;
+        scrollPhaseLockCapPx = scrollAllowedEnd * max;
+        scrollPhaseLock = true;
+        if (y > scrollPhaseLockCapPx + 1) window.scrollTo(0, scrollPhaseLockCapPx);
+        window.setTimeout(() => {
+          scrollPhaseLock = false;
+          scrollPhaseLockCapPx = 0;
+        }, isMobile ? 220 : 280);
+        lastScrollY = Math.min(window.scrollY, scrollPhaseLockCapPx);
         return;
       }
+      scrollPhaseLockCapPx = capPx;
       window.scrollTo(0, capPx);
       scrollPhaseLock = true;
       const atEnd = scrollAllowedEnd;
       window.setTimeout(() => {
         scrollAllowedEnd = Math.min(1, atEnd + 1 / NSEG);
         scrollPhaseLock = false;
+        scrollPhaseLockCapPx = 0;
       }, phaseLockMs);
       y = capPx;
     }
