@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ATPC — Stage</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,7 +21,8 @@
       width: 100%;
       height: 100%;
       display: block;
-      touch-action: pan-y;
+      touch-action: manipulation;
+      pointer-events: none;
       z-index: 2;
     }
 
@@ -1970,8 +1971,21 @@
   let scrollPhaseLock = false;
   let lastScrollY = -1;
 
+  /** iOS Safari/Chrome: innerHeight меняется с панелью URL; visualViewport стабильнее для scroll range */
+  function scrollViewportHeight() {
+    const vv = window.visualViewport;
+    if (vv && vv.height > 1) return vv.height;
+    return window.innerHeight;
+  }
+
+  function scrollViewportWidth() {
+    const vv = window.visualViewport;
+    if (vv && vv.width > 1) return vv.width;
+    return window.innerWidth;
+  }
+
   function scrollPageMax() {
-    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    return Math.max(0, document.documentElement.scrollHeight - scrollViewportHeight());
   }
 
   function syncRawScrollProgress() {
@@ -1994,7 +2008,11 @@
       return;
     }
 
-    if (y > lastScrollY + maxScrollDownPx) {
+    /**
+     * Десктоп: ограничиваем шаг колёсика, чтобы не перепрыгивать сегменты.
+     * iOS/Android touch: инерция даёт большие скачки scrollY за кадр — кламп ломает прокрутку и «дёргает» страницу.
+     */
+    if (!isMobile && y > lastScrollY + maxScrollDownPx) {
       window.scrollTo(0, lastScrollY + maxScrollDownPx);
       y = lastScrollY + maxScrollDownPx;
     }
@@ -2205,13 +2223,13 @@
       assemblyIFrameEl.style.opacity = String(iframeReveal);
       assemblyShellEl.classList.toggle('on', drawingPageT > 0.055);
       stageCanvasEl.style.opacity = String(1 - drawingPageT);
-      stageCanvasEl.style.pointerEvents = drawingPageT > 0.96 ? 'none' : 'auto';
+      stageCanvasEl.style.pointerEvents = 'none';
       const drawingEnd = s === 7 && drawingPageT > 0.93;
       document.body.classList.toggle('atpc-drawing-end', drawingEnd);
       document.documentElement.classList.toggle('atpc-drawing-end', drawingEnd);
     } else if (stageCanvasEl) {
       stageCanvasEl.style.opacity = '1';
-      stageCanvasEl.style.pointerEvents = 'auto';
+      stageCanvasEl.style.pointerEvents = 'none';
     }
 
     const cy = lerp(A.canopyY, B.canopyY, t);
@@ -2623,7 +2641,7 @@
 
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(scrollViewportWidth(), scrollViewportHeight());
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.96;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -2631,7 +2649,12 @@
     document.body.insertBefore(stageCanvasEl, document.body.firstChild);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(cameraBaseFov, window.innerWidth / window.innerHeight, 0.5, 14000);
+    camera = new THREE.PerspectiveCamera(
+      cameraBaseFov,
+      scrollViewportWidth() / Math.max(1, scrollViewportHeight()),
+      0.5,
+      14000
+    );
 
     setupForestClearingWorld(renderer, scene);
     sceneBgOrig = scene.background.clone();
@@ -3752,12 +3775,20 @@
       }
     }, { passive: false });
 
-    window.addEventListener('resize', () => {
+    function syncRendererToViewport() {
       applyDeviceProfile();
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const w = scrollViewportWidth();
+      const h = Math.max(1, scrollViewportHeight());
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+      renderer.setSize(w, h);
+    }
+
+    window.addEventListener('resize', syncRendererToViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncRendererToViewport);
+      window.visualViewport.addEventListener('scroll', syncRendererToViewport);
+    }
 
     requestAnimationFrame(tick);
   }
