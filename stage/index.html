@@ -7,13 +7,24 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { background: #1a1f1c; -webkit-overflow-scrolling: touch; }
-    body {
-      height: 768vh;
-      min-height: 768vh;
+    html {
       background: #1a1f1c;
       overflow-x: hidden;
-      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    body {
+      min-height: 100vh;
+      background: #1a1f1c;
+      overflow-x: hidden;
+    }
+
+    #scrollTrack {
+      position: relative;
+      width: 1px;
+      height: 768vh;
+      min-height: 768vh;
+      pointer-events: none;
+      opacity: 0;
     }
 
     canvas {
@@ -23,7 +34,6 @@
       width: 100%;
       height: 100%;
       display: block;
-      touch-action: manipulation;
       pointer-events: none;
       z-index: 2;
     }
@@ -66,15 +76,10 @@
       opacity: 0;
     }
 
-    /**
-     * Конец перехода: чистая страница чертежа, без хрома сцены.
-     * min-height как у дорожки скролла (768/896vh), иначе документ схлопывается → scrollY/max ломается и сцена уезжает в начало.
-     */
+    /** Конец перехода: чистая страница чертежа, без хрома сцены. */
     html.atpc-drawing-end,
     body.atpc-drawing-end {
       background: #ffffff !important;
-      min-height: 768vh;
-      height: auto;
     }
     body.atpc-drawing-end #whiteBloom {
       opacity: 0 !important;
@@ -240,10 +245,8 @@
     }
 
     @media (max-width: 900px), (pointer: coarse) {
-      body { height: 896vh; min-height: 896vh; }
-
-      html.atpc-drawing-end,
-      body.atpc-drawing-end {
+      #scrollTrack {
+        height: 896vh;
         min-height: 896vh;
       }
 
@@ -286,6 +289,7 @@
   </script>
 </head>
 <body>
+  <div id="scrollTrack" aria-hidden="true"></div>
 
   <div id="loader"><div id="loader-dot"></div></div>
   <a href="../" id="back">← ATPC</a>
