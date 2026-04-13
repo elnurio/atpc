@@ -390,7 +390,8 @@
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
   function resetStageScrollOnEntry() {
-    if (useInternalScrollRoot && scrollRootEl) scrollRootEl.scrollTop = 0;
+    const scrollRoot = document.getElementById('scrollRoot');
+    if (scrollRoot) scrollRoot.scrollTop = 0;
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
