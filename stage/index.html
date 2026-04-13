@@ -407,7 +407,6 @@
   function markStageInteraction() {
     hasUserInteractedWithStage = true;
   }
-
   resetStageScrollOnEntry();
   window.addEventListener('pageshow', () => {
     updateStableScrollMetrics(true);
@@ -1629,7 +1628,6 @@
     skinWallMat.emissive.setHex(0xf2ebe0);
     skinWallMat.emissiveIntensity = 0.042;
     skinWallMat.opacity = 0.58;
-
     const roofGeo = tensile.geometry.clone();
     applyRoofCraterDisplacement(roofGeo);
     removeRoofTrianglesInsideOpening(roofGeo, OCULUS_CENTER_X, OCULUS_CENTER_Z, ROOF_OCULUS_CUT_R);
@@ -1978,7 +1976,6 @@
   let windowLoadReady = document.readyState === 'complete';
   let loaderReleased = false;
   const BOOT_LOADER_FAILSAFE_MS = 15000;
-
   function maybeReleaseBootLoader(force = false) {
     if (!loader || loaderReleased) return;
     if (force || (stageFirstFrameReady && assemblyIFrameReady && windowLoadReady)) {
@@ -2600,7 +2597,6 @@
         }
       }
     }
-
     const bpDim = 1 - blueprintT * 0.9;
     /** Assembly: объёмные лучи и «кратер» не гаснут с bpDim — контролируемый рост к финалу */
     const volEase = s === 7 ? smootherstep(uLin) : 0;
