@@ -8,23 +8,38 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html {
+      height: 100%;
       background: #1a1f1c;
+      overflow: hidden;
+      overflow-anchor: none;
+    }
+    body {
+      height: 100%;
+      min-height: 100%;
+      background: #1a1f1c;
+      overflow: hidden;
+      overflow-anchor: none;
+    }
+
+    #scrollRoot {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
       overflow-x: hidden;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y pinch-zoom;
+      background: transparent;
     }
-    body {
-      min-height: 100vh;
-      background: #1a1f1c;
-      overflow-x: hidden;
-      overflow-y: visible;
-      -webkit-overflow-scrolling: touch;
+
+    #scrollRoot::-webkit-scrollbar {
+      display: none;
     }
 
     #scrollTrack {
       position: relative;
       width: 100%;
-      height: 768vh;
       min-height: 768vh;
       pointer-events: none;
       opacity: 0;
@@ -249,7 +264,6 @@
 
     @media (max-width: 900px), (pointer: coarse) {
       #scrollTrack {
-        height: 896vh;
         min-height: 896vh;
       }
 
@@ -292,7 +306,9 @@
   </script>
 </head>
 <body>
-  <div id="scrollTrack" aria-hidden="true"></div>
+  <div id="scrollRoot" aria-hidden="true">
+    <div id="scrollTrack"></div>
+  </div>
 
   <div id="loader"><div id="loader-dot"></div></div>
   <a href="../" id="back">← ATPC</a>
@@ -375,6 +391,8 @@
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
   function resetStageScrollOnEntry() {
+    const scrollRoot = document.getElementById('scrollRoot');
+    if (scrollRoot) scrollRoot.scrollTop = 0;
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
@@ -382,12 +400,16 @@
 
   resetStageScrollOnEntry();
   window.addEventListener('pageshow', () => {
+    updateStableScrollMetrics(true);
     resetStageScrollOnEntry();
+    syncRawScrollProgress();
     requestAnimationFrame(() => {
       requestAnimationFrame(resetStageScrollOnEntry);
     });
   }, { passive: true });
   window.addEventListener('load', () => {
+    updateStableScrollMetrics(true);
+    syncRawScrollProgress();
     requestAnimationFrame(() => {
       requestAnimationFrame(resetStageScrollOnEntry);
     });
@@ -1921,6 +1943,8 @@
   const labels = [0, 1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('sl' + i));
   const scrollHint = document.getElementById('scrollHint');
   const loader = document.getElementById('loader');
+  const scrollRootEl = document.getElementById('scrollRoot');
+  const scrollTrackEl = document.getElementById('scrollTrack');
   const stageAudio = document.getElementById('stageAudio');
   const soundToggle = document.getElementById('soundToggle');
   let stageAudioWanted = true;
@@ -2007,7 +2031,7 @@
   }
 
   function updateScrollHintVelocity(nowMs) {
-    const y = window.scrollY;
+    const y = scrollPositionY();
     if (scrollHintVelLastT === 0) {
       scrollHintVelLastT = nowMs;
       scrollHintVelLastY = y;
@@ -2023,7 +2047,7 @@
       scrollHintScrollIdle = false;
       scrollHintIdleSinceT = null;
     } else if (scrollHintVelEma <= SCROLL_HINT_VEL_IDLE_PX_MS) {
-      const y = window.scrollY;
+      const y = scrollPositionY();
       const maxY = Math.max(1, scrollPageMax());
       const atTop = y < 4 && y / maxY < 0.008;
       if (atTop) {
@@ -2099,6 +2123,7 @@
     targetFPS = isMobile ? 45 : 60;
     cameraBaseFov = isMobile ? 58 : 48;
     scrollEase = isMobile ? 0.07 : 0.038;
+    updateStableScrollMetrics();
 
     if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.1 : 1.5));
     if (camera) {
@@ -2109,8 +2134,17 @@
 
   let clk = 0, rawSP = 0, sp = 0;
   let lastFrame = 0, firstFrame = true;
+  let stableScrollViewportHeight = 0;
+  let stableViewportProfileIsMobile = null;
 
-  /** iOS Safari/Chrome: innerHeight меняется с панелью URL; visualViewport стабильнее для scroll range */
+  const DESKTOP_SCROLL_TRACK_VH = 7.68;
+  const MOBILE_SCROLL_TRACK_VH = 8.96;
+
+  function scrollPositionY() {
+    return scrollRootEl ? scrollRootEl.scrollTop : window.scrollY;
+  }
+
+  /** Текущий viewport для рендера; может меняться из-за mobile browser chrome. */
   function scrollViewportHeight() {
     const vv = window.visualViewport;
     if (vv && vv.height > 1) return vv.height;
@@ -2123,13 +2157,41 @@
     return window.innerWidth;
   }
 
+  /**
+   * Для scroll-progress используем стабильную высоту viewport:
+   * mobile browser chrome может уменьшать текущий viewport, но не должна
+   * менять длину дорожки и блокировать скролл при обратном свайпе.
+   */
+  function updateStableScrollMetrics(forceReset = false) {
+    const currentH = Math.max(1, scrollViewportHeight());
+    const profileChanged = stableViewportProfileIsMobile !== isMobile;
+    if (forceReset || profileChanged || stableScrollViewportHeight <= 1) {
+      stableScrollViewportHeight = currentH;
+    } else {
+      stableScrollViewportHeight = Math.max(stableScrollViewportHeight, currentH);
+    }
+    stableViewportProfileIsMobile = isMobile;
+
+    if (scrollTrackEl) {
+      const trackFactor = isMobile ? MOBILE_SCROLL_TRACK_VH : DESKTOP_SCROLL_TRACK_VH;
+      const trackPx = Math.max(1, Math.round(stableScrollViewportHeight * trackFactor));
+      scrollTrackEl.style.height = `${trackPx}px`;
+      scrollTrackEl.style.minHeight = `${trackPx}px`;
+    }
+  }
+
+  function scrollProgressViewportHeight() {
+    return stableScrollViewportHeight > 1 ? stableScrollViewportHeight : scrollViewportHeight();
+  }
+
   function scrollPageMax() {
-    return Math.max(0, document.documentElement.scrollHeight - scrollViewportHeight());
+    const trackHeight = scrollTrackEl ? scrollTrackEl.offsetHeight : document.documentElement.scrollHeight;
+    return Math.max(0, trackHeight - scrollProgressViewportHeight());
   }
 
   function syncRawScrollProgress() {
     const max = scrollPageMax();
-    rawSP = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
+    rawSP = max > 0 ? clamp(scrollPositionY() / max, 0, 1) : 0;
   }
 
   function applyScrollPhaseControl() {
@@ -3879,7 +3941,8 @@
 
     rayMats = [rayShellMat, rayCoreMat, ...finMats];
 
-    window.addEventListener('scroll', () => {
+    const scrollEventTarget = scrollRootEl || window;
+    scrollEventTarget.addEventListener('scroll', () => {
       applyScrollPhaseControl();
       syncRawScrollProgress();
     }, { passive: true });
@@ -3895,6 +3958,7 @@
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      syncRawScrollProgress();
     }
 
     window.addEventListener('resize', syncRendererToViewport);
