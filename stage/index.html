@@ -7,11 +7,13 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { background: #1a1f1c; }
+    html { background: #1a1f1c; -webkit-overflow-scrolling: touch; }
     body {
       height: 768vh;
       min-height: 768vh;
       background: #1a1f1c;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     canvas {
@@ -326,6 +328,28 @@
   let whiteBloomEl;
   let assemblyShellEl;
   let assemblyIFrameEl;
+  /** Чтобы при повторном показе iframe снова сбрасывать скролл вложенной страницы (Safari) */
+  let ambientRevealPrevT = 0;
+
+  function resetEmbeddedAmbientScroll() {
+    const el = assemblyIFrameEl;
+    if (!el) return;
+    const w = el.contentWindow;
+    if (!w) return;
+    try {
+      w.scrollTo(0, 0);
+      const d = w.document;
+      if (d) {
+        if (d.documentElement) d.documentElement.scrollTop = 0;
+        if (d.body) d.body.scrollTop = 0;
+      }
+      requestAnimationFrame(() => {
+        try {
+          w.scrollTo(0, 0);
+        } catch (err) {}
+      });
+    } catch (err) {}
+  }
   let stageCanvasEl;
   /** Narrow key light through roof oculus (Sky phase) */
   let oculusSpot;
@@ -2224,6 +2248,15 @@
       assemblyShellEl.classList.toggle('on', drawingPageT > 0.055);
       stageCanvasEl.style.opacity = String(1 - drawingPageT);
       stageCanvasEl.style.pointerEvents = 'none';
+      /**
+       * Safari: вложенный ambient-stage-2026 иногда открывается с scroll внизу (restoration / ранний layout).
+       * Сбрасываем при первом заметном появлении чертежа и при повторном входе в зону после отката скролла родителя.
+       */
+      if (s === 7 && drawingPageT > 0.055 && ambientRevealPrevT <= 0.055) {
+        resetEmbeddedAmbientScroll();
+      }
+      if (s !== 7 || drawingPageT < 0.02) ambientRevealPrevT = 0;
+      else ambientRevealPrevT = drawingPageT;
       const drawingEnd = s === 7 && drawingPageT > 0.93;
       document.body.classList.toggle('atpc-drawing-end', drawingEnd);
       document.documentElement.classList.toggle('atpc-drawing-end', drawingEnd);
@@ -2670,6 +2703,14 @@
     whiteBloomEl = document.getElementById('whiteBloom');
     assemblyShellEl = document.getElementById('assemblyShell');
     assemblyIFrameEl = document.getElementById('assemblyIFrame');
+    if (assemblyIFrameEl) {
+      assemblyIFrameEl.addEventListener('load', () => resetEmbeddedAmbientScroll());
+      try {
+        if (assemblyIFrameEl.contentDocument && assemblyIFrameEl.contentDocument.readyState === 'complete') {
+          resetEmbeddedAmbientScroll();
+        }
+      } catch (err) {}
+    }
 
     sceneAmbient = new THREE.AmbientLight(0xeef2ea, 0.09);
     scene.add(sceneAmbient);
@@ -3785,9 +3826,9 @@
     }
 
     window.addEventListener('resize', syncRendererToViewport);
+    /** Только resize: подписка на visualViewport.scroll даёт лишние setSize на iOS Safari и ломает инерцию скролла. */
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', syncRendererToViewport);
-      window.visualViewport.addEventListener('scroll', syncRendererToViewport);
     }
 
     requestAnimationFrame(tick);

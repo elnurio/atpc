@@ -101,6 +101,18 @@ body{background:#0e0e0e;overflow-x:hidden;padding:0 env(safe-area-inset-right,0)
 <div class="desktop-video-fs__stage"></div>
 </div>
 <script>
+(function(){
+  if('scrollRestoration' in history) history.scrollRestoration='manual';
+  function hardScrollTop(){
+    window.scrollTo(0,0);
+    document.documentElement.scrollTop=0;
+    document.body.scrollTop=0;
+  }
+  hardScrollTop();
+  requestAnimationFrame(function(){ hardScrollTop(); requestAnimationFrame(hardScrollTop); });
+  window.addEventListener('pageshow',function(){ hardScrollTop(); });
+})();
+if(window.parent!==window) document.documentElement.style.scrollBehavior='auto';
 const hint=document.getElementById('scrollHint');
 let t;
 window.addEventListener('scroll',()=>{hint.classList.add('hidden');clearTimeout(t);t=setTimeout(()=>{if(window.scrollY<100)hint.classList.remove('hidden')},3000)},{passive:true});
