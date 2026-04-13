@@ -37,7 +37,7 @@ body{background:#0e0e0e;overflow-x:hidden;padding:0 env(safe-area-inset-right,0)
 @container spine (max-width:900px){.spine-caption{font-size:15px;padding-top:11px}}
 @container spine (max-width:640px){.spine-caption{font-size:14px;padding-top:10px}}
 @container spine (max-width:420px){.spine-caption{font-size:13px;padding-top:9px}}
-@media (max-width:768px), (hover:none) and (pointer:coarse){.spine-caption{white-space:normal;overflow:visible;text-overflow:clip;hyphens:auto;-webkit-hyphens:auto;line-height:1.4}}
+@media (max-width:768px), (hover:none) and (pointer:coarse){.spine-caption{white-space:normal;overflow:visible;text-overflow:clip;hyphens:auto;-webkit-hyphens:auto;line-height:1.4;text-align:center}}
 .spine-fs-shell{position:absolute;inset:0;z-index:2;pointer-events:none;background:transparent}
 .spine-fs-shell .spine-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;display:block;background:transparent;z-index:0}
 .spine-fs-shell:fullscreen,.spine-fs-shell:-webkit-full-screen,.spine-fs-shell:-moz-full-screen{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#000;pointer-events:auto;box-sizing:border-box}
@@ -64,11 +64,11 @@ body{background:#0e0e0e;overflow-x:hidden;padding:0 env(safe-area-inset-right,0)
 .player-label{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10px;font-weight:300;letter-spacing:.22em;color:rgba(154,149,140,.6);text-transform:lowercase;margin:0 0 20px}
 .sc-track{border-radius:3px;overflow:hidden;margin:0 0 8px}
 .sc-track:last-child{margin-bottom:0}
-.sc-track iframe{width:100%;height:80px;border:0;display:block}
+.sc-track iframe{width:100%;height:118px;border:0;display:block}
 .page-wrap--audio.visible .soundcloud-slot{opacity:1;transform:translate(-50%,0)}
 .soundcloud-slot iframe{width:100%;height:80px;border:0;border-radius:2px}
-@media (max-width:768px){.page-wrap--audio{min-height:min(760px,max(100vh,620px));min-height:min(760px,max(100dvh,620px))}.spine-stack{top:calc(var(--spine-hole-top) + clamp(8px,4vw,24px))}.soundcloud-slot{top:max(5%,env(safe-area-inset-top,0px));gap:4px;padding-bottom:74px;box-sizing:border-box}.sc-track iframe{height:76px}}
-@media (max-width:540px){.page-wrap--audio{min-height:min(760px,max(100vh,640px));min-height:min(760px,max(100dvh,640px))}.soundcloud-slot{padding:0 max(8px,env(safe-area-inset-left,0px)) 92px max(8px,env(safe-area-inset-right,0px));top:max(4%,env(safe-area-inset-top,0px));width:min(98vw,100%);gap:3px}.sc-track iframe{height:72px}.soundcloud-heading{font-size:clamp(1.15rem,5.2vw,1.85rem);letter-spacing:.08em;margin:-4px 0 22px;line-height:1.3}.audio-stage-footer{padding:26px max(16px,env(safe-area-inset-left,0px)) max(48px,calc(env(safe-area-inset-bottom,0px) + 20px)) max(16px,env(safe-area-inset-right,0px))}.audio-stage-footer a{display:inline-block;padding:10px 16px;margin:-6px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}}
+@media (max-width:768px){.page-wrap--audio{min-height:min(760px,max(100vh,620px));min-height:min(760px,max(100dvh,620px))}.spine-stack{top:calc(var(--spine-hole-top) + clamp(8px,4vw,24px))}.soundcloud-slot{top:max(5%,env(safe-area-inset-top,0px));gap:6px;padding-bottom:74px;box-sizing:border-box}.sc-track iframe{height:108px}}
+@media (max-width:540px){.page-wrap--audio{min-height:min(760px,max(100vh,640px));min-height:min(760px,max(100dvh,640px))}.soundcloud-slot{padding:0 max(8px,env(safe-area-inset-left,0px)) 92px max(8px,env(safe-area-inset-right,0px));top:max(4%,env(safe-area-inset-top,0px));width:min(98vw,100%);gap:6px}.sc-track iframe{height:98px}.soundcloud-heading{font-size:clamp(1.15rem,5.2vw,1.85rem);letter-spacing:.08em;margin:-4px 0 22px;line-height:1.3}.audio-stage-footer{padding:26px max(16px,env(safe-area-inset-left,0px)) max(48px,calc(env(safe-area-inset-bottom,0px) + 20px)) max(16px,env(safe-area-inset-right,0px))}.audio-stage-footer a{display:inline-block;padding:10px 16px;margin:-6px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}}
 @media (max-width:380px){.play-btn{width:52px;height:52px}.play-btn svg{width:22px;height:22px}}
 .audio-stage-footer{position:absolute;left:0;right:0;bottom:0;z-index:3;text-align:center;padding:48px 20px max(64px,env(safe-area-inset-bottom,0px));pointer-events:auto;line-height:normal}
 .audio-stage-footer a{font-size:.85rem;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:#4d5863;text-decoration:none;opacity:.5;letter-spacing:.08em;transition:opacity .2s}
